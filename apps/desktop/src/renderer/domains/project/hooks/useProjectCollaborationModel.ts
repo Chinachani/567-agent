@@ -1,3 +1,4 @@
+import { isSshProjectUri } from "@567agent/ssh-transport/project-uri";
 import { waitForCommittedPaint } from "@shared/lib/committed-paint";
 import { confirmDialogAtom, openSessionFnRef, sessionsMapAtom } from "@shared/store/atoms";
 import type {
@@ -127,6 +128,7 @@ export function useProjectCollaborationModel(
 	t: TFunction<"project">,
 	language: string,
 ): ProjectCollaborationViewModel {
+	const supportsCollaboration = !isSshProjectUri(cwd);
 	const sessionsMap = useAtomValue(sessionsMapAtom);
 	const setConfirm = useSetAtom(confirmDialogAtom);
 	const [snapshot, setSnapshot] = useState<ProjectCollaborationSnapshot | null>(null);
@@ -156,6 +158,7 @@ export function useProjectCollaborationModel(
 
 	const load = useCallback(
 		async (discardDraft: boolean) => {
+			if (!supportsCollaboration) return;
 			const request = ++requestVersion.current;
 			const generation = cwdGenerationRef.current;
 			const isCurrentRequest = () =>
@@ -186,7 +189,7 @@ export function useProjectCollaborationModel(
 				if (isCurrentRequest()) setLoading(false);
 			}
 		},
-		[cwd, t],
+		[cwd, supportsCollaboration, t],
 	);
 
 	// A mutation response owns the new snapshot and supersedes event-triggered reads.
@@ -206,26 +209,29 @@ export function useProjectCollaborationModel(
 		setSnapshot(null);
 		setDraft(null);
 		setBaseRevision(null);
-		setLoading(true);
+		setLoading(supportsCollaboration);
 		setSaving(false);
 		setControl(null);
 		setControlTaskId(null);
 		setError(null);
-		void waitForCommittedPaint().then(() => {
-			if (active) void load(true);
-		});
+		if (supportsCollaboration) {
+			void waitForCommittedPaint().then(() => {
+				if (active) void load(true);
+			});
+		}
 		return () => {
 			active = false;
 			requestVersion.current++;
 		};
-	}, [load]);
+	}, [load, supportsCollaboration]);
 
 	useEffect(() => {
+		if (!supportsCollaboration) return;
 		const unsubscribe = window.agent567.project.onCollaborationChanged((event) => {
 			if (event.cwd === cwd) void load(false);
 		});
 		return unsubscribe;
-	}, [cwd, load]);
+	}, [cwd, load, supportsCollaboration]);
 
 	useEffect(() => {
 		void cwd;

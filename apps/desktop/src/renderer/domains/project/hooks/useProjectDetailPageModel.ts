@@ -1,3 +1,4 @@
+import { isSshProjectUri } from "@567agent/ssh-transport/project-uri";
 import { isMac } from "@shared/lib/platform";
 import { pathBasename } from "@shared/lib/utils";
 import { useShortcutScope } from "@shared/shortcuts";
@@ -99,9 +100,17 @@ function useCreatedAt(cwd: string) {
 	const [createdAt, setCreatedAt] = useState<number | null>(null);
 
 	useEffect(() => {
-		void window.agent567.fs.stat(cwd).then((result) => {
-			if (result) setCreatedAt(result.createdAt);
-		});
+		let current = true;
+		setCreatedAt(null);
+		void window.agent567.fs
+			.stat(cwd)
+			.then((result) => {
+				if (current && result) setCreatedAt(result.createdAt);
+			})
+			.catch(() => {});
+		return () => {
+			current = false;
+		};
 	}, [cwd]);
 
 	return createdAt;
@@ -113,6 +122,7 @@ export interface ProjectDetailPageModel extends Omit<ProjectDetailPageViewProps,
 	decodedCwd: string;
 	isBatch: boolean;
 	isPersonal: boolean;
+	isRemote: boolean;
 	projectType: "normal" | "batch" | undefined;
 }
 
@@ -121,6 +131,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 	const dateLocale = i18n.language === "zh" ? "zh-CN" : "en-US";
 	const { cwd } = useParams({ strict: false }) as { cwd: string };
 	const decodedCwd = decodeURIComponent(cwd);
+	const isRemote = isSshProjectUri(decodedCwd);
 
 	const { project, sessionCount, batchProject } = useProjectDetail(decodedCwd);
 	const collaboration = useProjectCollaborationModel(decodedCwd, t, i18n.language);
@@ -144,7 +155,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 	const isBatch = !!batchProject;
 	const projectTypeKey = getProjectTypeKey(project);
 	const projectTypeLabel = projectTypeKey ? t(projectTypeKey) : null;
-	const exportable = project?.type === "normal" || project?.type === "batch" || isBatch;
+	const exportable = !isRemote && (project?.type === "normal" || project?.type === "batch" || isBatch);
 
 	const handleExportProject = useCallback(() => {
 		setConfirm({
@@ -209,6 +220,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 		isBatch,
 		isDirty,
 		isPersonal,
+		isRemote,
 		labels: {
 			showInFolderTitle: isMac ? t("detail.showInFinder") : t("detail.showInExplorer"),
 			showInFolder: isMac ? t("detail.finder") : t("detail.explorer"),
@@ -247,9 +259,7 @@ export function useProjectDetailPageModel(): ProjectDetailPageModel {
 		onSave: () => {
 			void save();
 		},
-		onShowInFolder: () => {
-			void window.agent567.shell.showInFolder(decodedCwd);
-		},
+		onShowInFolder: isRemote ? undefined : () => void window.agent567.shell.showInFolder(decodedCwd),
 		onToggleActivity: () => setActivityOpen((o) => !o),
 		onSectionChange: setActiveSection,
 	};

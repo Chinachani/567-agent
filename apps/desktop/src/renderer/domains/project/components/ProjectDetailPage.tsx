@@ -56,8 +56,12 @@ export function ProjectDetailPage(): JSX.Element {
 					taskCountLabel={model.taskCountLabel}
 					textareaRef={model.textareaRef}
 				>
-					{!model.isBatch && !model.isPersonal && <ManagedWorktreesDialog key={model.cwd} cwd={model.cwd} />}
-					<ProjectCollaborationView key={model.cwd} {...model.collaboration} />
+					{!model.isRemote && (
+						<>
+							{!model.isBatch && !model.isPersonal && <ManagedWorktreesDialog key={model.cwd} cwd={model.cwd} />}
+							<ProjectCollaborationView key={model.cwd} {...model.collaboration} />
+						</>
+					)}
 				</ProjectDetailPageView>
 				<CurrentScenarioActivityPanel
 					workspace={createActivityWorkspace(model.decodedCwd, model.decodedCwd, activeRuntimeIds)}

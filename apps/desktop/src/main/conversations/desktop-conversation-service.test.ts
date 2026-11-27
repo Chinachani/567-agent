@@ -9,6 +9,7 @@ import { type RuntimeHost, runtimeError } from "@567agent/runtime-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ManagedWorktreeRecord } from "../../shared/project-collaboration.js";
 import { resolveDesktopSessionOpenTarget } from "../../shared/session-access.js";
+import { ProjectCollaborationService } from "../project-collaboration/service.js";
 import { ManagedWorktreeService } from "../project-collaboration/worktree-service.js";
 import { onConversationListChanged } from "./conversation-list-events.js";
 import type { ConversationOwnershipCatalogPort } from "./conversation-ownership-catalog.js";
@@ -93,6 +94,49 @@ afterEach(async () => {
 });
 
 describe("DesktopConversationService session access", () => {
+	it("starts an ordinary conversation in a registered SSH project and sends the first turn", async () => {
+		const root = await createTemporaryRoot();
+		vi.stubEnv("AGENT567_CODING_AGENT_DIR", join(root, "agent"));
+		const cwd = "ssh://host-id/home/dev/remote-project";
+		managedProject.path = cwd;
+		const sessionPath = join(codingAgentSessionShardPath(cwd), "remote-session.conversation.jsonl");
+		const runtime = {
+			createSession: vi.fn(async () => ({ sessionId: "remote-session" })),
+			getSessionPath: vi.fn(() => sessionPath),
+			getMessages: vi.fn(() => [{ role: "user" }]),
+			prompt: vi.fn(async () => ({ status: "completed" as const })),
+		};
+		const service = new DesktopConversationService(
+			runtime as unknown as RuntimeHost,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new ProjectCollaborationService(),
+		);
+
+		const session = await service.createSession({ cwd, executionMode: "sandbox" }, "other", "interactive");
+		expect(session).toMatchObject({ cwd, listCwd: cwd, sessionPath });
+		expect(runtime.createSession).toHaveBeenCalledWith(
+			expect.objectContaining({
+				cwd,
+				executionMode: "full-access",
+				agent: expect.objectContaining({
+					sessionConfiguration: expect.objectContaining({ sessionRuntimeTools: [] }),
+				}),
+			}),
+		);
+		await expect(
+			service.promptInteractiveSession(session.sessionId, { text: "Inspect this project" }, cwd),
+		).resolves.toEqual({
+			status: "completed",
+		});
+		expect(runtime.prompt).toHaveBeenCalledWith(
+			session.sessionId,
+			expect.objectContaining({ text: "Inspect this project" }),
+		);
+	});
+
 	it("places managed sessions in the parent history and preserves read-only access after a safe removal", async () => {
 		const root = await realpath(await createTemporaryRoot());
 		vi.stubEnv("AGENT567_HOME", root);

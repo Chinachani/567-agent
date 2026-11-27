@@ -48,7 +48,7 @@ export interface ProjectDetailPageViewProps {
 	onExport: () => void;
 	onNewSession: () => void;
 	onSave: () => void;
-	onShowInFolder: () => void;
+	onShowInFolder?: () => void;
 	onToggleActivity: () => void;
 	onSectionChange: (section: ProjectDetailSection) => void;
 	projectTypeLabel: string | null;
@@ -86,6 +86,7 @@ export function ProjectDetailPageView({
 	taskCountLabel,
 	textareaRef,
 }: ProjectDetailPageViewProps): JSX.Element {
+	const showCollaboration = Boolean(children);
 	const metrics = [
 		{ icon: "icon-[solar--chat-round-line-linear]", value: sessionCountLabel },
 		createdAtLabel ? { icon: "icon-[solar--calendar-linear]", value: createdAtLabel } : null,
@@ -132,28 +133,36 @@ export function ProjectDetailPageView({
 										</AnimatePresence>
 									</div>
 
-									<button
-										type="button"
-										onClick={onShowInFolder}
-										title={labels.showInFolderTitle}
-										className="group inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-0.5 py-0.5 font-mono text-[11px] text-muted-foreground/55 transition-colors hover:bg-accent/60 hover:text-foreground"
-									>
-										<span className="icon-[solar--folder-open-linear] h-3 w-3 shrink-0 opacity-70 group-hover:opacity-100" />
-										<span className="min-w-0 truncate">{cwd}</span>
-									</button>
+									{onShowInFolder ? (
+										<button
+											type="button"
+											onClick={onShowInFolder}
+											title={labels.showInFolderTitle}
+											className="group inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-md px-0.5 py-0.5 font-mono text-[11px] text-muted-foreground/55 transition-colors hover:bg-accent/60 hover:text-foreground"
+										>
+											<span className="icon-[solar--folder-open-linear] h-3 w-3 shrink-0 opacity-70 group-hover:opacity-100" />
+											<span className="min-w-0 truncate">{cwd}</span>
+										</button>
+									) : (
+										<p className="min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={cwd}>
+											{cwd}
+										</p>
+									)}
 								</div>
 
 								<div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-									<Button
-										type="button"
-										variant="ghost"
-										size="icon-sm"
-										onClick={onShowInFolder}
-										title={labels.showInFolderTitle}
-										aria-label={labels.showInFolder}
-									>
-										<span className="icon-[solar--folder-open-linear] h-3.5 w-3.5" />
-									</Button>
+									{onShowInFolder && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon-sm"
+											onClick={onShowInFolder}
+											title={labels.showInFolderTitle}
+											aria-label={labels.showInFolder}
+										>
+											<span className="icon-[solar--folder-open-linear] h-3.5 w-3.5" />
+										</Button>
+									)}
 									{exportable && (
 										<Button
 											type="button"
@@ -209,34 +218,36 @@ export function ProjectDetailPageView({
 						</div>
 					</motion.header>
 
-					<div
-						className="flex shrink-0 items-center gap-1 px-4 pb-2 @md:px-8"
-						role="tablist"
-						aria-label={labels.collaborationTab}
-					>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={activeSection === "collaboration"}
-							onClick={() => onSectionChange("collaboration")}
-							className={`rounded-full px-3 py-1.5 text-[12px] transition-colors ${activeSection === "collaboration" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}
+					{showCollaboration && (
+						<div
+							className="flex shrink-0 items-center gap-1 px-4 pb-2 @md:px-8"
+							role="tablist"
+							aria-label={labels.collaborationTab}
 						>
-							{labels.collaborationTab}
-						</button>
-						<button
-							type="button"
-							role="tab"
-							aria-selected={activeSection === "rules"}
-							onClick={() => onSectionChange("rules")}
-							className={`rounded-full px-3 py-1.5 text-[12px] transition-colors ${activeSection === "rules" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}
-						>
-							{labels.rulesTab}
-						</button>
-					</div>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={activeSection === "collaboration"}
+								onClick={() => onSectionChange("collaboration")}
+								className={`rounded-full px-3 py-1.5 text-[12px] transition-colors ${activeSection === "collaboration" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}
+							>
+								{labels.collaborationTab}
+							</button>
+							<button
+								type="button"
+								role="tab"
+								aria-selected={activeSection === "rules"}
+								onClick={() => onSectionChange("rules")}
+								className={`rounded-full px-3 py-1.5 text-[12px] transition-colors ${activeSection === "rules" ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"}`}
+							>
+								{labels.rulesTab}
+							</button>
+						</div>
+					)}
 
 					{/* ── Body ────────────────────────────────────────────── */}
 					<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-						{activeSection === "collaboration" ? (
+						{showCollaboration && activeSection === "collaboration" ? (
 							<motion.section
 								className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-3 @md:px-8 @md:pb-4"
 								initial={{ opacity: 0, y: 8 }}

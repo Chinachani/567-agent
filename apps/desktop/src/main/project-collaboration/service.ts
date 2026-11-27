@@ -53,6 +53,11 @@ import { isPathInsideWorktree } from "./worktree-layout.js";
 import { ManagedWorktreeService } from "./worktree-service.js";
 
 const log = getAppLogger("project-collaboration");
+
+function isLocalProjectDirectory(cwd: unknown): cwd is string {
+	return typeof cwd === "string" && isAbsolute(cwd) && !cwd.includes("\0");
+}
+
 interface ProjectState {
 	readonly store: ProjectCollaborationStore;
 	document: ProjectCollaborationDocument;
@@ -181,8 +186,7 @@ export class ProjectCollaborationService {
 		}
 	}
 	async project(cwd: unknown): Promise<string> {
-		if (typeof cwd !== "string" || !isAbsolute(cwd) || cwd.includes("\0"))
-			throw new Error("Invalid project directory");
+		if (!isLocalProjectDirectory(cwd)) throw new Error("Invalid project directory");
 		const config = await readDesktopConfig();
 		const project = config.projects.find((item) => samePath(item.path, cwd));
 		if (!project) throw new Error("Project is not registered or has been removed");
@@ -418,7 +422,7 @@ export class ProjectCollaborationService {
 		unregisterCollaborationSession(sessionId);
 	}
 	async isProject(cwd: string | undefined): Promise<boolean> {
-		if (!cwd) return false;
+		if (!isLocalProjectDirectory(cwd)) return false;
 		const config = await readDesktopConfig();
 		return config.projects.some((item) => samePath(item.path, cwd));
 	}
