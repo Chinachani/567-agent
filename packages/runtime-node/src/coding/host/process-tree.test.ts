@@ -361,6 +361,7 @@ describe("mocked Windows process tree termination", () => {
 			runtime: {
 				platform: "win32",
 				now: () => nowMs,
+				isPidAlive: (pid) => liveTree.some((entry) => entry.pid === pid),
 				captureWindowsRootStartTime: async () => formatWindowsStartTimeMs(1_000),
 				readProcessListAsync: async () => liveTree,
 				signalWindowsProcesses: async (request) => {
@@ -385,7 +386,7 @@ describe("mocked Windows process tree termination", () => {
 
 		await tracker.terminate();
 
-		expect(signalCalls.length).toBeGreaterThanOrEqual(2);
+		expect(signalCalls.map(({ force }) => force)).toEqual([false, true]);
 		for (const call of signalCalls) {
 			expect(call.targets.map((item) => item.pid)).toEqual([ownedChildPid]);
 		}

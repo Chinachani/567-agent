@@ -13,14 +13,17 @@ const setWindowsKeyDirectoryAcl = `
 $ErrorActionPreference = 'Stop'
 $user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
 $acl = New-Object System.Security.AccessControl.DirectorySecurity
-$acl.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;$($user.Value))")
+$acl.SetSecurityDescriptorSddlForm("D:P(A;OICI;FA;;;$($user.Value))", [System.Security.AccessControl.AccessControlSections]::Access)
 $acl.SetOwner($user)
 [System.IO.Directory]::SetAccessControl($env:AGENT567_SSH_KEY_DIRECTORY, $acl)
 `;
 
 export class SshPrivateKeyError extends Error {
-	constructor(readonly reason: "unreadable" | "tooLarge" | "invalid" | "unavailable" | "storeFailed") {
-		super(`SSH private key: ${reason}`);
+	constructor(
+		readonly reason: "unreadable" | "tooLarge" | "invalid" | "unavailable" | "storeFailed",
+		options?: ErrorOptions,
+	) {
+		super(`SSH private key: ${reason}`, options);
 	}
 }
 
@@ -116,7 +119,13 @@ async function restrictDirectory(path: string): Promise<void> {
 	if (!systemRoot) throw new SshPrivateKeyError("storeFailed");
 	await promisify(execFile)(
 		join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
-		["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", setWindowsKeyDirectoryAcl],
+		[
+			"-NoLogo",
+			"-NoProfile",
+			"-NonInteractive",
+			"-EncodedCommand",
+			Buffer.from(setWindowsKeyDirectoryAcl, "utf16le").toString("base64"),
+		],
 		{
 			env: { ...process.env, AGENT567_SSH_KEY_DIRECTORY: path },
 			windowsHide: true,
@@ -160,8 +169,8 @@ export class SshPrivateKeyStore {
 				throw error;
 			}
 			return { identityFile: path, managedIdentityId: id };
-		} catch {
-			throw new SshPrivateKeyError("storeFailed");
+		} catch (cause) {
+			throw new SshPrivateKeyError("storeFailed", { cause });
 		}
 	}
 

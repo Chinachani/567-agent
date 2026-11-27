@@ -1,5 +1,5 @@
 import { type ChildProcess, execFile } from "node:child_process";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
 	CommandResourceLimitError,
 	type CommandResourcePolicy,
@@ -151,7 +151,13 @@ function readProcessMemory(): Promise<ProcessMemory[]> {
 		execFile(
 			executable,
 			args,
-			{ encoding: "utf8", timeout: 5_000, maxBuffer: 2 * 1024 * 1024, windowsHide: true },
+			{
+				cwd: windows ? dirname(executable) : undefined,
+				encoding: "utf8",
+				timeout: 5_000,
+				maxBuffer: 2 * 1024 * 1024,
+				windowsHide: true,
+			},
 			(error, stdout) => {
 				if (error) return reject(error);
 				try {

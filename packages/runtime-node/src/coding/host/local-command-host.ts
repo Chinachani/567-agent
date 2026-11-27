@@ -66,7 +66,6 @@ function createForegroundOperations(
 					stdio: ["ignore", "pipe", "pipe"],
 					windowsHide: true,
 				});
-				let stopping = false;
 				let settled = false;
 				let timeoutHandle: NodeJS.Timeout | undefined;
 				const cleanup = () => {
@@ -88,9 +87,9 @@ function createForegroundOperations(
 					rejectExecution(error);
 				};
 				const stop = (error: Error) => {
-					if (settled || stopping) return;
-					stopping = true;
-					void child.stopTree().finally(() => rejectOnce(error));
+					if (settled) return;
+					void child.stopTree();
+					rejectOnce(error);
 				};
 				const onAbort = () => stop(new Error("aborted"));
 
@@ -99,9 +98,7 @@ function createForegroundOperations(
 				}
 				child.stdout?.on("data", onData);
 				child.stderr?.on("data", onData);
-				child.once("error", (error) => {
-					if (!stopping) rejectOnce(error);
-				});
+				child.once("error", rejectOnce);
 				if (signal?.aborted) onAbort();
 				else signal?.addEventListener("abort", onAbort, { once: true });
 				child.once("exit", (exitCode) => {
@@ -109,13 +106,9 @@ function createForegroundOperations(
 					// output pipes after the command shell itself exits. Flush queued data
 					// for one turn, then settle from `exit` instead of waiting forever for
 					// `close`; `close` remains the fast path for ordinary commands.
-					setImmediate(() => {
-						if (!stopping) resolveOnce(exitCode);
-					});
+					setImmediate(() => resolveOnce(exitCode));
 				});
-				child.once("close", (exitCode) => {
-					if (!stopping) resolveOnce(exitCode);
-				});
+				child.once("close", resolveOnce);
 			});
 		},
 	};

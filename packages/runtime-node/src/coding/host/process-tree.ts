@@ -1,6 +1,6 @@
 import { type ChildProcess, execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const DEFAULT_FORCE_AFTER_MS = 2_000;
 const DEFAULT_WAIT_AFTER_FORCE_MS = 250;
@@ -418,8 +418,15 @@ function runPowerShell(script: string, timeoutMs: number, maxBuffer = 1024 * 102
 	return new Promise((resolve) => {
 		execFile(
 			executable,
-			["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
-			{ encoding: "utf8", timeout: timeoutMs, maxBuffer, windowsHide: true },
+			[
+				"-NoLogo",
+				"-NoProfile",
+				"-NonInteractive",
+				"-EncodedCommand",
+				Buffer.from(script, "utf16le").toString("base64"),
+			],
+			// Host process queries must not keep a project directory open during cleanup.
+			{ cwd: dirname(executable), encoding: "utf8", timeout: timeoutMs, maxBuffer, windowsHide: true },
 			(error, stdout) => resolve(error || !stdout ? undefined : stdout),
 		);
 	});
@@ -519,7 +526,9 @@ async function signalWindowsProcessesWithBoundHandles(
 		}
 	}
 	if (pairs.length === 0) return [];
-	const action = request.force ? "$process.Kill()" : "$null = $process.CloseMainWindow()";
+	const action = request.force
+		? "$process.Kill(); $null = $process.WaitForExit(250)"
+		: "$null = $process.CloseMainWindow()";
 	// Acquire .Handle (PROCESS_ALL_ACCESS) first so .NET Framework caches one kernel handle across StartTime and Kill.
 	const script = `
 $targets = @(${pairs.join(",")})

@@ -145,6 +145,43 @@ describe("managed SSH private keys", () => {
 		return { service, picker: new SshPrivateKeyPicker(), home, configPath, store, writeHosts, forgetPassphrase };
 	}
 
+	it.skipIf(process.platform !== "win32")(
+		"protects the managed directory and grants key access only to the current user",
+		async () => {
+			const key = await new SshPrivateKeyStore(directory).store(pem);
+			const script = `
+$ErrorActionPreference = 'Stop'
+$sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$directory = Get-Acl -LiteralPath ([System.IO.Path]::GetDirectoryName($env:AGENT567_TEST_SSH_KEY_FILE))
+if (!$directory.AreAccessRulesProtected -or $directory.GetOwner($sid.GetType()).Value -ne $sid.Value) {
+    throw 'The managed directory must block inherited permissions and be owned by the current user.'
+}
+foreach ($acl in @($directory, (Get-Acl -LiteralPath $env:AGENT567_TEST_SSH_KEY_FILE))) {
+    $rules = @($acl.GetAccessRules($true, $true, $sid.GetType()))
+    if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or $rules[0].AccessControlType -ne 'Allow') {
+        throw 'The managed key and its directory must grant access only to the current user.'
+    }
+}
+`;
+			execFileSync(
+				join(process.env.SystemRoot!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+				[
+					"-NoLogo",
+					"-NoProfile",
+					"-NonInteractive",
+					"-EncodedCommand",
+					Buffer.from(script, "utf16le").toString("base64"),
+				],
+				{
+					env: { ...process.env, AGENT567_TEST_SSH_KEY_FILE: key.identityFile },
+					windowsHide: true,
+					timeout: 10_000,
+				},
+			);
+		},
+		15_000,
+	);
+
 	it("stages a selected file in memory, persists a private copy on save and replaces it only after the host is written", async () => {
 		const { service, picker, home, configPath, store, writeHosts, forgetPassphrase } = managedFixture();
 		const source = join(directory, "my-key");
