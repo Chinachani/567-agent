@@ -63,6 +63,7 @@ import {
 	InteractiveSessionResidencyTracker,
 	reconcileIdleInteractiveSessions,
 } from "../conversations/idle-session-residency.js";
+import { resolveManagedWorktreePlacement } from "../conversations/managed-worktree-placement.js";
 import { getDesktopMcpElicitationBroker } from "../conversations/mcp-elicitation-broker.js";
 import { getDesktopPlanReviewBroker } from "../conversations/plan-review-broker.js";
 import { purgeProjectSessions } from "../conversations/project-session-purge.js";
@@ -500,12 +501,14 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	const disposeInteractiveSession = async (sessionId: string): Promise<void> => {
 		if (
 			[...subscriptionSessions.values()].includes(sessionId) ||
+			conversationService.isRestoringSessionTurnFiles(sessionId) ||
 			getProjectCollaborationService().isSessionEngaged(sessionId)
 		)
 			return;
 		if (runtime.getSessionPath(sessionId) && runtime.getState(sessionId).isStreaming) return;
 		await getProjectCollaborationService().unregisterSession(sessionId);
 		await runtime.disposeSession(sessionId);
+		conversationService.releaseSessionWorkbench(sessionId);
 		forgetInteractiveSession(sessionId);
 	};
 
@@ -1012,6 +1015,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 				sessionId: result.sessionId,
 				sessionPath: result.sessionPath,
 				cwd: effectiveCwd,
+				...(result.listCwd !== effectiveCwd ? { listCwd: result.listCwd } : {}),
 				// 回传生效的 Agent 绑定：新建时是渲染层自己传的，恢复时是主进程读回的，
 				// 渲染层据此在消息列表上展示该 Agent 的头像与昵称。
 				...(result.agentProfileId ? { agentProfileId: result.agentProfileId } : {}),
@@ -1200,7 +1204,9 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	});
 	ipcMain.handle(CHANNELS.QUEUE_CONTEXT_COMPACTION, async (_event, sessionId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
-		return runtime.queueSessionContextCompaction(sessionId);
+		return conversationService.withManagedSessionOperation(sessionId, async () =>
+			runtime.queueSessionContextCompaction(sessionId),
+		);
 	});
 	ipcMain.handle(CHANNELS.QUEUE_REMOVE, async (_event, sessionId: unknown, itemId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
@@ -1376,7 +1382,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	ipcMain.handle(CHANNELS.FORK_SESSION, async (_event, sessionId: unknown, entryId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
 		assertNonEmptyString(entryId, "entryId");
-		return runtime.forkSession(sessionId, entryId);
+		return conversationService.withManagedSessionOperation(sessionId, () => runtime.forkSession(sessionId, entryId));
 	});
 
 	ipcMain.handle(CHANNELS.DELETE, async (_event, sessionPath: unknown) => {
@@ -1485,7 +1491,13 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	 */
 	ipcMain.handle(CHANNELS.LIST_RUNNING_CWDS, async () => {
 		const paths = runtime.getRunningSessionPaths();
-		const cwds = await Promise.all(paths.map((path) => readSessionCwdFromHeader(path).catch(() => undefined)));
+		const cwds = await Promise.all(
+			paths.map(async (path) => {
+				const cwd = await readSessionCwdFromHeader(path);
+				const placement = await resolveManagedWorktreePlacement(cwd, path).catch(() => undefined);
+				return placement?.projectCwd ?? cwd;
+			}),
+		);
 		return [...new Set(cwds.filter((cwd): cwd is string => typeof cwd === "string" && cwd.length > 0))];
 	});
 
@@ -1628,7 +1640,9 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	ipcMain.handle(CHANNELS.GOAL_START, (_event, sessionId: unknown, objective: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
 		assertNonEmptyString(objective, "objective");
-		return goalController.start(sessionId, objective);
+		return conversationService.withManagedSessionOperation(sessionId, () =>
+			goalController.start(sessionId, objective),
+		);
 	});
 	ipcMain.handle(CHANNELS.GOAL_PAUSE, (_event, sessionId: unknown, goalId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
@@ -1638,7 +1652,7 @@ export function registerSessionIpc(webContents: WebContents): () => void {
 	ipcMain.handle(CHANNELS.GOAL_RESUME, (_event, sessionId: unknown, goalId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");
 		assertNonEmptyString(goalId, "goalId");
-		return goalController.resume(sessionId, goalId);
+		return conversationService.withManagedSessionOperation(sessionId, () => goalController.resume(sessionId, goalId));
 	});
 	ipcMain.handle(CHANNELS.GOAL_CLEAR, (_event, sessionId: unknown, goalId: unknown) => {
 		assertNonEmptyString(sessionId, "sessionId");

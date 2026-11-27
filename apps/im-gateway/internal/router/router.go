@@ -281,6 +281,14 @@ func (r *Router) runTurn(
 	queue chan transport.InboundMessage,
 	seed transport.InboundMessage,
 ) (*transport.InboundMessage, error) {
+	channel, nativeChatID := r.getTransport(), seed.ChatID
+	if resolver, ok := channel.(transport.ChatResolver); ok {
+		var err error
+		channel, nativeChatID, err = resolver.ResolveChat(seed.ChatID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	entry, _, err := r.state.GetSession(ctx, seed.UserID, seed.ChatID)
 	if err != nil {
 		return nil, fmt.Errorf("load session binding: %w", err)
@@ -320,7 +328,7 @@ func (r *Router) runTurn(
 		}
 	}
 	if missing {
-		_, _ = r.getTransport().SendMessage(ctx, seed.ChatID, transport.OutboundMessage{
+		_, _ = channel.SendMessage(ctx, nativeChatID, transport.OutboundMessage{
 			Text: "原会话文件已不存在，已新建会话继续处理本次消息。",
 		})
 	}
@@ -347,7 +355,7 @@ drain:
 		return nil, fmt.Errorf("send prompt: %w", err)
 	}
 
-	br := bridge.New(r.getTransport(), seed.ChatID)
+	br := bridge.New(channel, nativeChatID)
 	// Reply anchoring + status reactions target the message that triggered
 	// the turn (best-effort; only used on platforms that support it).
 	br.SetInboundRef(seed.MessageID)

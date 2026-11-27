@@ -205,7 +205,8 @@ fun Agent567ErrorBanner(
                 }
                 val actionLabel =
                     when (error.action) {
-                        UiErrorAction.Retry -> Str.actionRetry
+                        UiErrorAction.Retry, UiErrorAction.ResumeRemoteTurn -> Str.actionRetry
+                        UiErrorAction.ResendRemoteTurn -> Str.remoteTurnRetry
                         UiErrorAction.OpenPlan -> Str.actionOpenPlan
                         UiErrorAction.ReLogin -> Str.actionRelogin
                         UiErrorAction.OpenSettings -> Str.actionOpenSettings

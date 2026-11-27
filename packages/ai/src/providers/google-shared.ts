@@ -5,6 +5,8 @@
 import { type Content, FinishReason, FunctionCallingConfigMode, type Part } from "@google/genai";
 import type { Context, ImageContent, Model, StopReason, TextContent, Tool } from "../types.js";
 import { sanitizeSurrogates } from "../utils/sanitize-unicode.js";
+import { isValidThoughtSignature } from "./google-stream/thought-signature.js";
+import { isSameModel } from "./signed-reasoning-history.js";
 import { transformMessages } from "./transform-messages.js";
 
 type GoogleApiType = "google-generative-ai" | "google-gemini-cli" | "google-vertex";
@@ -47,15 +49,6 @@ export function isThinkingPart(part: Pick<Part, "thought" | "thoughtSignature">)
 export function retainThoughtSignature(existing: string | undefined, incoming: string | undefined): string | undefined {
 	if (typeof incoming === "string" && incoming.length > 0) return incoming;
 	return existing;
-}
-
-// Thought signatures must be base64 for Google APIs (TYPE_BYTES).
-const base64SignaturePattern = /^[A-Za-z0-9+/]+={0,2}$/;
-
-function isValidThoughtSignature(signature: string | undefined): boolean {
-	if (!signature) return false;
-	if (signature.length % 4 !== 0) return false;
-	return base64SignaturePattern.test(signature);
 }
 
 /**
@@ -113,11 +106,11 @@ export function convertMessages<T extends GoogleApiType>(model: Model<T>, contex
 		} else if (msg.role === "assistant") {
 			const parts: Part[] = [];
 			// Check if message is from same provider and model - only then keep thinking blocks
-			const isSameProviderAndModel = msg.provider === model.provider && msg.model === model.id;
+			const isSameProviderAndModel = isSameModel(msg, model);
 			// Gemini 3 normally puts one thought signature on the first standard
 			// function call in a parallel response. Later calls in that same
 			// response legitimately omit it and must remain functionCall parts.
-			let modelResponseHasSignedFunctionCall = false;
+			let hasFunctionCallSignature = false;
 
 			for (const block of msg.content) {
 				if (block.type === "text") {
@@ -151,12 +144,11 @@ export function convertMessages<T extends GoogleApiType>(model: Model<T>, contex
 					// response. Do not convert those calls to text: their tool results
 					// still need a matching functionCall in the wire history.
 					const isGemini3 = model.id.toLowerCase().includes("gemini-3");
-					const isUnsignedParallelCall = thoughtSignature == null && modelResponseHasSignedFunctionCall;
 					const effectiveThoughtSignature =
 						thoughtSignature ??
-						(isGemini3 && !isUnsignedParallelCall ? SKIP_THOUGHT_SIGNATURE_VALIDATOR : undefined);
+						(isGemini3 && !hasFunctionCallSignature ? SKIP_THOUGHT_SIGNATURE_VALIDATOR : undefined);
 
-					if (thoughtSignature != null) modelResponseHasSignedFunctionCall = true;
+					if (effectiveThoughtSignature != null) hasFunctionCallSignature = true;
 
 					const part: Part = {
 						functionCall: {

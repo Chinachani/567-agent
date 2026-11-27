@@ -15,16 +15,27 @@ import type { DesktopSessionSearchResult } from "@/shared/session-search";
  * 同一条全局相关性排序，异步结果到达时会把光标下的行顶走，用户回车打开的将是
  * 从未看见的东西。固定组序 + 组内排序是这个不变量的实现方式。
  */
-export const COMMAND_MENU_GROUP_ORDER = ["projects", "sessions", "abilities", "settings", "workspaceViews"] as const;
+export const COMMAND_MENU_GROUP_ORDER = [
+	"recentSessions",
+	"projects",
+	"sessions",
+	"abilities",
+	"settings",
+	"workspaceViews",
+] as const;
 
 export type CommandMenuGroupKey = (typeof COMMAND_MENU_GROUP_ORDER)[number];
 
 /** 每组渲染上限；超出的部分折成一行「还有 N 条」。 */
 export const COMMAND_MENU_GROUP_LIMIT = 6;
 
+export type CommandMenuSession = Omit<DesktopSessionSearchResult, "match"> & {
+	readonly match?: DesktopSessionSearchResult["match"];
+};
+
 export type CommandMenuAction =
 	| { readonly kind: "openProject"; readonly cwd: string }
-	| { readonly kind: "openSession"; readonly result: DesktopSessionSearchResult }
+	| { readonly kind: "openSession"; readonly result: CommandMenuSession }
 	| { readonly kind: "openSettingsSection"; readonly tab: SettingsTab; readonly section: string }
 	/**
 	 * 能力条目与市场逃生行共用：跳能力页并预填搜索词。

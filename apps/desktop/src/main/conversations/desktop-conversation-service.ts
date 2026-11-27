@@ -44,6 +44,11 @@ import {
 } from "./conversation-ownership-catalog.js";
 import { importMobileSessionArchive, type MobileArchiveImportResult } from "./import-mobile-session-archive.js";
 import {
+	assertManagedWorktreeAvailable,
+	resolveManagedWorktreePlacement,
+	runManagedWorktreeOperation,
+} from "./managed-worktree-placement.js";
+import {
 	type DesktopCodingAgentSessionConfig,
 	type DesktopConversationSource,
 	type DesktopSessionKind,
@@ -56,8 +61,20 @@ import { SessionContextWorkspace } from "./session-context-workspace.js";
 import { DesktopSessionCreationTrace } from "./session-creation-trace.js";
 import { getDesktopSessionDraftStore } from "./session-draft-store.js";
 import type { SessionMigrationArchive } from "./session-migration-backup.js";
-import { isConversationCwd, readDesktopSessionHeader, resolveSessionListCwd, samePath } from "./session-paths.js";
+import {
+	isConversationCwd,
+	readDesktopSessionHeader,
+	readSessionCwdFromHeader,
+	resolveSessionListCwd,
+	samePath,
+} from "./session-paths.js";
 import { SessionWorkbench } from "./session-workbench.js";
+import {
+	bindTurnFileCheckpoints,
+	TurnFileCheckpoints,
+	turnFileCheckpointPath,
+	unbindTurnFileCheckpoints,
+} from "./turn-file-checkpoints.js";
 
 const log = getAppLogger("conversation-service");
 
@@ -182,6 +199,8 @@ function findLastAssistantMessage(
 
 export class DesktopConversationService {
 	private readonly workbenches = new Map<string, SessionWorkbench>();
+	private readonly turnFiles = new Map<string, TurnFileCheckpoints>();
+	private readonly managedSessionPlacements = new Map<string, { cwd: string; root: string; projectCwd: string }>();
 	private readonly contextWorkspaces = new Map<string, SessionContextWorkspace>();
 	private readonly autoTitleScheduledSessions = new Set<string>();
 	private readonly sessionOpened = new Set<(session: DesktopConversationSession) => void>();
@@ -261,7 +280,45 @@ export class DesktopConversationService {
 		source: DesktopConversationSource,
 		traceContext?: DesktopConversationCreateTraceContext,
 	): Promise<DesktopConversationSession> {
+		return this.createConversation(config, kind, source, traceContext);
+	}
+	createManagedWorktreeSession(cwd: string, projectCwd: string): Promise<DesktopConversationSession> {
+		return this.createConversation({ cwd }, "other", "interactive", undefined, projectCwd);
+	}
+	private async createConversation(
+		config: DesktopCodingAgentSessionConfig | undefined,
+		kind: DesktopSessionKind,
+		source: DesktopConversationSource,
+		traceContext?: DesktopConversationCreateTraceContext,
+		projectHint?: string,
+	): Promise<DesktopConversationSession> {
+		const existingCwd = config?.sessionPath ? await readSessionCwdFromHeader(config.sessionPath) : undefined;
+		const cwd = existingCwd ?? config?.cwd;
+		const placement = await resolveManagedWorktreePlacement(cwd, config?.sessionPath, projectHint);
 		const trace = new DesktopSessionCreationTrace(log, traceContext?.interactionId);
+		if (placement && cwd) {
+			return runManagedWorktreeOperation(placement.root, async () => {
+				await assertManagedWorktreeAvailable(cwd, placement.root, placement.projectCwd);
+				return this.createResolvedSession(
+					{ ...config, cwd, sessionDir: placement.sessionDir },
+					kind,
+					source,
+					trace,
+					existingCwd,
+					placement,
+				);
+			});
+		}
+		return this.createResolvedSession(config, kind, source, trace, existingCwd);
+	}
+	private async createResolvedSession(
+		config: DesktopCodingAgentSessionConfig | undefined,
+		kind: DesktopSessionKind,
+		source: DesktopConversationSource,
+		trace: DesktopSessionCreationTrace,
+		existingCwd: string | undefined,
+		placement?: { root: string; projectCwd: string },
+	): Promise<DesktopConversationSession> {
 		try {
 			if (config?.sessionPath && isAbsolute(config.sessionPath)) {
 				const absolutePath = resolve(config.sessionPath);
@@ -294,7 +351,7 @@ export class DesktopConversationService {
 				await workspace.load();
 			}
 			let runtimeReady = false;
-			const collaborationCwd = config?.cwd;
+			const collaborationCwd = placement?.projectCwd ?? config?.cwd;
 			const collaboration = (await this.collaboration?.isProject(collaborationCwd)) ? this.collaboration : undefined;
 			const baseContext: CodingAgentPinnedModelContextBinder =
 				config?.bindPinnedModelContext ??
@@ -328,6 +385,7 @@ export class DesktopConversationService {
 						: { ...config, bindPinnedModelContext, sessionRuntimeTools },
 					kind,
 					source,
+					{ cwd: existingCwd },
 				),
 			);
 			const result = await trace.measure("runtime-create", () => this.runtime.createSession(resolvedConfig.config));
@@ -338,18 +396,23 @@ export class DesktopConversationService {
 			}
 			workspace =
 				this.contextWorkspaces.get(result.sessionId) ?? workspace ?? new SessionContextWorkspace(sessionPath);
-			if (!this.workbenches.has(result.sessionId))
+			if (!this.workbenches.has(result.sessionId)) {
+				const busy = () =>
+					this.runtime.getState(result.sessionId).isStreaming ||
+					this.runtime.readSessionContextCompactionState(result.sessionId).isCompacting;
 				this.workbenches.set(
 					result.sessionId,
 					new SessionWorkbench(
 						sessionPath,
 						resolvedConfig.cwd,
 						() => this.runtime.getFullHistory(result.sessionId),
-						() =>
-							this.runtime.getState(result.sessionId).isStreaming ||
-							this.runtime.readSessionContextCompactionState(result.sessionId).isCompacting,
+						busy,
 					),
 				);
+				const files = new TurnFileCheckpoints(turnFileCheckpointPath(result.sessionId), resolvedConfig.cwd, busy);
+				this.turnFiles.set(result.sessionId, files);
+				bindTurnFileCheckpoints(result.sessionId, files);
+			}
 			if (!config?.bindPinnedModelContext) this.contextWorkspaces.set(result.sessionId, workspace);
 			// 工作模式在这里固化：新会话写入当前默认值，历史会话补写回落值。
 			// 已有记录不覆盖，所以之后改默认值不会改写任何已存在会话。
@@ -374,10 +437,11 @@ export class DesktopConversationService {
 				sessionId: result.sessionId,
 				sessionPath,
 				cwd: resolvedConfig.cwd,
-				listCwd: resolveSessionListCwd(config?.cwd ?? resolvedConfig.cwd),
+				listCwd: placement?.projectCwd ?? resolveSessionListCwd(config?.cwd ?? resolvedConfig.cwd),
 				source,
 				...(agentProfile ? { agentProfileId: agentProfile.agentProfileId } : {}),
 			};
+			if (placement) this.managedSessionPlacements.set(session.sessionId, { cwd: session.cwd, ...placement });
 			await collaboration?.registerSession(session);
 			if (source === "interactive")
 				for (const listener of this.sessionOpened) {
@@ -438,7 +502,7 @@ export class DesktopConversationService {
 				sessionPath: absolutePath,
 			});
 		}
-		const access = await this.runtime.resolveSessionAccess(absolutePath);
+		const access = await this.resolveSessionAccess(absolutePath);
 		if (!access) {
 			throw new DesktopConversationError("INVALID_SESSION_PATH", "Session path is not owned by this runtime.", {
 				sessionPath: absolutePath,
@@ -486,7 +550,39 @@ export class DesktopConversationService {
 		return this.workbench(sessionId).chunk(id, offset, length);
 	}
 	reviewSessionChange(sessionId: string, id: string, action: string, revision: string) {
-		return this.workbench(sessionId).review(id, action, revision);
+		return this.withManagedSessionOperation(sessionId, () => this.workbench(sessionId).review(id, action, revision));
+	}
+	private sessionTurnFiles(sessionId: string): TurnFileCheckpoints {
+		this.runtime.getState(sessionId);
+		const files = this.turnFiles.get(sessionId);
+		if (!files) throw new Error("Turn file checkpoints are unavailable for this session");
+		return files;
+	}
+	listSessionTurnFiles(sessionId: string) {
+		return this.sessionTurnFiles(sessionId).list();
+	}
+	previewSessionTurnFiles(sessionId: string, turnId: string) {
+		return this.sessionTurnFiles(sessionId).preview(turnId);
+	}
+	restoreSessionTurnFiles(sessionId: string, previewId: string) {
+		return this.withManagedSessionOperation(sessionId, () => this.sessionTurnFiles(sessionId).restore(previewId));
+	}
+	isRestoringSessionTurnFiles(sessionId: string): boolean {
+		return this.turnFiles.get(sessionId)?.isRestoring ?? false;
+	}
+	releaseSessionWorkbench(sessionId: string): void {
+		unbindTurnFileCheckpoints(sessionId);
+		this.turnFiles.delete(sessionId);
+		this.workbenches.delete(sessionId);
+		this.managedSessionPlacements.delete(sessionId);
+	}
+	withManagedSessionOperation<T>(sessionId: string, run: () => Promise<T>): Promise<T> {
+		const placement = this.managedSessionPlacements.get(sessionId);
+		if (!placement) return run();
+		return runManagedWorktreeOperation(placement.root, async () => {
+			await assertManagedWorktreeAvailable(placement.cwd, placement.root, placement.projectCwd);
+			return run();
+		});
 	}
 
 	async restoreImportedContext(
@@ -678,7 +774,16 @@ export class DesktopConversationService {
 		await this.runtime.replaceLastUserMessage(sessionId, lastUser.entryId);
 	}
 
-	async compactSessionContext(
+	compactSessionContext(
+		session: DesktopConversationSession,
+		customInstructions?: string,
+		signal?: AbortSignal,
+	): Promise<RuntimeContextCompactionResult> {
+		return this.withManagedSessionOperation(session.sessionId, () =>
+			this.compactContext(session, customInstructions, signal),
+		);
+	}
+	private async compactContext(
 		session: DesktopConversationSession,
 		customInstructions?: string,
 		signal?: AbortSignal,
@@ -744,9 +849,23 @@ export class DesktopConversationService {
 		return Promise.all(
 			sessions.map(async (session) => ({
 				...session,
-				access: (await this.runtime.resolveSessionAccess(session.path)) ?? UNAVAILABLE_RUNTIME_SESSION_ACCESS,
+				access: (await this.resolveSessionAccess(session.path, session.cwd)) ?? UNAVAILABLE_RUNTIME_SESSION_ACCESS,
 			})),
 		);
+	}
+
+	async resolveSessionAccess(path: string, sessionCwd?: string) {
+		const access = await this.runtime.resolveSessionAccess(path);
+		if (!access?.resume) return access;
+		const cwd = sessionCwd ?? (await readSessionCwdFromHeader(path));
+		if (!cwd) return access;
+		try {
+			const placement = await resolveManagedWorktreePlacement(cwd, path);
+			if (placement) await assertManagedWorktreeAvailable(cwd, placement.root, placement.projectCwd);
+			return access;
+		} catch {
+			return { ...access, resume: false };
+		}
 	}
 
 	async deleteRemoteSession(sessionId: string, cwd: string, sessionDir?: string): Promise<void> {
@@ -810,11 +929,15 @@ export class DesktopConversationService {
 				{
 					sessionId,
 					sessionPath: this.runtime.getSessionPath(sessionId),
-					listCwd: cwd ? resolveSessionListCwd(cwd) : undefined,
+					listCwd:
+						this.managedSessionPlacements.get(sessionId)?.projectCwd ??
+						(cwd ? resolveSessionListCwd(cwd) : undefined),
 				},
 				prompt,
 			);
-		return this.collaboration ? this.collaboration.withManual(sessionId, run) : run();
+		return this.withManagedSessionOperation(sessionId, () =>
+			this.collaboration ? this.collaboration.withManual(sessionId, run) : run(),
+		);
 	}
 
 	private async promptWithAutoTitle(
@@ -864,17 +987,19 @@ export class DesktopConversationService {
 
 	async runTurn(options: RunDesktopConversationTurnOptions): Promise<DesktopConversationTurnResult> {
 		const run = () => this.executeTurn(options);
-		return this.collaboration &&
-			!this.collaboration.isExecuting(options.session.sessionId, options.collaborationTaskId)
-			? this.collaboration.withManual(options.session.sessionId, run)
-			: run();
+		return this.withManagedSessionOperation(options.session.sessionId, () =>
+			this.collaboration && !this.collaboration.isExecuting(options.session.sessionId, options.collaborationTaskId)
+				? this.collaboration.withManual(options.session.sessionId, run)
+				: run(),
+		);
 	}
 	async runInteractiveOperation<T>(sessionId: string, run: () => Promise<T>): Promise<T> {
-		return this.collaboration ? this.collaboration.withManual(sessionId, run) : run();
+		return this.withManagedSessionOperation(sessionId, () =>
+			this.collaboration ? this.collaboration.withManual(sessionId, run) : run(),
+		);
 	}
 	async continueInteractiveSession(sessionId: string): Promise<void> {
-		const run = () => this.runtime.continue(sessionId);
-		return this.collaboration ? this.collaboration.withManual(sessionId, run) : run();
+		return this.runInteractiveOperation(sessionId, () => this.runtime.continue(sessionId));
 	}
 	private async executeTurn(options: RunDesktopConversationTurnOptions): Promise<DesktopConversationTurnResult> {
 		if (this.runtime.getState(options.session.sessionId).isStreaming) {

@@ -10,12 +10,6 @@ vi.mock("@vetta-org/plugin-sdk", () => {
 	return { useTranslation: () => ({ t, locale: "zh" }) };
 });
 
-const systems = vi.hoisted(() => ({ current: [] as Array<{ id: string }> }));
-vi.mock("../src/design-systems/index", () => ({
-	useCatalogState: () => ({ systems: systems.current, status: "ready" }),
-	refreshDesignCatalog: vi.fn(),
-}));
-
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { GalleryHero } from "../src/gallery/GalleryHero";
@@ -26,7 +20,6 @@ let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
-	systems.current = [{ id: "a" }, { id: "b" }];
 	host = document.createElement("div");
 	document.body.appendChild(host);
 	root = createRoot(host);
@@ -67,29 +60,20 @@ function buttonWith(text: string): HTMLButtonElement | undefined {
 }
 
 describe("画廊 Hero", () => {
-	it("有内容时给出项目 / 设计 / 风格三项真实统计", () => {
+	it("有内容时显示项目与设计数", () => {
 		mount();
 		const stats = host.querySelectorAll("li");
 		expect([...stats].map((item) => item.textContent)).toEqual([
 			'gallery.hero.stat.projects|{"count":4}',
 			'gallery.hero.stat.designs|{"count":9}',
-			'gallery.hero.stat.styles|{"count":2}',
 		]);
 	});
 
-	it("空库时只留风格数，并换成引导性副标题", () => {
-		mount({ empty: true, projectCount: 0, designCount: 0 });
-		expect([...host.querySelectorAll("li")].map((item) => item.textContent)).toEqual([
-			'gallery.hero.stat.styles|{"count":2}',
-		]);
-		expect(host.textContent).toContain("gallery.hero.subtitle.empty");
-		expect(host.textContent).not.toContain("gallery.hero.subtitle|");
-	});
-
-	it("风格库还没拉到时不显示风格数", () => {
-		systems.current = [];
+	it("空库时隐藏统计并换成引导性副标题", () => {
 		mount({ empty: true, projectCount: 0, designCount: 0 });
 		expect(host.querySelectorAll("li")).toHaveLength(0);
+		expect(host.textContent).toContain("gallery.hero.subtitle.empty");
+		expect(host.textContent).not.toContain("gallery.hero.subtitle|");
 	});
 
 	it("Hero 的刷新与导入按钮各自回调", () => {

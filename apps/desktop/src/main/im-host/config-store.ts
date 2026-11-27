@@ -13,10 +13,10 @@ import { type ImTransportSelector, isImTransportSelector } from "./channels.js";
  * and identifiers the user is willing to expose to the filesystem in
  * plaintext.
  *
- * `transport` selects which IM platform the sidecar will run. Only one
- * transport runs at a time. Switching it persists the new value but does
- * not erase the other transports' credentials, so the user can flip
- * between channels without re-entering tokens or re-binding.
+ * `transport` selects the channel used for bind actions and status display.
+ * Established channel credentials are sent together so the gateway can run
+ * several transports at once. Switching the selected channel preserves all
+ * other credentials and restarts the bridge with the new active selection.
  */
 export type { ImTransportSelector };
 

@@ -1,4 +1,3 @@
-import type { ChildProcess } from "node:child_process";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -39,18 +38,6 @@ const STANDARD_READ_ONLY_ROOTS = ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/e
 export interface LinuxBubblewrapCommandOptions {
 	readonly bubblewrapPath?: string;
 	readonly resolveShell: () => NodeSandboxShell;
-}
-
-function killProcessGroup(pid: number): void {
-	try {
-		process.kill(-pid, "SIGKILL");
-	} catch {
-		try {
-			process.kill(pid, "SIGKILL");
-		} catch {
-			// Process already exited.
-		}
-	}
 }
 
 function findOnPathUnix(binary: string): string | undefined {
@@ -334,7 +321,7 @@ export function createLinuxBubblewrapCommandOperations(
 					getSandboxShellGrant(cwd),
 					agent567CliShim?.hostPath,
 				);
-				let child: ChildProcess;
+				let child: ReturnType<typeof spawnGuardedCommand>;
 				try {
 					child = spawnGuardedCommand(bubblewrapPath, args, {
 						cwd,
@@ -346,36 +333,41 @@ export function createLinuxBubblewrapCommandOperations(
 					reject(error);
 					return;
 				}
-				let timedOut = false;
+				let stopReason: Error | undefined;
 				let timeoutHandle: NodeJS.Timeout | undefined;
-				if (typeof timeout === "number" && timeout > 0) {
-					timeoutHandle = setTimeout(() => {
-						timedOut = true;
-						if (child.pid) killProcessGroup(child.pid);
-					}, timeout * 1000);
-				}
-				child.stdout?.on("data", onData);
-				child.stderr?.on("data", onData);
-				const onAbort = () => {
-					if (child.pid) killProcessGroup(child.pid);
-				};
-				if (signal?.aborted) onAbort();
-				else signal?.addEventListener("abort", onAbort, { once: true });
-				const cleanup = () => {
+				const cleanup = (): void => {
 					if (timeoutHandle) clearTimeout(timeoutHandle);
 					signal?.removeEventListener("abort", onAbort);
 					removeCliShim();
 				};
+				const stop = (error: Error): void => {
+					if (stopReason) return;
+					stopReason = error;
+					void child.stopTree().finally(() => {
+						cleanup();
+						child.stdout?.destroy();
+						child.stderr?.destroy();
+						reject(error);
+					});
+				};
+				const onAbort = () => stop(new Error("aborted"));
+				child.stdout?.on("data", onData);
+				child.stderr?.on("data", onData);
 				child.on("error", (error) => {
+					if (stopReason) return;
 					cleanup();
 					reject(error);
 				});
 				child.on("close", (code) => {
+					if (stopReason) return;
 					cleanup();
-					if (signal?.aborted) return reject(new Error("aborted"));
-					if (timedOut) return reject(new Error(`timeout:${timeout}`));
 					resolve({ exitCode: code });
 				});
+				if (signal?.aborted) onAbort();
+				else signal?.addEventListener("abort", onAbort, { once: true });
+				if (!stopReason && typeof timeout === "number" && timeout > 0) {
+					timeoutHandle = setTimeout(() => stop(new Error(`timeout:${timeout}`)), timeout * 1_000);
+				}
 			}),
 	};
 }

@@ -1,5 +1,5 @@
-import { type ChildProcess, execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { type NodeProcessTreeTracker, trackNodeProcessTree } from "@567agent/runtime-node/host";
 import { isSshProjectUri, parseProjectLocation, quoteShellArgument } from "@567agent/ssh-transport";
 import { getSshPortForwardService } from "../ssh/port-forward-service.js";
 import { getSshConnection } from "../ssh/ssh-runtime.js";
@@ -101,6 +101,9 @@ function startLocalProcess(options: SpawnProcessOptions): SpawnedProcess {
 		detached: process.platform !== "win32",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
+	const processTree: NodeProcessTreeTracker = trackNodeProcessTree(child, {
+		detached: process.platform !== "win32",
+	});
 	const started = new Promise<void>((resolve, reject) => {
 		child.once("spawn", resolve);
 		child.once("error", (error: NodeJS.ErrnoException) =>
@@ -130,29 +133,8 @@ function startLocalProcess(options: SpawnProcessOptions): SpawnedProcess {
 			else listeners.add(listener);
 		},
 		whenStarted: () => started,
-		kill: (signal) => killTree(child, signal),
+		kill: (signal) => void processTree.terminate({ force: signal === "SIGKILL" }),
 	};
-}
-
-/** 杀掉整棵进程树（vite 派生的 esbuild 子进程活得过一次普通的 SIGTERM）。 */
-function killTree(child: ChildProcess, signal: NodeJS.Signals): void {
-	if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
-	if (process.platform === "win32") {
-		execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], () => {
-			// best-effort; the exit listener owns state transitions
-		});
-		return;
-	}
-	try {
-		// Negative pid targets the detached process group (POSIX).
-		process.kill(-child.pid, signal);
-	} catch {
-		try {
-			child.kill(signal);
-		} catch {
-			// Already gone.
-		}
-	}
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Api, AssistantMessage, Message, Model, ToolCall, ToolResultMessage } from "../types.js";
+import { isSameModel } from "./signed-reasoning-history.js";
 
 /**
  * Normalize tool call ID for cross-provider compatibility.
@@ -32,19 +33,16 @@ export function transformMessages<TApi extends Api>(
 		// Assistant messages need transformation check
 		if (msg.role === "assistant") {
 			const assistantMsg = msg as AssistantMessage;
-			const isSameModel =
-				assistantMsg.provider === model.provider &&
-				assistantMsg.api === model.api &&
-				assistantMsg.model === model.id;
+			const sameModel = isSameModel(assistantMsg, model);
 
 			const transformedContent = assistantMsg.content.flatMap((block) => {
 				if (block.type === "thinking") {
 					// For same model: keep thinking blocks with signatures (needed for replay)
 					// even if the thinking text is empty (OpenAI encrypted reasoning)
-					if (isSameModel && block.thinkingSignature) return block;
+					if (sameModel && block.thinkingSignature) return block;
 					// Skip empty thinking blocks, convert others to plain text
 					if (!block.thinking || block.thinking.trim() === "") return [];
-					if (isSameModel) return block;
+					if (sameModel) return block;
 					return {
 						type: "text" as const,
 						text: block.thinking,
@@ -52,7 +50,7 @@ export function transformMessages<TApi extends Api>(
 				}
 
 				if (block.type === "text") {
-					if (isSameModel) return block;
+					if (sameModel) return block;
 					return {
 						type: "text" as const,
 						text: block.text,
@@ -63,12 +61,12 @@ export function transformMessages<TApi extends Api>(
 					const toolCall = block as ToolCall;
 					let normalizedToolCall: ToolCall = toolCall;
 
-					if (!isSameModel && toolCall.thoughtSignature) {
+					if (!sameModel && toolCall.thoughtSignature) {
 						normalizedToolCall = { ...toolCall };
 						delete (normalizedToolCall as { thoughtSignature?: string }).thoughtSignature;
 					}
 
-					if (!isSameModel && normalizeToolCallId) {
+					if (!sameModel && normalizeToolCallId) {
 						const normalizedId = normalizeToolCallId(toolCall.id, model, assistantMsg);
 						if (normalizedId !== toolCall.id) {
 							toolCallIdMap.set(toolCall.id, normalizedId);

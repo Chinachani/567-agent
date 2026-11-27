@@ -344,6 +344,34 @@
 		"notOrphaned": "This project no longer needs rebinding. Try refreshing.",
 		"footnote": "The host takes over the identity recorded in the project. If you had chosen to remember a password, you may be asked for it once more."
 	},
+	"worktrees": {
+		"title": "Isolated workspaces",
+		"hint": "Give parallel tasks separate Git working directories. New workspaces start from the project's current commit and keep their changes in their own directories.",
+		"loading": "Loading workspaces…",
+		"unsupported": "Isolated workspaces require a local Git project with at least one commit.",
+		"create": "New isolated session",
+		"creating": "Creating session…",
+		"empty": "No isolated workspaces yet.",
+		"refresh": "Refresh status",
+		"openHistory": "View session history",
+		"remove": "Remove workspace",
+		"removeHint": "This deletes the isolated working directory. Running tasks and workspaces with unsaved changes are protected.",
+		"cancel": "Cancel",
+		"state": { "missing": "Directory missing", "inUse": "Task running", "dirty": "Changes or unique commits", "ready": "Available", "unavailable": "Workspace status unavailable" },
+		"error": {
+			"read": "Could not read workspaces. Refresh to try again.",
+			"unsupported-remote": "Isolated workspaces are unavailable for remote projects.",
+			"git-unavailable": "Git was not found. Install Git and try again.",
+			"not-repository": "The project directory is not a Git repository.",
+			"invalid-start-ref": "Could not find that Git commit.",
+			"start-ref-missing-subdir": "The selected commit does not contain the project subdirectory.",
+			"limit-reached": "The isolated workspace limit has been reached.",
+			"git-failed": "The Git operation failed. Refresh to try again.",
+			"not-managed": "The workspace is unavailable. Refresh the list.",
+			"worktree-dirty": "This workspace has changes or commits that are only stored here. Save your work before removing it.",
+			"worktree-in-use": "This workspace is in use. Finish the associated tasks first."
+		}
+	},
 	"collaboration": {
 		"discardDraft": "Refreshing will discard unsaved collaboration roles. Continue?",
 		"discardAndReload": "Discard and refresh",

@@ -68,6 +68,9 @@ export function isImChannelConfigured(config: ImBridgeConfig, transport: ImTrans
 		case "whatsapp":
 			return config.whatsapp.bound;
 		case "imessage":
-			return true;
+			// The sidecar only has a real iMessage transport on macOS. Treating this
+			// local-permission channel as configured on Linux/Windows leaves its card
+			// permanently in the renderer's "pending" state.
+			return typeof navigator !== "undefined" && navigator.platform.toUpperCase().includes("MAC");
 	}
 }

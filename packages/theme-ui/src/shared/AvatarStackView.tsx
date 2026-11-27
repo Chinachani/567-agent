@@ -1,5 +1,6 @@
 import { cn } from "@vetta-org/ui";
 import type { JSX } from "react";
+import { AgentAvatarView } from "../chat/AgentAvatarView";
 
 export interface AvatarStackViewProps {
 	readonly avatarUrls: readonly string[];
@@ -22,15 +23,7 @@ export function AvatarStackView({
 			data-avatar-stack="true"
 		>
 			{visibleAvatarUrls.map((avatarUrl, index) => (
-				<img
-					key={`${avatarUrl}:${index}`}
-					src={avatarUrl}
-					alt=""
-					className={cn(
-						"h-4 w-4 shrink-0 rounded-full object-cover ring-1 ring-border",
-						index > 0 && "-ml-1.5",
-					)}
-				/>
+				<AgentAvatarView key={`${avatarUrl}:${index}`} name="" size="xs" className={index > 0 ? "-ml-1.5" : undefined} />
 			))}
 			{hiddenAvatarCount > 0 ? (
 				<span

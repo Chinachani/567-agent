@@ -1,4 +1,9 @@
+// @vitest-environment jsdom
+
+import type { InstalledPlugin } from "@preload/api";
+import { i18n, initI18n } from "@shared/i18n";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createPluginPermissionApi, PluginPermissionError, pluginPermissionRecovery } from "./plugin-permissions";
 import { createPluginStorageApi, type PluginStorageBridge } from "./plugin-storage-api";
 
 const storageList = vi.fn(async () => ["city.json"]);
@@ -44,6 +49,51 @@ describe("plugin storage API", () => {
 			{ type: "write", path: "city.json", data: "", encoding: "utf8" },
 		]);
 		expect(requireWrite).toHaveBeenCalledOnce();
+	});
+
+	it("requires both a manifest declaration and an explicit grant before reading plugin storage", async () => {
+		const plugin = { permissions: [], grantedPermissions: [] } as Pick<
+			InstalledPlugin,
+			"permissions" | "grantedPermissions"
+		>;
+		const permissions = createPluginPermissionApi(plugin as InstalledPlugin);
+		const storage = createPluginStorageApi(
+			"session-1",
+			bridge,
+			() => permissions.require("storage.read"),
+			requireWrite,
+		);
+
+		expect(() => storage.readFile("city.json", "utf8")).toThrow(
+			expect.objectContaining({
+				permission: "storage.read",
+				reason: "undeclared",
+			}),
+		);
+		plugin.permissions = ["storage.read"];
+		expect(() => storage.readFile("city.json", "utf8")).toThrow(
+			expect.objectContaining({
+				permission: "storage.read",
+				reason: "ungranted",
+			}),
+		);
+		expect(storageReadFile).not.toHaveBeenCalled();
+		plugin.grantedPermissions = ["storage.read"];
+		await expect(storage.readFile("city.json", "utf8")).resolves.toBe("city");
+	});
+
+	it("explains whether a startup permission failure needs reauthorization or a package fix", async () => {
+		initI18n();
+		await i18n.changeLanguage("en");
+
+		const ungranted = pluginPermissionRecovery(new PluginPermissionError("storage.read", "ungranted"));
+		expect(ungranted).toContain("storage.read");
+		expect(ungranted).toContain("has not been granted");
+
+		const undeclared = pluginPermissionRecovery(new PluginPermissionError("storage.read", "undeclared"));
+		expect(undeclared).toContain("storage.read");
+		expect(undeclared).toContain("does not declare");
+		expect(pluginPermissionRecovery(new Error("unrelated"))).toBeUndefined();
 	});
 
 	it("forwards multi-file commits, removals, snapshots, and expected revisions", async () => {

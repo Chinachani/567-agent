@@ -7,7 +7,6 @@ import stripAnsi from "strip-ansi";
 import { sanitizeBinaryOutput } from "../shared/text-decoding.js";
 import { truncateTail } from "../shared/truncation.js";
 import { spawnGuardedCommand } from "./guarded-command-process.js";
-import { killNodeProcessTree } from "./process-tree.js";
 
 export interface NodeHostBashExecutionOptions {
 	readonly onChunk?: (chunk: string) => void;
@@ -82,6 +81,10 @@ function executeLocal(
 	const environment = options.environment?.() ?? process.env;
 
 	return new Promise((resolve, reject) => {
+		if (executionOptions?.signal?.aborted) {
+			resolve(new NodeBashOutputCollector(executionOptions, options.temporaryDirectory).finish(undefined, true));
+			return;
+		}
 		const child = spawnGuardedCommand(shell.executable, [...shell.args, resolvedCommand], {
 			cwd,
 			detached: process.platform !== "win32",
@@ -108,32 +111,27 @@ function executeLocal(
 			output.close();
 			reject(error);
 		};
-		const stop = () => {
-			if (child.pid) killNodeProcessTree(child.pid);
-			else child.kill();
-		};
 		const onAbort = () => {
-			stop();
-			resolveOnce(undefined, true);
+			void child.stopTree().finally(() => resolveOnce(undefined, true));
 		};
 
-		if (executionOptions?.signal?.aborted) {
-			onAbort();
-			return;
-		}
 		executionOptions?.signal?.addEventListener("abort", onAbort, { once: true });
 		child.stdout?.on("data", (data: Buffer) => output.accept(data));
 		child.stderr?.on("data", (data: Buffer) => output.accept(data));
-		child.once("error", rejectOnce);
+		child.once("error", (error) => {
+			if (!executionOptions?.signal?.aborted) rejectOnce(error);
+		});
 		child.once("exit", (code) => {
 			if (executionOptions?.signal?.aborted) return;
 			// A daemon may inherit these pipes after its command shell exits. Give
 			// queued output one event-loop turn, then settle without waiting for the
 			// descendant to close pipes that no longer belong to this command.
-			setImmediate(() => resolveOnce(code ?? undefined, code === null));
+			setImmediate(() => {
+				if (!executionOptions?.signal?.aborted) resolveOnce(code ?? undefined, code === null);
+			});
 		});
 		child.once("close", (code) => {
-			resolveOnce(code ?? undefined, code === null || executionOptions?.signal?.aborted === true);
+			if (!executionOptions?.signal?.aborted) resolveOnce(code ?? undefined, code === null);
 		});
 	});
 }

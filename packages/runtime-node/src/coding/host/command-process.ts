@@ -1,6 +1,5 @@
 import type { CommandProcessPort, DesktopCommandResult } from "@567agent/runtime-tools";
 import { spawnGuardedCommand } from "./guarded-command-process.js";
-import { killNodeProcessTree } from "./process-tree.js";
 
 const DEFAULT_MAX_BUFFER_BYTES = 32 * 1024 * 1024;
 
@@ -35,36 +34,29 @@ function runCommandProcess(
 		const maxBufferBytes = options.maxBufferBytes ?? DEFAULT_MAX_BUFFER_BYTES;
 		let stdout = "";
 		let stderr = "";
-		let killed = false;
-		let aborted = false;
-		let timedOut = false;
-		let overflow = false;
+		let stopping = false;
 		let timeoutHandle: NodeJS.Timeout | undefined;
 
-		const kill = (): void => {
-			if (killed) return;
-			killed = true;
-			if (child.pid) killNodeProcessTree(child.pid);
-			try {
-				if (child.pid && !child.killed) child.kill();
-			} catch {
-				// The process may exit between the tree and direct kill attempts.
-			}
-		};
-		const onAbort = (): void => {
-			aborted = true;
-			kill();
-		};
 		const cleanup = (): void => {
 			if (timeoutHandle) clearTimeout(timeoutHandle);
 			options.signal?.removeEventListener("abort", onAbort);
 		};
+		const stop = (error: Error, force = false): void => {
+			if (stopping) return;
+			stopping = true;
+			cleanup();
+			void child.stopTree({ force }).finally(() => {
+				child.stdout?.destroy();
+				child.stderr?.destroy();
+				reject(error);
+			});
+		};
+		const onAbort = (): void => stop(new NodeCommandProcessAbortedError());
 		const append = (data: Buffer, target: "stdout" | "stderr"): void => {
-			if (overflow) return;
+			if (stopping) return;
 			const currentLength = target === "stdout" ? stdout.length : stderr.length;
 			if (currentLength + data.length > maxBufferBytes) {
-				overflow = true;
-				kill();
+				stop(new Error(`Process output exceeded ${maxBufferBytes} bytes`), true);
 				return;
 			}
 			if (target === "stdout") stdout += data.toString("utf8");
@@ -73,24 +65,22 @@ function runCommandProcess(
 
 		options.signal?.addEventListener("abort", onAbort, { once: true });
 		if (options.timeoutMs > 0) {
-			timeoutHandle = setTimeout(() => {
-				timedOut = true;
-				kill();
-			}, options.timeoutMs);
+			timeoutHandle = setTimeout(
+				() => stop(new Error(`Process timed out after ${options.timeoutMs}ms`)),
+				options.timeoutMs,
+			);
 		}
 		child.stdout?.on("data", (data: Buffer) => append(data, "stdout"));
 		child.stderr?.on("data", (data: Buffer) => append(data, "stderr"));
 		child.on("error", (error) => {
+			if (stopping) return;
 			cleanup();
-			if (aborted) reject(new NodeCommandProcessAbortedError());
-			else reject(error);
+			reject(error);
 		});
 		child.on("close", (code) => {
+			if (stopping) return;
 			cleanup();
-			if (aborted) reject(new NodeCommandProcessAbortedError());
-			else if (timedOut) reject(new Error(`Process timed out after ${options.timeoutMs}ms`));
-			else if (overflow) reject(new Error(`Process output exceeded ${maxBufferBytes} bytes`));
-			else resolve({ stdout, stderr, code });
+			resolve({ stdout, stderr, code });
 		});
 	});
 }

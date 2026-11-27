@@ -1,7 +1,6 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -178,7 +177,7 @@ func (c *Client) OpenSession(ctx context.Context, cwd, sessionPath string) (host
 	if err != nil {
 		return nil, newHostFailure(hostclient.FailureCodeProcessIOFailed, hostclient.FailurePhaseStartup, hostclient.FailureRetrySafe, fmt.Sprintf("hostclient/local: stdout pipe: %v", err), err)
 	}
-	stderrBuf := &bytes.Buffer{}
+	stderrBuf := &lockedBuffer{}
 	cmd.Stderr = stderrBuf
 
 	if err := cmd.Start(); err != nil {

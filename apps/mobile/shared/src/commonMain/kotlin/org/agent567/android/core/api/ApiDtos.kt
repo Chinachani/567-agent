@@ -198,6 +198,7 @@ internal data class ChatCompletionChunkDto(
     val id: String? = null,
     val choices: List<ChatChoiceDto> = emptyList(),
     val usage: ChatUsageDto? = null,
+    val error: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable

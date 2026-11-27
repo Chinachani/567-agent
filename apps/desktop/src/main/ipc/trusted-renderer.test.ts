@@ -10,6 +10,9 @@ const fake = vi.hoisted(() => ({
 		readSessionWorkbenchDetail: vi.fn(async () => ({ content: "saved task" })),
 		readSessionAttachmentChunk: vi.fn(async () => ({ content: "file bytes" })),
 		reviewSessionChange: vi.fn(async () => ({ status: "reviewed" })),
+		listSessionTurnFiles: vi.fn(async () => []),
+		previewSessionTurnFiles: vi.fn(async () => ({ previewId: "id", files: [] })),
+		restoreSessionTurnFiles: vi.fn(async () => []),
 		readContextWorkspace: vi.fn(async () => ({ turns: [] })),
 		updateContextSelection: vi.fn(async () => ({ revision: 2 })),
 	},
@@ -17,6 +20,9 @@ const fake = vi.hoisted(() => ({
 		read: vi.fn(async () => ({ config: { members: [] } })),
 		update: vi.fn(async () => ({ revision: 2 })),
 		control: vi.fn(async () => ({ paused: true })),
+		listWorktrees: vi.fn(async () => ({ worktrees: [] })),
+		createWorktree: vi.fn(async () => ({ ok: true })),
+		removeWorktree: vi.fn(async () => ({ ok: true })),
 		onChanged: vi.fn(() => () => {}),
 	},
 }));
@@ -61,6 +67,17 @@ it("allows workbench/collaboration operations from the main frame and rejects pr
 			["session", "id", "restore", "revision"],
 			() => fake.service.reviewSessionChange.mock.calls.length,
 		],
+		[SESSION_WORKBENCH_CHANNELS.TURN_FILES, ["session"], () => fake.service.listSessionTurnFiles.mock.calls.length],
+		[
+			SESSION_WORKBENCH_CHANNELS.TURN_FILES_PREVIEW,
+			["session", "turn"],
+			() => fake.service.previewSessionTurnFiles.mock.calls.length,
+		],
+		[
+			SESSION_WORKBENCH_CHANNELS.TURN_FILES_RESTORE,
+			["session", "preview"],
+			() => fake.service.restoreSessionTurnFiles.mock.calls.length,
+		],
 		[
 			SESSION_WORKBENCH_CHANNELS.CONTEXT_WORKSPACE,
 			["session"],
@@ -74,6 +91,21 @@ it("allows workbench/collaboration operations from the main frame and rejects pr
 		[PROJECT_COLLABORATION_CHANNELS.read, ["/project"], () => fake.collaboration.read.mock.calls.length],
 		[PROJECT_COLLABORATION_CHANNELS.update, ["/project", {}], () => fake.collaboration.update.mock.calls.length],
 		[PROJECT_COLLABORATION_CHANNELS.control, ["/project", {}], () => fake.collaboration.control.mock.calls.length],
+		[
+			PROJECT_COLLABORATION_CHANNELS.readWorktrees,
+			["/project"],
+			() => fake.collaboration.listWorktrees.mock.calls.length,
+		],
+		[
+			PROJECT_COLLABORATION_CHANNELS.createWorktree,
+			["/project", "HEAD"],
+			() => fake.collaboration.createWorktree.mock.calls.length,
+		],
+		[
+			PROJECT_COLLABORATION_CHANNELS.removeWorktree,
+			["/project", "/tree"],
+			() => fake.collaboration.removeWorktree.mock.calls.length,
+		],
 	];
 	for (const [channel, args, count] of entries) {
 		const handler = fake.handlers.get(channel)!;

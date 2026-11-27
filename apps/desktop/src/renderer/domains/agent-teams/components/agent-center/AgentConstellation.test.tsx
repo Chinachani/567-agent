@@ -51,7 +51,7 @@ describe("AgentConstellation", () => {
 
 	it("超过 10 位时只挂 10 枚头像，不再补计数片", () => {
 		const { container, queryByText } = render(<AgentConstellation agents={agents(14)} />);
-		expect(container.querySelectorAll("img")).toHaveLength(10);
+		expect(container.querySelectorAll('[data-agent-avatar="true"]')).toHaveLength(10);
 		expect(container.querySelectorAll("[style*='left']")).toHaveLength(10);
 		expect(queryByText("+4")).toBeNull();
 	});

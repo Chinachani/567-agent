@@ -1,5 +1,6 @@
 import { Button } from "@vetta-org/ui";
 import { useState, type JSX } from "react";
+import { AgentAvatarView } from "../chat/AgentAvatarView";
 import { ListPagination, type ListPaginationLabels } from "./ListPagination";
 import { useListPagination } from "./useListPagination";
 
@@ -218,7 +219,7 @@ export function ExpertCatalogView(props: ExpertCatalogViewProps): JSX.Element {
 								className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-4"
 							>
 								<div className="flex items-center gap-3">
-									{expert.avatar && <img src={expert.avatar} alt="" className="h-10 w-10 rounded-xl object-cover" />}
+									<AgentAvatarView name={expert.name} size="xl" className="h-10 w-10 rounded-xl" />
 									<h2 className="min-w-0 flex-1 truncate font-medium text-foreground">{expert.name}</h2>
 									<span className="text-xs text-muted-foreground">{expert.sourceLabel}</span>
 									{props.preferences && (

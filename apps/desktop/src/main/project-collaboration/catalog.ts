@@ -2,7 +2,7 @@ import { stat } from "node:fs/promises";
 import { basename, isAbsolute, resolve } from "node:path";
 import type { Message } from "@567agent/ai";
 import type { HistoryEntry, RuntimeHost } from "@567agent/runtime-core";
-import type { ProjectCollaborationCandidate } from "../../shared/project-collaboration.js";
+import type { ManagedWorktreeRecord, ProjectCollaborationCandidate } from "../../shared/project-collaboration.js";
 import type { DesktopSessionHistoryInfo } from "../../shared/session-access.js";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
 
@@ -97,14 +97,30 @@ function splitLongMessages(entries: readonly ProjectCollaborationHistoryEntry[])
 }
 
 export class ProjectCollaborationCatalog {
-	constructor(private readonly runtime: RuntimeHost) {}
+	constructor(
+		private readonly runtime: RuntimeHost,
+		private readonly worktrees: (cwd: string) => Promise<readonly ManagedWorktreeRecord[]>,
+	) {}
 
 	async list(cwd: string): Promise<ProjectCollaborationCandidate[]> {
 		if (!isAbsolute(cwd)) throw new Error("Project collaboration requires an absolute project path");
 		const projectCwd = normalizedPath(cwd);
-		const sessions = await getDesktopConversationService().listSessions(projectCwd);
+		const [sessions, worktrees] = await Promise.all([
+			getDesktopConversationService().listSessions(projectCwd),
+			this.worktrees(projectCwd),
+		]);
+		const managed = new Map(worktrees.map((record) => [record.sessionId, record]));
 		return sessions
-			.filter((session) => normalizedPath(session.cwd) === projectCwd && isAbsolute(session.path))
+			.filter((session) => {
+				if (!isAbsolute(session.path)) return false;
+				if (normalizedPath(session.cwd) === projectCwd) return true;
+				const record = managed.get(session.id);
+				return (
+					record &&
+					normalizedPath(session.path) === normalizedPath(record.sessionPath) &&
+					normalizedPath(session.cwd) === normalizedPath(record.cwd)
+				);
+			})
 			.map((session) => {
 				const openPath = this.runtime.getSessionPath(session.id);
 				const isOpen = openPath !== undefined && normalizedPath(openPath) === normalizedPath(session.path);
@@ -137,6 +153,8 @@ export class ProjectCollaborationCatalog {
 		const projectCwd = normalizedPath(cwd);
 		const candidate = (await this.list(projectCwd)).find((entry) => entry.sessionId === sessionId);
 		if (!candidate) throw new Error("Conversation is not in this project catalog");
+		if (candidate.state === "unavailable")
+			throw new Error(`Conversation ${sessionId} cannot be restored for collaboration`);
 		const access = await this.runtime.resolveSessionAccess(candidate.path);
 		if (!access) throw new Error(`Conversation ${sessionId} is no longer available to the runtime`);
 		if (!access.readHistory) throw new Error(`Conversation ${sessionId} history is not readable`);

@@ -381,6 +381,21 @@ describe("ModelSelectorView 模型详情", () => {
 		await waitFor(() => expect(panel.isConnected).toBe(false));
 	});
 
+	it("打开另一行详情时只保留一个浮层", async () => {
+		const user = userEvent.setup();
+		const second = { ...detailed, key: "alpha/second", modelId: "second-pro-1", displayName: "Second Pro" };
+		renderDetailed({
+			groups: [{ provider: "alpha", label: "Alpha Cloud", models: [detailed, second] }],
+		});
+		await user.click(screen.getByRole("button", { name: /Vision Pro/ }));
+		const buttons = screen.getAllByRole("button", { name: "Model details" });
+		await user.click(buttons[0]!);
+		expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1);
+		await user.click(buttons[1]!);
+		expect(document.querySelectorAll('[data-slot="popover-content"]')).toHaveLength(1);
+		expect(document.querySelector('[data-slot="popover-content"]')?.textContent).toContain("Second Pro");
+	});
+
 	it("没有上下文等数据的模型只显示它有的行，输入模式缺省时由识图能力推出", async () => {
 		const user = userEvent.setup();
 		const bare: ModelSelectorOptionView = {

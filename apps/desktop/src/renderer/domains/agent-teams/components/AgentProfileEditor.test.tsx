@@ -367,74 +367,23 @@ describe("AgentProfileEditor", () => {
 		);
 	});
 
-	it("uploads a picture and saves it as the avatar", async () => {
+	it("shows the shared avatar and preserves a stored override when saving profile details", async () => {
+		const legacyAgent = { ...agent, avatar: "./agent-team-avatars/router.webp" };
 		const user = userEvent.setup();
-		const onSave = vi.fn(async () => ({ updated: agent, impact }));
-		const uploadAvatar = vi.fn(async () => "vetta-file://local/home/pictures/mine.png");
-		vi.stubGlobal("vetta", { agentTeams: { uploadAvatar } });
-		render(
+		const onSave = vi.fn(async () => ({ updated: legacyAgent, impact }));
+		const { container } = render(
 			<AgentProfileEditor
-				agent={agent}
+				agent={legacyAgent}
 				capabilities={[]}
 				onPreview={vi.fn(async () => ({ ...impact, teamIds: [], teamNames: [] }))}
 				onSave={onSave}
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "profile.avatarUpload" }));
-		await waitFor(() => expect(uploadAvatar).toHaveBeenCalled());
-		// 上传的图片不在内置目录里，得自己占一格，否则选完就从列表里消失。
-		await waitFor(() => expect(screen.getAllByRole("button", { name: "profile.avatarUpload" })).toHaveLength(2));
-
+		expect(container.querySelector("[data-agent-avatar]")).toBeTruthy();
 		await user.click(screen.getByRole("button", { name: "profile.save" }));
 		await waitFor(() =>
-			expect(onSave).toHaveBeenCalledWith(
-				agent,
-				expect.objectContaining({ avatar: "vetta-file://local/home/pictures/mine.png" }),
-			),
-		);
-	});
-
-	it("keeps the profile unchanged when the upload dialog is cancelled", async () => {
-		const user = userEvent.setup();
-		const onSave = vi.fn(async () => ({ updated: agent, impact }));
-		vi.stubGlobal("vetta", { agentTeams: { uploadAvatar: vi.fn(async () => undefined) } });
-		render(
-			<AgentProfileEditor
-				agent={agent}
-				capabilities={[]}
-				onPreview={vi.fn(async () => ({ ...impact, teamIds: [], teamNames: [] }))}
-				onSave={onSave}
-			/>,
-		);
-
-		await user.click(screen.getByRole("button", { name: "profile.avatarUpload" }));
-		await user.click(screen.getByRole("button", { name: "profile.save" }));
-		// 取消上传等于用户没挑图：档案里就不该出现 avatar 覆盖，头像继续跟着人设走。
-		await waitFor(() => expect(onSave).toHaveBeenCalled());
-		expect(onSave).not.toHaveBeenCalledWith(agent, expect.objectContaining({ avatar: expect.anything() }));
-	});
-
-	it("offers every built-in avatar and saves the selected stable asset path", async () => {
-		const user = userEvent.setup();
-		const onSave = vi.fn(async () => ({ updated: agent, impact }));
-		render(
-			<AgentProfileEditor
-				agent={agent}
-				capabilities={[]}
-				onPreview={vi.fn(async () => ({ ...impact, teamIds: [], teamNames: [] }))}
-				onSave={onSave}
-			/>,
-		);
-
-		expect(screen.getAllByRole("button", { name: /profile.avatarOption/ })).toHaveLength(9);
-		await user.click(screen.getByRole("button", { name: "profile.avatarOption9" }));
-		await user.click(screen.getByRole("button", { name: "profile.save" }));
-		await waitFor(() =>
-			expect(onSave).toHaveBeenCalledWith(
-				agent,
-				expect.objectContaining({ avatar: "./agent-team-avatars/router.webp" }),
-			),
+			expect(onSave).toHaveBeenCalledWith(legacyAgent, expect.objectContaining({ avatar: legacyAgent.avatar })),
 		);
 	});
 });

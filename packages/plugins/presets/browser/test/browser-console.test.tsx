@@ -103,6 +103,10 @@ function buttonWithText(host: HTMLElement, text: string): HTMLButtonElement | un
 	return [...host.querySelectorAll("button")].find((button) => button.textContent === text);
 }
 
+function buttonContainingText(host: HTMLElement, text: string): HTMLButtonElement | undefined {
+	return [...host.querySelectorAll("button")].find((button) => button.textContent?.includes(text));
+}
+
 describe("页头图标", () => {
 	it("走 vetta-plugin:// 协议，而不是打包器生成的资源路径", () => {
 		// 回归：`import icon from "../../icon.png"` 在 dev 链接下会变成插件 dev server 上的
@@ -197,6 +201,11 @@ describe("运行时状态", () => {
 			runtime.set({ phase: "ready", version: "0.34.0" });
 		});
 		expect(host.textContent).toContain("console.readyHint");
+		expect(host.textContent).toContain("runtime.subtitle");
+		expect(host.textContent).toContain("agent-browser 0.34.0");
+		expect(host.innerHTML).not.toContain("#22c55e");
+		expect(host.innerHTML).not.toContain("#ef4444");
+		expect(host.innerHTML).not.toContain("#f59e0b");
 		expect(buttonWithText(host, "console.install")).toBeUndefined();
 		cleanup();
 	});
@@ -246,8 +255,10 @@ describe("使用说明", () => {
 		});
 
 		const { host, cleanup } = renderConsole();
-		const prompt = buttonWithText(host, "guide.prompt.readguide.copy");
+		const prompt = buttonContainingText(host, "guide.prompt.read");
 		expect(prompt).toBeDefined();
+		expect(prompt?.textContent).toContain("guide.prompt.read.title");
+		expect(prompt?.textContent).toContain("guide.copy");
 		await act(async () => {
 			prompt?.click();
 		});
@@ -263,7 +274,7 @@ describe("使用说明", () => {
 		});
 		const { host, cleanup } = renderConsole();
 		await act(async () => {
-			buttonWithText(host, "guide.prompt.readguide.copy")?.click();
+			buttonContainingText(host, "guide.prompt.read")?.click();
 		});
 		expect(host.textContent).not.toContain("guide.copied");
 		cleanup();

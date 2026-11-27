@@ -1,12 +1,15 @@
 import { useSessionOpener } from "@domains/conversation/hooks/useSessionOpener";
-type ResultInboxSnapshot = Awaited<ReturnType<typeof window.agent567.notification.listResults>>;
+import { useNavigate } from "@tanstack/react-router";
 import { TaskResultListView } from "@vetta-org/theme-ui/shared";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+type ResultInboxSnapshot = Awaited<ReturnType<typeof window.agent567.notification.listResults>>;
+
 export function ResultInboxList({ onOpen }: { onOpen: () => void }): JSX.Element {
 	const { t } = useTranslation("message");
 	const { openSession } = useSessionOpener();
+	const navigate = useNavigate();
 	const [snapshot, setSnapshot] = useState<ResultInboxSnapshot>();
 	const [refresh, setRefresh] = useState(0);
 	const [loading, setLoading] = useState(true);
@@ -52,7 +55,11 @@ export function ResultInboxList({ onOpen }: { onOpen: () => void }): JSX.Element
 		setBusy(true);
 		setFailed(false);
 		try {
-			await openSession(task.cwd, task.sessionPath);
+			if (task.openTarget === "viewer") {
+				await navigate({ to: "/viewer/$path", params: { path: encodeURIComponent(task.sessionPath) } });
+			} else {
+				await openSession(task.cwd, task.sessionPath);
+			}
 			await window.agent567.notification.markResultRead(key);
 			if (mounted.current) onOpen();
 		} catch {

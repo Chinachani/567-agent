@@ -252,6 +252,11 @@ export function PluginPermissionsView({
 					</div>
 				</div>
 			</header>
+			{item.plugin?.permissionReviewRequired ? (
+				<p role="status" className="mt-4 rounded-lg bg-amber-500/15 px-3 py-2 text-[12px] text-foreground">
+					{t("permission.page.migrationNotice")}
+				</p>
+			) : null}
 
 			<div className="grid grid-cols-2 gap-2 py-5 @lg:grid-cols-3">
 				<div className="rounded-xl bg-muted/45 px-3.5 py-3">

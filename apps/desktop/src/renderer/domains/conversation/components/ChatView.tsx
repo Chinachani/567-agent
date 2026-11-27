@@ -35,6 +35,7 @@ export const DefaultChatComposer = memo(function DefaultChatComposer({
 }: ChatViewProps & { workSurface?: WorkSurfaceScope | null }): JSX.Element {
 	return (
 		<ChatComposer>
+			<SessionOpenFailureNotice />
 			<DefaultInputBarConnector
 				onSend={onSend}
 				onAbort={onAbort}
@@ -104,7 +105,6 @@ export function ChatView(props: ChatViewProps): JSX.Element {
 			rootClassName={model.rootClassName}
 			exportState={model.exporting ? { title: model.exportTitle, onFinished: actions.finishExport } : undefined}
 		>
-			<SessionOpenFailureNotice />
 			<SessionAssistantRendering>
 				<SessionFeed
 					messages={model.messages}

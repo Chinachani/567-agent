@@ -82,7 +82,7 @@ export function Api567AccountDialog({
 	}
 
 	const syncedGroupNames = new Set((status.groups ?? []).map((g) => g.name));
-	const availableEntries = groupEntriesForSelection(availableGroups);
+	const availableEntries = groupEntriesForSelection(availableGroups, status.activeGroup);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

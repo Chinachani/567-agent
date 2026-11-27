@@ -309,6 +309,11 @@
 		}
 	},
 	"permission": {
+		"activation": {
+			"title": "{{plugin}} 启动时遇到权限问题",
+			"undeclared": "插件安装包未声明 {{permission}}。请从原安装来源更新插件，或请作者补充声明。",
+			"ungranted": "尚未授予 {{permission}}。请在能力中心打开该插件的详情，选择「了解与配置权限」，开启所需权限。"
+		},
 		"detailUnavailable": {
 			"title": "插件配置面板未显示",
 			"description": "尚未允许此插件在详情页显示配置面板。请前往权限设置，查看并开启所需权限。",
@@ -316,6 +321,7 @@
 		},
 		"page": {
 			"open": "了解与配置权限",
+			"migrationNotice": "找不到此插件原有的授权记录。请检查下列权限，并开启你愿意授予的权限。",
 			"title": "权限与数据访问",
 			"back": "返回能力详情",
 			"description": "这里展示插件声明使用的宿主能力。选择任一权限可查看具体范围，关闭后宿主会拦截对应 API 调用；这不是隔离插件代码的安全沙箱。",
@@ -580,9 +586,9 @@
 			"editTitle": "编辑来源",
 			"repositoryLabel": "GitHub 仓库",
 			"repositoryPlaceholder": "owner/repo 或 https://github.com/owner/repo",
-			"credentialLabel": "GitHub 访问令牌（可选）",
+			"credentialLabel": "GitHub 访问Token（可选）",
 			"credentialPlaceholder": "Fine-grained token，Contents 只读",
-			"credentialHint": "令牌只保存在本机安全存储中，不会上传到 567 Agent。",
+			"credentialHint": "Token只保存在本机安全存储中，不会上传到 567 Agent。",
 			"nameLabel": "名称",
 			"namePlaceholder": "留空则取仓库名",
 			"refLabel": "分支",

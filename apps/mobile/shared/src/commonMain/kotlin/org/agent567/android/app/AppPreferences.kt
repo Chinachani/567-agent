@@ -65,13 +65,16 @@ class AppPreferences(
         get() = storage.getString("agent567.update.notified.v1", "")
         set(value) { storage["agent567.update.notified.v1"] = value }
 
-    /** GitHub Release download routing: github (direct), gh-proxy, or custom. */
+    /** GitHub Release download routing: auto (MoreTools), direct, legacy proxy, or custom. */
     var downloadSource: String
         get() = storage.getStringOrNull(KEY_DOWNLOAD_SOURCE)
-            ?.takeIf { it == DOWNLOAD_SOURCE_GH_PROXY || (it == DOWNLOAD_SOURCE_CUSTOM && customPrefix.isNotBlank()) }
-            ?: DOWNLOAD_SOURCE_GITHUB
+            ?.takeIf { source ->
+                source == DOWNLOAD_SOURCE_AUTO || source == DOWNLOAD_SOURCE_GITHUB || source == DOWNLOAD_SOURCE_GH_PROXY ||
+                    (source == DOWNLOAD_SOURCE_CUSTOM && customPrefix.isNotBlank())
+            }
+            ?: DOWNLOAD_SOURCE_AUTO
         set(value) {
-            require(value == DOWNLOAD_SOURCE_GITHUB || value == DOWNLOAD_SOURCE_GH_PROXY || value == DOWNLOAD_SOURCE_CUSTOM) {
+            require(value == DOWNLOAD_SOURCE_AUTO || value == DOWNLOAD_SOURCE_GITHUB || value == DOWNLOAD_SOURCE_GH_PROXY || value == DOWNLOAD_SOURCE_CUSTOM) {
                 "Unsupported GitHub download source"
             }
             storage[KEY_DOWNLOAD_SOURCE] = value
@@ -452,6 +455,7 @@ class AppPreferences(
     companion object {
         const val DOWNLOAD_SOURCE_GITHUB = "github"
         const val DOWNLOAD_SOURCE_GH_PROXY = "gh-proxy"
+        const val DOWNLOAD_SOURCE_AUTO = "auto"
         const val DOWNLOAD_SOURCE_CUSTOM = "custom"
 
         private const val KEY_DOWNLOAD_SOURCE = "567agent.prefs.github_download_source"

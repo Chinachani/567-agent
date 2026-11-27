@@ -1,15 +1,26 @@
 import type { SshHostInput } from "@567agent/ssh-transport";
-import { ipcMain, type WebContents } from "electron";
+import {
+	BrowserWindow,
+	dialog,
+	ipcMain,
+	type WebContents,
+	type WebContentsDidStartNavigationEventParams,
+} from "electron";
+import { SSH_CHANNELS } from "../../shared/ssh-ipc.js";
 import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
+import { mainT } from "../i18n/messages.js";
 import { getSshPortForwardService } from "../ssh/port-forward-service.js";
 import { probeSshHost } from "../ssh/ssh-host-probe.js";
 import { SshHostRebindError } from "../ssh/ssh-host-service.js";
 import { getSshHostService, listSshConfigAliases } from "../ssh/ssh-host-service-instance.js";
+import { SshPrivateKeyError, SshPrivateKeyPicker } from "../ssh/ssh-private-key.js";
 import { sshCredentialRef } from "../ssh/ssh-prompt-service.js";
 import { getSshConnection, getSshHostStatus } from "../ssh/ssh-runtime.js";
 import { assertTrustedMainRenderer } from "./trusted-renderer.js";
 
 const CHANNELS = {
+	PICK_PRIVATE_KEY: SSH_CHANNELS.PICK_PRIVATE_KEY,
+	DISCARD_PRIVATE_KEY: SSH_CHANNELS.DISCARD_PRIVATE_KEY,
 	LIST_HOSTS: "vetta:ssh:list-hosts",
 	CREATE_HOST: "vetta:ssh:create-host",
 	UPDATE_HOST: "vetta:ssh:update-host",
@@ -51,27 +62,50 @@ function toHostInput(value: unknown): SshHostInput {
 function syncHostPassword(hostId: string, authMethod: unknown, password: unknown): void {
 	const ref = sshCredentialRef(hostId, "password");
 	const vault = getDesktopCredentialVault();
-	if (authMethod !== "password") {
-		vault.remove(ref);
-		return;
-	}
-	// 空串表示「沿用已保存的口令」。
-	if (typeof password === "string" && password.length > 0) {
-		try {
+	try {
+		if (authMethod !== "password") vault.remove(ref);
+		else if (typeof password === "string" && password.length > 0) {
 			vault.put(ref, password, { kind: "password", consumer: "ssh" });
-		} catch {
-			// 安全存储不可用时存不下口令；主机本身已登记，连接时会改为当场询问。
 		}
+	} catch {
+		return;
 	}
 }
 
 export function registerSshIpc(owner: WebContents): () => void {
+	const picker = new SshPrivateKeyPicker();
+	const clearSelection = () => picker.discard();
+	const onNavigation = ({ isMainFrame, isSameDocument }: WebContentsDidStartNavigationEventParams) => {
+		if (isMainFrame && !isSameDocument) clearSelection();
+	};
+	owner.on("did-start-navigation", onNavigation);
+	owner.on("render-process-gone", clearSelection);
+	owner.on("destroyed", clearSelection);
+
 	const handle = (channel: string, handler: Parameters<typeof ipcMain.handle>[1]): void => {
-		ipcMain.handle(channel, (event, ...args) => {
+		ipcMain.handle(channel, async (event, ...args) => {
 			assertTrustedMainRenderer(event, owner);
-			return handler(event, ...args);
+			try {
+				return await handler(event, ...args);
+			} catch (error) {
+				if (error instanceof SshPrivateKeyError) throw new Error(mainT(`ssh.privateKeyErrors.${error.reason}`));
+				throw error;
+			}
 		});
 	};
+	handle(CHANNELS.PICK_PRIVATE_KEY, () =>
+		picker.pick(async () => {
+			const parent = BrowserWindow.fromWebContents(owner);
+			if (!parent) return undefined;
+			const result = await dialog.showOpenDialog(parent, {
+				title: mainT("ssh.pickPrivateKey"),
+				properties: ["openFile", "showHiddenFiles"],
+			});
+			return result.canceled ? undefined : result.filePaths[0];
+		}),
+	);
+	handle(CHANNELS.DISCARD_PRIVATE_KEY, (_event, ref: unknown) => picker.discard(asString(ref)));
+
 	handle(CHANNELS.LIST_HOSTS, async () => {
 		const hosts = await getSshHostService().list();
 		// 状态是运行期信息，不进配置文件；列表一并带上，省得 UI 再逐台问一遍。
@@ -80,14 +114,23 @@ export function registerSshIpc(owner: WebContents): () => void {
 
 	handle(CHANNELS.CREATE_HOST, async (_event, input: unknown) => {
 		const raw = (input ?? {}) as Record<string, unknown>;
-		const created = await getSshHostService().create(toHostInput(input));
+		const host = toHostInput(raw);
+		const service = getSshHostService();
+		const created = await (raw.privateKeyRef === undefined
+			? service.create(host)
+			: picker.save(asString(raw.privateKeyRef), (bytes) => service.create(host, bytes)));
 		syncHostPassword(created.id, raw.authMethod, raw.password);
 		return created;
 	});
 
 	handle(CHANNELS.UPDATE_HOST, async (_event, input: unknown) => {
 		const raw = (input ?? {}) as Record<string, unknown>;
-		const updated = await getSshHostService().update(asString(raw.id), toHostInput(raw));
+		const id = asString(raw.id);
+		const host = toHostInput(raw);
+		const service = getSshHostService();
+		const updated = await (raw.privateKeyRef === undefined
+			? service.update(id, host)
+			: picker.save(asString(raw.privateKeyRef), (bytes) => service.update(id, host, bytes)));
 		syncHostPassword(updated.id, raw.authMethod, raw.password);
 		return updated;
 	});
@@ -175,6 +218,10 @@ export function registerSshIpc(owner: WebContents): () => void {
 	});
 
 	return () => {
+		clearSelection();
+		owner.removeListener("did-start-navigation", onNavigation);
+		owner.removeListener("render-process-gone", clearSelection);
+		owner.removeListener("destroyed", clearSelection);
 		for (const channel of Object.values(CHANNELS)) ipcMain.removeHandler(channel);
 	};
 }

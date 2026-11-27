@@ -426,6 +426,9 @@
 				"confirm": "Close and end process"
 			}
 		},
+		"backgroundTasks": {
+			"title": "Background tasks"
+		},
 		"title": "Bottom panel",
 		"openTerminal": "Open terminal"
 	},
@@ -846,7 +849,12 @@
 		"readReply": {
 			"play": "Read reply aloud",
 			"stop": "Stop reading",
-			"unavailable": "The system could not read this reply. Check that an offline voice is installed."
+			"unavailable": "The system could not read this reply.",
+			"installHint": {
+				"linux": "Linux: run sudo apt install speech-dispatcher espeak-ng (or sudo dnf install speech-dispatcher espeak-ng on Fedora), then restart 567 Agent.",
+				"windows": "Windows: open Settings → Time & language → Speech, then install a local voice.",
+				"mac": "macOS: open System Settings → Accessibility → Spoken Content → System Voice, then download a voice."
+			}
 		},
 		"copyButton": {
 			"failed": "Could not copy. Try again or select the text manually.",
@@ -1361,7 +1369,51 @@
 		"discardTitle": "Unsaved context changes",
 		"discardHint": "Closing discards edits to the selection and pinned information. Chat history is preserved.",
 		"continueEditing": "Keep editing",
-		"discard": "Discard changes"
+		"discard": "Discard changes",
+		"unsavedBadge": "Unsaved draft",
+		"readOnlyBadge": "Read-only",
+		"readOnlyRunning": "A reply or compaction is in progress. Editing is temporarily locked.",
+		"syncedBadge": "Active",
+		"nextSendTitle": "Next send will include",
+		"nextSendTurns": "Full turns",
+		"nextSendTurnsValue": "{{included}} / {{shown}} shown",
+		"nextSendTurnsBreakdown": "{{summarized}} summarized · {{excluded}} excluded",
+		"nextSendTurnsTotal": "Showing latest {{shown}} of {{total}} turns",
+		"nextSendPinned": "Pinned reference",
+		"nextSendPinnedValue": "{{count}} chars",
+		"nextSendPinnedUnset": "Not set",
+		"nextSendSummary": "History summary",
+		"nextSendSummaryActive": "Active",
+		"nextSendSummaryTokens": "From {{count}} tokens",
+		"nextSendSummaryRebuild": "Will rebuild on save",
+		"nextSendSummaryNone": "None",
+		"nextSendDraftFiles": "Draft attachments",
+		"nextSendDraftFilesValue": "{{count}} pending",
+		"nextSendDraftFilesNone": "None",
+		"saveImpact": "Saving updates only the model input for future sends. Chat history is never deleted.",
+		"saveImpactRebuild": "Exclusions changed: saving clears prior summaries so the next send may rebuild them. Chat history stays intact.",
+		"syncedFooter": "No unsaved edits.",
+		"unsavedTurns": "{{count}} unsaved edit(s); save to apply to the next send.",
+		"filter": {
+			"all": "All ({{count}})",
+			"included": "Next send ({{count}})",
+			"excluded": "Excluded ({{count}})",
+			"summarized": "Summarized ({{count}})"
+		},
+		"expandDetails": "Details",
+		"collapseDetails": "Hide",
+		"expandSection": "Edit",
+		"collapseSection": "Collapse",
+		"clearPinned": "Clear",
+		"pinnedCount": "{{count}} / 16,000",
+		"attachmentsCount": "{{count}} files",
+		"modifiedBadge": "Unsaved",
+		"pinnedDone": "Already pinned",
+		"readOnlyTag": "Read-only",
+		"clearSearch": "Clear search",
+		"resetFilters": "Reset filters",
+		"noTurns": "No turns available to manage yet.",
+		"retry": "Retry"
 	},
 	"workbench": {
 		"title": "Session workbench",
@@ -1376,6 +1428,17 @@
 		"attachmentHint": "Original files retain their format. Previews load on demand, up to 32 KB. Reading scopes are user instructions to the agent, not a claim that parsing has finished. Latest 200 items.",
 		"taskHint": "Read stored task results without repeating execution or charges. Partial results remain available after interruption; external tasks may not support resuming. Latest 200 turns.",
 		"changeHint": "Review agent file changes. Complete small-text snapshots support safe revert. Large files, commands and external tools may have no reversible snapshot.",
+		"turnFiles": {
+			"open": "Restore files by turn",
+			"hint": "Select a turn, then review the files before confirming. Restoring undoes additions, edits, or deletions from that turn. Files changed since then keep their current contents.",
+			"empty": "No turn files to preview. Checkpoints are available for local Git workspaces within the size limits.",
+			"error": "Could not read or restore turn files. Refresh the preview to try again.",
+			"confirm": "Restore {{count}} files",
+			"restoring": "Restoring files…",
+			"result": "Restore finished. Review the result for each file.",
+			"change": { "added": "Added in turn", "modified": "Edited in turn", "deleted": "Deleted in turn", "unsupported": "Incomplete snapshot" },
+			"status": { "ready": "Ready to restore", "conflict": "Conflict · kept", "unavailable": "Unavailable", "restored": "Restored" }
+		},
 		"pending": "Pending attachments",
 		"readScope": "Reading scope, e.g. pages 2–5, chapter 3 or lines 10–80",
 		"failed": "Operation failed. Refresh and retry; automatic revert refuses to overwrite a changed file.",
@@ -1414,7 +1477,23 @@
 		"remove": "Remove",
 		"noMatches": "No matching records",
 		"thumbnail": "Image thumbnail",
-		"thumbnailUnavailable": "Thumbnail unavailable; view attachment details"
+		"thumbnailUnavailable": "Thumbnail unavailable; view attachment details",
+		"draftScopeSet": "Scope set",
+		"historyAttachments": "History attachment references",
+		"readOnlyDetail": "Read-only",
+		"reversible": "Reversible",
+		"cancel": "Cancel",
+		"clearSearch": "Clear search",
+		"clearScope": "Clear scope",
+		"readScopeCount": "{{count}} / 300",
+		"taskNoOutput": "No text output or tool result recorded for this task.",
+		"changeNoDiff": "No diff or snapshot was recorded for this change.",
+		"changeKeptNotice": "This change has been marked as kept.",
+		"changeRevertedNotice": "This change has been reverted with a recovery backup saved.",
+		"changeUnavailableNotice": "No reversible full-text snapshot is available for this change.",
+		"itemCount": "{{count}} items",
+		"draftImage": "Pending image",
+		"backToList": "Back to list"
 	},
 	"taskProgress": {
 		"phases": {

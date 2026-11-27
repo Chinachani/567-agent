@@ -2,10 +2,13 @@ import type { JSX, ReactNode } from "react";
 import { Button, cn } from "@vetta-org/ui";
 import { ImStatusBadgeView, type ImStatusBadgeStatus } from "./ImStatusBadgeView";
 
+export type ImChannelCardDisplayMode = "status" | "pending" | "configured" | "unconfigured";
+
 export interface ImChannelCardViewLabels {
 	readonly channelActive: string;
 	readonly channelConfigured: string;
 	readonly channelNotAssociated: string;
+	readonly channelPending?: string;
 	readonly activateChannelTitle: string;
 	/** 齿轮按钮的可访问名，按渠道不同（设置机器人 / 扫码绑定 / 配置渠道）。 */
 	readonly configureLabel: string;
@@ -24,6 +27,8 @@ export interface ImChannelCardViewProps {
 	readonly configured: boolean;
 	readonly isActive: boolean;
 	readonly effectiveStatus: ImStatusBadgeStatus;
+	/** 明确指定状态区展示模式；未传时按 isActive / configured 回退兼容旧调用。 */
+	readonly displayMode?: ImChannelCardDisplayMode;
 	readonly onConfigure: () => void;
 	/** 仅在该渠道可被切换为活动渠道时传入；活动渠道自身不传。 */
 	readonly onActivate?: () => void;
@@ -34,7 +39,7 @@ export interface ImChannelCardViewProps {
 
 /**
  * 渠道卡：整卡是主操作（可激活时切换为活动渠道，否则打开配置），右下角齿轮始终进配置。
- * 同时只有一个活动渠道，因此活动态用 ring + primary 底色单独标出，未配置渠道走虚线弱化态。
+ * 多渠道并行时各卡独立展示真实连接状态或待确认/已配置状态，未配置渠道走虚线弱化态。
  */
 export function ImChannelCardView({
 	name,
@@ -43,6 +48,7 @@ export function ImChannelCardView({
 	configured,
 	isActive,
 	effectiveStatus,
+	displayMode,
 	onConfigure,
 	onActivate,
 	labels,
@@ -51,6 +57,13 @@ export function ImChannelCardView({
 	const canActivate = configured && onActivate !== undefined;
 	const primaryAction = canActivate ? onActivate : onConfigure;
 	const primaryLabel = canActivate ? labels.activateChannelTitle : labels.configureLabel;
+	const resolvedDisplayMode: ImChannelCardDisplayMode =
+		displayMode ?? (isActive ? "status" : configured ? "configured" : "unconfigured");
+	const isErrorCard = resolvedDisplayMode === "status" && effectiveStatus === "error";
+	const isHighlightedIcon =
+		isActive ||
+		(resolvedDisplayMode === "status" &&
+			(effectiveStatus === "online" || effectiveStatus === "connecting" || effectiveStatus === "awaiting_bind"));
 
 	return (
 		<div
@@ -58,9 +71,11 @@ export function ImChannelCardView({
 				"group relative flex flex-col gap-3 rounded-xl border p-3.5 transition-colors duration-200",
 				isActive
 					? "border-primary/40 bg-primary/10 ring-1 ring-inset ring-primary/30"
-					: configured
-						? "border-border/50 bg-card/40 hover:border-primary/40 hover:bg-card/60"
-						: "border-dashed border-border/50 bg-card/20 hover:border-primary/40 hover:bg-card/40",
+					: isErrorCard
+						? "border-destructive/40 bg-card/50 hover:border-destructive/60 hover:bg-card/70"
+						: configured
+							? "border-border/60 bg-card/50 hover:border-primary/40 hover:bg-card/70"
+							: "border-dashed border-border/50 bg-card/20 hover:border-primary/40 hover:bg-card/40",
 			)}
 		>
 			{/* 铺满整卡的主操作按钮；卡内其余内容通过 relative 叠在其上。 */}
@@ -73,7 +88,7 @@ export function ImChannelCardView({
 			/>
 
 			<div className="pointer-events-none relative flex items-start gap-2.5">
-				<ImChannelIconView icon={icon} isActive={isActive} className="h-9 w-9" />
+				<ImChannelIconView icon={icon} isActive={isHighlightedIcon} className="h-9 w-9" />
 				<div className="min-w-0 flex-1">
 					<div className="flex items-center gap-1.5">
 						<span className="truncate text-[13px] font-semibold text-foreground">{name}</span>
@@ -91,28 +106,44 @@ export function ImChannelCardView({
 
 			<div className="relative flex items-center justify-between gap-2">
 				<span className="pointer-events-none min-w-0">
-					{isActive ? (
+					{resolvedDisplayMode === "status" ? (
 						(statusBadge ?? <ImStatusBadgeView label={labels.statusLabel} status={effectiveStatus} />)
+					) : resolvedDisplayMode === "pending" ? (
+						<span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-medium text-amber-400">
+							<span className="h-1.5 w-1.5 rounded-full bg-current" />
+							{labels.channelPending ?? labels.channelConfigured}
+						</span>
 					) : (
 						<span
 							className={cn(
 								"inline-flex items-center rounded-full px-2 py-0.5 text-[11px]",
-								configured ? "bg-accent/60 text-muted-foreground" : "bg-muted text-muted-foreground/60",
+								resolvedDisplayMode === "configured"
+									? "bg-accent/60 text-muted-foreground"
+									: "bg-muted text-muted-foreground/60",
 							)}
 						>
-							{configured ? labels.channelConfigured : labels.channelNotAssociated}
+							{resolvedDisplayMode === "configured" ? labels.channelConfigured : labels.channelNotAssociated}
 						</span>
 					)}
 				</span>
-				<Button
-					variant="ghost"
-					size="icon-xs"
-					aria-label={`${name} · ${labels.configureLabel}`}
-					title={labels.configureLabel}
-					onClick={onConfigure}
-				>
-					<span className="icon-[solar--settings-linear] h-3 w-3" />
-				</Button>
+				{canActivate ? (
+					<Button
+						variant="ghost"
+						size="icon-xs"
+						aria-label={`${name} · ${labels.configureLabel}`}
+						title={labels.configureLabel}
+						onClick={onConfigure}
+					>
+						<span className="icon-[solar--settings-linear] h-3 w-3" />
+					</Button>
+				) : (
+					<span
+						aria-hidden
+						className="pointer-events-none flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors group-hover:text-foreground"
+					>
+						<span className="icon-[solar--settings-linear] h-3 w-3" />
+					</span>
+				)}
 			</div>
 		</div>
 	);

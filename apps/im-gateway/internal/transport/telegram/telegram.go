@@ -185,6 +185,7 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			transport.ReportConnection(ctx, transport.ConnectionConnecting)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -193,6 +194,7 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 			backoff = nextBackoff(backoff, maxBackoff)
 			continue
 		}
+		transport.ReportConnection(ctx, transport.ConnectionOnline)
 		backoff = initialBackoff
 
 		for i := range updates {

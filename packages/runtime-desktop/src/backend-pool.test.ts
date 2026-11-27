@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import type { Api, Model } from "@567agent/ai";
 import { resolveCodingAgentSessionDir } from "@567agent/coding-agent/bootstrap";
 import {
+	type CodingAgentRuntimeComposition,
 	type CodingAgentRuntimeCompositionOptions,
 	createCodingAgentRuntimeComposition,
 	createCodingAgentRuntimeSessionSelection,
@@ -18,6 +19,7 @@ import {
 	RuntimeHost as BaseRuntimeHost,
 	RuntimeAgentRuntime,
 	RuntimeObservationHub,
+	type RuntimeSessionCreateRequest,
 	type SessionConfig,
 } from "@567agent/runtime-core";
 import type { McpRuntimeToolSource } from "@567agent/runtime-mcp";
@@ -134,6 +136,44 @@ describe("DesktopRuntimeBackendPool", () => {
 			runtime.invokeSessionExtensionSync(second.sessionId, CODING_AGENT_SESSION_PROFILE_STATE_READ, undefined)
 				.scenario,
 		).toBe("automation");
+	});
+
+	it("keeps the explicitly selected model when the session workspace is an SSH project", async () => {
+		const remoteCwd = "ssh://build-01/opt/projects/app";
+		const selected = { ...MODEL, id: "ssh-selected-model", name: "SSH selected model" };
+		let captured: RuntimeSessionCreateRequest | undefined;
+		const disposeComposition = vi.fn(async () => undefined);
+		const pool = new DesktopRuntimeBackendPool({
+			compositionDefaults: {
+				modelRegistry: modelRegistry([MODEL, selected]),
+				initialModel: MODEL,
+				initialThinkingLevel: "off",
+				resolveSystemPromptOptions: resolveTestSystemPromptOptions,
+			},
+			createComposition: async () =>
+				({
+					agentRuntime: { agentId: "coding-agent" },
+					runtimeHostBackend: {
+						createAssembly: async (request: RuntimeSessionCreateRequest) => {
+							captured = request;
+							throw new Error("stop after request capture");
+						},
+					},
+					dispose: disposeComposition,
+				}) as unknown as CodingAgentRuntimeComposition,
+		});
+		const runtime = new RuntimeHost({ sessionBackend: pool, getDefaultExecutionMode: () => "full-access" });
+		pools.push(pool);
+		runtimes.push(runtime);
+
+		await expect(runtime.createSession({ cwd: remoteCwd, model: selected, scenario: "batch" })).rejects.toThrow(
+			"stop after request capture",
+		);
+
+		expect(captured?.cwd).toBe(remoteCwd);
+		expect(captured?.model).toBe(selected);
+		expect(captured?.agent?.sessionConfiguration).toMatchObject({ cwd: remoteCwd, model: selected });
+		expect(disposeComposition).toHaveBeenCalledOnce();
 	});
 
 	it("owns one instance per session while sharing the workspace composition and MCP source", async () => {
@@ -837,11 +877,11 @@ describe("DesktopRuntimeBackendPool", () => {
 	});
 });
 
-function modelRegistry(): CodingAgentRuntimeModelSource {
+function modelRegistry(models: readonly Model<Api>[] = [MODEL]): CodingAgentRuntimeModelSource {
 	return {
 		refresh() {},
-		getAvailable: () => [MODEL],
-		find: (provider, modelId) => (provider === MODEL.provider && modelId === MODEL.id ? MODEL : undefined),
+		getAvailable: () => [...models],
+		find: (provider, modelId) => models.find((model) => provider === model.provider && modelId === model.id),
 		getApiKey: async () => "test-key",
 		setServerToken() {},
 		loadRemoteModels: async () => undefined,

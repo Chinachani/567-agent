@@ -309,6 +309,11 @@
 		}
 	},
 	"permission": {
+		"activation": {
+			"title": "{{plugin}} encountered a permission issue at startup",
+			"undeclared": "The plugin package does not declare {{permission}}. Update it from its original source or ask the author to declare this permission.",
+			"ungranted": "{{permission}} has not been granted. Open the plugin’s details in the Ability Center, choose Review permissions, and enable the permission."
+		},
 		"detailUnavailable": {
 			"title": "Plugin configuration panel is hidden",
 			"description": "This plugin has not been allowed to show its configuration panel here. Review its permissions and enable the ones you need.",
@@ -316,6 +321,7 @@
 		},
 		"page": {
 			"open": "Review permissions",
+			"migrationNotice": "The previous permission choices for this plugin are unavailable. Review the list and enable the permissions you want to grant.",
 			"title": "Permissions and data access",
 			"back": "Back to ability details",
 			"description": "See which host capabilities this plugin declares. Turning one off blocks the matching host API calls; it does not isolate plugin code in a security sandbox.",

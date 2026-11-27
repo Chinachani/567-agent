@@ -1,10 +1,11 @@
-import { type ChildProcess, execFile } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { getAgent567HomePath } from "@567agent/action-rpc";
+import { type NodeProcessTreeTracker, trackNodeProcessTree } from "@567agent/runtime-node/host";
 import type {
 	PluginServiceArtifactPayload,
 	PluginServiceConnection,
@@ -34,7 +35,6 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 // Image/video generation providers may legitimately hold a request open for several minutes.
 // Keep this aligned with the plugin network and media-provider execution ceilings.
 const MAX_REQUEST_TIMEOUT_MS = 5 * 60_000;
-const STOP_GRACE_MS = 3_000;
 const TRANSPORT_READY_WAIT_MS = 15_000;
 const TRANSPORT_READY_POLL_MS = 50;
 const TOKEN_PATTERN = /\$\{AGENT567_SERVICE_(PORT|RUNTIME_DIR|DATA_DIR|CACHE_DIR|SECRET_([A-Z0-9_]+))\}/g;
@@ -51,6 +51,7 @@ interface ServiceRecord {
 	child?: ChildProcess;
 	baseUrl?: string;
 	secrets?: ServiceSecrets;
+	tracker?: NodeProcessTreeTracker;
 	transportReady: boolean;
 	operation?: Promise<PluginServiceStatus>;
 	stopping?: Promise<PluginServiceStatus>;
@@ -63,7 +64,7 @@ interface PluginServiceProviderDependencies {
 	fetchClient: (url: string, init?: RequestInit) => Promise<Response>;
 	spawnProcess: typeof spawnCrossPlatformCommand;
 	resolveHostNodeExecutable: () => string;
-	killProcess: typeof killTree;
+	spawnProcessTree?: (child: ChildProcess) => NodeProcessTreeTracker;
 	allocatePort: typeof allocateLoopbackPort;
 	broadcast(channel: string, payload: unknown): void;
 }
@@ -83,17 +84,8 @@ function broadcast(channel: string, payload: unknown): void {
 	}
 }
 
-function killTree(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): void {
-	if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
-	if (process.platform === "win32") {
-		execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], () => undefined);
-		return;
-	}
-	try {
-		process.kill(-child.pid, signal);
-	} catch {
-		child.kill(signal);
-	}
+function trackProcessTree(child: ChildProcess): NodeProcessTreeTracker {
+	return trackNodeProcessTree(child, { detached: process.platform !== "win32" });
 }
 
 async function allocateLoopbackPort(): Promise<number> {
@@ -265,7 +257,7 @@ export class PluginServiceProviderService {
 				fetchClient: fetch,
 				spawnProcess: spawnCrossPlatformCommand,
 				resolveHostNodeExecutable: () => getRuntimeManager().getExecutable("node"),
-				killProcess: killTree,
+				spawnProcessTree: trackProcessTree,
 				allocatePort: allocateLoopbackPort,
 				broadcast,
 			};
@@ -401,21 +393,16 @@ export class PluginServiceProviderService {
 		if (record.stopping) return record.stopping;
 		record.generation += 1;
 		record.transportReady = false;
-		if (!record.child) return this.setStatus(record, "stopped");
+		if (!record.child || !record.tracker) return this.setStatus(record, "stopped");
 		this.setStatus(record, "stopping");
 		const child = record.child;
-		const stopping = new Promise<void>((resolveStop) => {
-			const timer = setTimeout(() => this.dependencies.killProcess(child, "SIGKILL"), STOP_GRACE_MS);
-			timer.unref();
-			child.once("exit", () => {
-				clearTimeout(timer);
-				resolveStop();
-			});
-			this.dependencies.killProcess(child);
-		})
+		const stopping = record.tracker
+			.terminate()
+			.catch(() => undefined)
 			.then(() => {
 				if (record.child === child) {
 					record.child = undefined;
+					record.tracker = undefined;
 					record.baseUrl = undefined;
 					record.transportReady = false;
 				}
@@ -467,8 +454,9 @@ export class PluginServiceProviderService {
 		for (const record of this.records.values()) {
 			if (record.pluginId !== pluginId) continue;
 			record.generation += 1;
-			if (record.child) this.dependencies.killProcess(record.child, "SIGKILL");
+			void record.tracker?.terminate({ force: true });
 			record.child = undefined;
+			record.tracker = undefined;
 			record.baseUrl = undefined;
 			record.transportReady = false;
 			this.setStatus(record, "disabled");
@@ -479,7 +467,7 @@ export class PluginServiceProviderService {
 		for (const record of this.records.values()) {
 			record.generation += 1;
 			record.transportReady = false;
-			if (record.child) this.dependencies.killProcess(record.child, "SIGKILL");
+			void record.tracker?.terminate({ force: true });
 		}
 	}
 
@@ -680,6 +668,7 @@ export class PluginServiceProviderService {
 				stdio: ["ignore", "pipe", "pipe"],
 			});
 			record.child = child;
+			record.tracker = (this.dependencies.spawnProcessTree ?? trackProcessTree)(child);
 			record.baseUrl = `http://127.0.0.1:${port}`;
 			record.secrets = secrets;
 			record.transportReady = false;
@@ -689,6 +678,7 @@ export class PluginServiceProviderService {
 			child.once("exit", (exitCode, signal) => {
 				if (record.child !== child || record.generation !== generation) return;
 				record.child = undefined;
+				record.tracker = undefined;
 				record.baseUrl = undefined;
 				record.transportReady = false;
 				if (record.status.phase === "stopping") return;
@@ -710,8 +700,9 @@ export class PluginServiceProviderService {
 				serviceId: record.service.id,
 				message,
 			});
-			if (record.child) this.dependencies.killProcess(record.child, "SIGKILL");
+			void record.tracker?.terminate({ force: true });
 			record.child = undefined;
+			record.tracker = undefined;
 			record.baseUrl = undefined;
 			record.transportReady = false;
 			return this.setStatus(record, "failed", message);

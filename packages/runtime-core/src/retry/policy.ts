@@ -8,6 +8,7 @@ import type {
 export interface ConfigurableRuntimeTurnRetryPolicyOptions {
 	readonly readSettings: () => RuntimeTurnRetrySettings;
 	readonly setEnabled?: (enabled: boolean) => void;
+	readonly random?: () => number;
 }
 
 /** Exponential backoff policy that re-reads dynamic settings before every retry. */
@@ -32,11 +33,14 @@ export class ConfigurableRuntimeTurnRetryPolicy implements RuntimeTurnRetryPolic
 			return { action: "stop", reason: "retry-after-exceeds-max-delay" };
 		}
 		const attempt = input.completedRetries + 1;
+		const deterministicDelayMs = Math.max(settings.baseDelayMs * 2 ** (attempt - 1), retryAfterMs ?? 0);
+		const jitterMs = Math.floor(settings.jitterMs ?? 0);
+		const jitter = jitterMs === 0 ? 0 : Math.floor((this.options.random?.() ?? Math.random()) * (jitterMs + 1));
 		return {
 			action: "retry",
 			attempt,
 			maxAttempts: settings.maxRetries,
-			delayMs: Math.min(Math.max(settings.baseDelayMs * 2 ** (attempt - 1), retryAfterMs ?? 0), maxDelayMs),
+			delayMs: Math.min(deterministicDelayMs + jitter, maxDelayMs),
 		};
 	}
 
@@ -57,6 +61,7 @@ function isValidSettings(settings: RuntimeTurnRetrySettings): boolean {
 		settings.maxRetries >= 0 &&
 		Number.isFinite(settings.baseDelayMs) &&
 		settings.baseDelayMs >= 0 &&
-		(settings.maxDelayMs === undefined || (Number.isFinite(settings.maxDelayMs) && settings.maxDelayMs >= 0))
+		(settings.maxDelayMs === undefined || (Number.isFinite(settings.maxDelayMs) && settings.maxDelayMs >= 0)) &&
+		(settings.jitterMs === undefined || (Number.isFinite(settings.jitterMs) && settings.jitterMs >= 0))
 	);
 }

@@ -172,6 +172,33 @@ describe("useMessageFeedScrollModel", () => {
 		expect(scrollToIndex).toHaveBeenCalledWith({ index: 1, align: "center", behavior: "smooth" });
 	});
 
+	it("ignores a source jump queued before switching to another feed", () => {
+		const frames: FrameRequestCallback[] = [];
+		vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
+		const scrollToIndex = vi.fn();
+		const initialProps: { resetKey: string; initialTargetKey?: string } = {
+			resetKey: "source-feed",
+			initialTargetKey: "target",
+		};
+		const { result, rerender } = renderHook(
+			({ resetKey, initialTargetKey }) =>
+				useMessageFeedScrollModel({
+					active: false,
+					items: [{ logicalKey: "target" }],
+					resetKey,
+					initialTargetKey,
+					getItemKey: (item) => item.logicalKey,
+				}),
+			{ initialProps },
+		);
+		result.current.virtuosoRef.current = { scrollToIndex } as unknown as VirtuosoHandle;
+		rerender({ resetKey: "different-feed" });
+		act(() => {
+			for (const callback of frames.splice(0)) callback(0);
+		});
+		expect(scrollToIndex).not.toHaveBeenCalledWith(expect.objectContaining({ align: "center" }));
+	});
+
 	it("caches measured item state and exposes it for a later remount", () => {
 		vi.stubGlobal(
 			"ResizeObserver",

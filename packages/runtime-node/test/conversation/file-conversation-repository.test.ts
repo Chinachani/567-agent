@@ -98,13 +98,14 @@ function completed(sessionId: string, turnId: string): TurnCompletedEvent {
 }
 
 describe("FileConversationRepository", () => {
-	it("preserves optional model timing through save, close and reopen alongside older messages", async () => {
+	it("restores model timing and the signed reasoning reset alongside older messages", async () => {
 		const { repository, rootDir } = await createRepository();
 		const sessionId = "timing-session";
 		await repository.create({ sessionId, createdAt: 100 });
 		const oldReply = assistant(sessionId, "turn-1", "old reply");
 		const timedReply = assistant(sessionId, "turn-2", "new reply");
 		timedReply.message.usage.performance = { durationMs: 1200, firstOutputMs: 100, firstTextMs: 400 };
+		timedReply.message.signedReasoningReset = true;
 		await repository.append(sessionId, 0, [
 			started(sessionId, "turn-1"),
 			oldReply,

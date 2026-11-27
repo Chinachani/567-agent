@@ -68,6 +68,8 @@ export function ChatHeaderActionsView({
 				key: "builtin:usage-log",
 				title: t("header.usageLog", "会话使用日志"),
 				icon: <span className="icon-[solar--chart-square-linear] size-4" />,
+				retainWhenNarrow: true,
+				promoteWhenActive: true,
 				behavior: {
 					type: "click",
 					onClick: () => void navigate({ to: "/usage", search: { sessionId } }),

@@ -1,10 +1,11 @@
 import type { RemoteDirectoryEntry, RemoteListenerScan, SshConnectionStatus, SshHost } from "@567agent/ssh-transport";
 import type { PortForward } from "../../main/ssh/port-forward-service.js";
-import type { SshHostStatusEvent } from "../../shared/ssh-ipc.js";
+import type { SshHostStatusEvent, SshPrivateKeySelection } from "../../shared/ssh-ipc.js";
 import type { SshPromptRequestEvent, SshPromptResponse } from "../../shared/ssh-prompt-ipc.js";
 
 // 渲染进程按这条契约读转发，不直接 import 主进程模块。
 export type { PortForward, PortForwardStatus } from "../../main/ssh/port-forward-service.js";
+export type { SshPrivateKeySelection } from "../../shared/ssh-ipc.js";
 
 // ─── 远程项目宿主（SSH） ───
 //
@@ -22,6 +23,7 @@ export interface SshHostFormInput {
 	target: string;
 	port?: number;
 	identityFile?: string;
+	privateKeyRef?: string;
 	/** 缺省为 `key`。 */
 	authMethod?: "key" | "password";
 	/**
@@ -68,6 +70,8 @@ export type SshHostRebindResult =
 	| { ok: false; reason: "not-orphaned" | "host-in-use"; projectCount: number };
 
 export interface DesktopSshApi {
+	pickPrivateKey(): Promise<SshPrivateKeySelection | null>;
+	discardPrivateKey(ref: string): Promise<void>;
 	listHosts(): Promise<SshHostSummary[]>;
 	createHost(input: SshHostFormInput): Promise<SshHost>;
 	updateHost(input: SshHostFormInput & { id: string }): Promise<SshHost>;

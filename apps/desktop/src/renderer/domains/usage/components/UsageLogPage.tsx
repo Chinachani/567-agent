@@ -1,12 +1,14 @@
 import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
+import { cn } from "@shared/lib/utils";
 import { Button } from "@shared/components/ui/button";
-import { pageHeaderLeftSlotAtom, pageHeaderTitleHiddenAtom, settingsReturnHrefAtom } from "@shared/store/atoms";
+import { pageHeaderLeftSlotAtom, pageHeaderTitleHiddenAtom, usageReturnHrefAtom } from "@shared/store/atoms";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom } from "jotai";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useUsageLogData } from "../hooks/useUsageLogData";
+import { USAGE_PRIMARY_ACCENT, USAGE_WARM_ACCENT, usageAccentTextStyle } from "../usage-palette";
 import { UsageCallDetailsTable } from "./UsageCallDetailsTable";
 import { UsageMetricsCards } from "./UsageMetricsCards";
 import { UsageTimeChart } from "./UsageTimeChart";
@@ -15,7 +17,7 @@ import { UsageTokenBreakdown } from "./UsageTokenBreakdown";
 export function UsageLogPage(): JSX.Element {
 	const { t } = useTranslation("settings");
 	const router = useRouter();
-	const returnHref = useAtomValue(settingsReturnHrefAtom) || "/";
+	const returnHref = useAtomValue(usageReturnHrefAtom) || "/";
 	const setHeaderLeftSlot = useSetAtom(pageHeaderLeftSlotAtom);
 	const setHeaderTitleHidden = useSetAtom(pageHeaderTitleHiddenAtom);
 
@@ -62,7 +64,7 @@ export function UsageLogPage(): JSX.Element {
 	}, [setHeaderTitleHidden]);
 
 	useEffect(() => {
-		const back = t("backToWorkspace");
+		const back = t(returnHref.split("?")[0].startsWith("/settings") ? "usageLog.backToSettings" : "backToWorkspace");
 		setHeaderLeftSlot(
 			<Button
 				variant="ghost"
@@ -80,11 +82,13 @@ export function UsageLogPage(): JSX.Element {
 	}, [setHeaderLeftSlot, router, returnHref, t]);
 
 	return (
-		<div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-			<div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6">
+		<div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto bg-background text-foreground">
+			<div className="@container mx-auto flex w-full max-w-[1600px] min-w-0 flex-col gap-5 px-4 py-5 @md:px-6 @2xl:px-8">
 				<WorkspacePageHeader
 					title={t("usageLog.title")}
-					description={t("usageLog.subtitle")}
+					description={selectedSessionId === "all" ? t("usageLog.subtitle") : t("usageLog.sessionScope", {
+						name: availableSessions.find((entry) => entry.id === selectedSessionId)?.name ?? t("usageLog.currentSession"),
+					})}
 					actions={
 						<Button
 							variant="outline"
@@ -114,43 +118,61 @@ export function UsageLogPage(): JSX.Element {
 
 				{/* 部分历史日志未同步提示 */}
 				{isPartial && (
-					<div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs text-amber-500">
+					<div
+						className="flex items-center gap-2 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3.5 py-2 text-xs"
+						style={usageAccentTextStyle(USAGE_WARM_ACCENT)}
+					>
 						<AlertCircle className="h-4 w-4 shrink-0" />
 						<span>{t("usageLog.partialNotice")}</span>
 					</div>
 				)}
 
-				{/* 1. 顶部指标卡片组（包含 567 API 独立实扣卡片） */}
+				{/* 本机记录范围与指标 */}
 				<div
 					role="group"
 					aria-label={t("usageLog.localTimeRange")}
-					className="flex flex-wrap items-center gap-1 rounded-xl border border-border bg-card p-1.5"
+					className="flex flex-wrap items-center gap-1 rounded-xl border border-border/50 bg-muted/45 p-1"
 				>
 					<span className="px-2 text-xs font-medium text-muted-foreground">{t("usageLog.localTimeRange")}</span>
-					{(["today", "24h", "7d", "30d", "all"] as const).map((range) => (
-						<Button
-							key={range}
-							size="sm"
-							variant={timeRange === range ? "default" : "ghost"}
-							aria-pressed={timeRange === range}
-							onClick={() => setTimeRange(range)}
-						>
-							{t(`usageLog.timeRange.${range}`)}
-						</Button>
-					))}
+					{(["today", "24h", "7d", "30d", "all"] as const).map((range) => {
+						const active = timeRange === range;
+						return (
+							<Button
+								key={range}
+								size="sm"
+								variant="ghost"
+								aria-pressed={active}
+								className={cn(
+									active
+										? "bg-card text-foreground font-semibold ring-1 ring-inset ring-border/80 hover:bg-card"
+										: "text-muted-foreground hover:text-foreground",
+								)}
+								onClick={() => setTimeRange(range)}
+							>
+								{t(`usageLog.timeRange.${range}`)}
+							</Button>
+						);
+					})}
 				</div>
 				<UsageMetricsCards metrics={metrics} />
 
 				{(selectedSessionId !== "all" || selectedGroup !== "all") && (
-					<section className="space-y-2 rounded-lg border border-border p-4">
-						<h2 className="text-sm font-semibold">{t("usageLog.scopeShare")}</h2>
-						<p className="text-lg font-semibold tabular-nums">
-							{periodTokens > 0
-								? new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 }).format(
-										metrics.totalTokens / periodTokens,
-									)
-								: "—"}
-						</p>
+					<section className="space-y-2.5 rounded-xl border border-border/60 bg-card/75 p-4">
+						<div className="flex flex-wrap items-baseline justify-between gap-2">
+							<h2 className="text-sm font-semibold text-foreground">{t("usageLog.scopeShare")}</h2>
+							<p className="text-lg font-semibold tabular-nums" style={usageAccentTextStyle(USAGE_PRIMARY_ACCENT)}>
+								{formatUsageShare(metrics.totalTokens, periodTokens)}
+							</p>
+						</div>
+						<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted/60">
+							<div
+								className="h-full rounded-full transition-[width] duration-300"
+								style={{
+									width: `${periodTokens > 0 ? Math.min(100, Math.max(0, (metrics.totalTokens / periodTokens) * 100)) : 0}%`,
+									backgroundColor: USAGE_PRIMARY_ACCENT,
+								}}
+							/>
+						</div>
 						<p className="text-xs text-muted-foreground">
 							{t("usageLog.scopeShareDetail", {
 								used: metrics.totalTokens.toLocaleString(),
@@ -197,4 +219,11 @@ export function UsageLogPage(): JSX.Element {
 			</div>
 		</div>
 	);
+}
+
+function formatUsageShare(used: number, total: number): string {
+	const percent = new Intl.NumberFormat(undefined, { style: "percent", maximumFractionDigits: 1 });
+	if (total === 0 || used === 0) return percent.format(0);
+	const share = used / total;
+	return share < 0.001 ? `<${percent.format(0.001)}` : percent.format(share);
 }

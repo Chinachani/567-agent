@@ -209,6 +209,9 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 	if t.opts.Domain != "" {
 		wsOpts = append(wsOpts, larkws.WithDomain(t.opts.Domain))
 	}
+	if transport.ObservesConnection(ctx) {
+		wsOpts = append(wsOpts, larkws.WithLogger(connectionLogger{ctx: ctx}))
+	}
 
 	t.mu.Lock()
 	t.ws = larkws.NewClient(t.opts.AppID, t.opts.AppSecret, wsOpts...)
@@ -228,6 +231,29 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 		return nil
 	case err := <-errCh:
 		return err
+	}
+}
+
+// The pinned Feishu SDK provides socket lifecycle notifications through its
+// logger. Keep the raw output off the NDJSON stream, including socket URLs.
+type connectionLogger struct {
+	ctx context.Context
+}
+
+func (connectionLogger) Debug(context.Context, ...interface{}) {}
+func (connectionLogger) Warn(context.Context, ...interface{})  {}
+func (connectionLogger) Error(context.Context, ...interface{}) {}
+
+func (l connectionLogger) Info(_ context.Context, args ...interface{}) {
+	if len(args) == 0 {
+		return
+	}
+	message, _ := args[0].(string)
+	switch {
+	case strings.HasPrefix(message, "connected to "):
+		transport.ReportConnection(l.ctx, transport.ConnectionOnline)
+	case strings.HasPrefix(message, "disconnected to "):
+		transport.ReportConnection(l.ctx, transport.ConnectionConnecting)
 	}
 }
 

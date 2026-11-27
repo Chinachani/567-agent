@@ -63,8 +63,7 @@ export async function startDesignProject(cwd: string): Promise<void> {
 /**
  * 预约「切到这个 cwd 后把画布铺开」。
  *
- * 插件的 revealTabForCwd 只在「纯设计项目」时自动展开，混合项目故意不抢；从画廊点进来
- * 是用户显式表达的意图，所以这里单独记一笔，由会话切换时消费一次。
+ * 从画廊点进来是用户显式表达的意图，即使还没创建会话也应展开已有设计。
  */
 let pendingRevealCwd: string | null = null;
 

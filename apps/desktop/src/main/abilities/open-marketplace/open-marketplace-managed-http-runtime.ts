@@ -1,8 +1,9 @@
-import { type ChildProcess, execFile, spawn } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { type NodeProcessTreeTracker, trackNodeProcessTree } from "@567agent/runtime-node/host";
 
 export const MANAGED_HTTP_RUNTIME_FILE = ".managed-http-runtime.json";
 export const MANAGED_HTTP_PORT_TOKEN = `\${AGENT567_MCP_PORT}`;
@@ -29,6 +30,7 @@ export interface ManagedHttpRuntimeSpec {
 
 interface RunningRuntime {
 	readonly child: ChildProcess;
+	readonly tracker: NodeProcessTreeTracker;
 	readonly url: string;
 	readonly environmentKey: string;
 }
@@ -156,15 +158,12 @@ async function allocateLoopbackPort(): Promise<number> {
 	});
 }
 
-function stopProcessTree(child: ChildProcess): Promise<void> {
-	if (!child.pid || child.exitCode !== null) return Promise.resolve();
-	if (process.platform === "win32") {
-		return new Promise((resolve) => {
-			execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], () => resolve());
-		});
-	}
-	child.kill("SIGTERM");
-	return Promise.resolve();
+function trackProcessTree(child: ChildProcess): NodeProcessTreeTracker {
+	return trackNodeProcessTree(child, { detached: process.platform !== "win32" });
+}
+
+async function stopProcessTree(tracker: NodeProcessTreeTracker): Promise<void> {
+	await tracker.terminate({ force: false }).catch(() => undefined);
 }
 
 /** Desktop-owned lifecycle for marketplace binaries that expose Streamable HTTP directly. */
@@ -219,7 +218,7 @@ export class ManagedHttpRuntimeService {
 		}
 		if (active) {
 			this.running.delete(id);
-			await stopProcessTree(active.child);
+			await stopProcessTree(active.tracker);
 		}
 		const controller = new AbortController();
 		const start = this.start(spec, overrides, environmentKey, controller.signal).finally(() =>
@@ -235,7 +234,7 @@ export class ManagedHttpRuntimeService {
 		await pending?.promise.catch(() => undefined);
 		const runtime = this.running.get(id);
 		this.running.delete(id);
-		if (runtime) await stopProcessTree(runtime.child);
+		if (runtime) await stopProcessTree(runtime.tracker);
 	}
 
 	async stopAll(): Promise<void> {
@@ -277,12 +276,14 @@ export class ManagedHttpRuntimeService {
 			},
 			stdio: ["ignore", "pipe", "pipe"],
 			windowsHide: true,
+			detached: process.platform !== "win32",
 		});
 		let spawnError: Error | undefined;
 		child.once("error", (error) => {
 			spawnError = error;
 		});
-		this.running.set(id, { child, url, environmentKey });
+		const tracker = trackProcessTree(child);
+		this.running.set(id, { child, tracker, url, environmentKey });
 		child.stdout?.on("data", (data: Buffer) => this.onDiagnostic(`[${id}] ${data.toString().trimEnd()}`));
 		child.stderr?.on("data", (data: Buffer) => this.onDiagnostic(`[${id}] ${data.toString().trimEnd()}`));
 		child.once("exit", (code, signal) => {
@@ -294,7 +295,7 @@ export class ManagedHttpRuntimeService {
 			return url;
 		} catch (error) {
 			if (this.running.get(id)?.child === child) this.running.delete(id);
-			await stopProcessTree(child);
+			await stopProcessTree(tracker);
 			throw error;
 		}
 	}

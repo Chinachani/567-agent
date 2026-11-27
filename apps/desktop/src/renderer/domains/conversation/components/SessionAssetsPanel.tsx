@@ -1,11 +1,14 @@
 import { Button } from "@shared/components/ui/button";
+import { Input } from "@shared/components/ui/input";
+import { Textarea } from "@shared/components/ui/textarea";
 import { attachedImagesAtom, filePreviewAtom, mentionedFilesAtom } from "@shared/store/atoms";
 import { useAtom, useSetAtom } from "jotai";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { SessionWorkbenchModel } from "../hooks/useSessionWorkbench";
 import { AttachmentThumbnail } from "./AttachmentThumbnail";
-import { SessionAssetDetail } from "./SessionAssetDetail";
+import { formatDurationCompact } from "./blocks/tool-views/shared/format";
+import { reviewBadgeClass, SessionAssetDetail, taskBadgeClass } from "./SessionAssetDetail";
 
 type PendingSelection = { kind: "file" | "image"; id: string } | null;
 export function SessionAssetsPanel({
@@ -16,6 +19,7 @@ export function SessionAssetsPanel({
 	section: "attachment" | "task" | "change";
 }): JSX.Element {
 	const { t } = useTranslation("chat");
+	const readScopeId = useId();
 	const [pendingFiles, setPendingFiles] = useAtom(mentionedFilesAtom);
 	const [pendingImages, setPendingImages] = useAtom(attachedImagesAtom);
 	const preview = useSetAtom(filePreviewAtom);
@@ -56,18 +60,37 @@ export function SessionAssetsPanel({
 		setSelectedId(null);
 		setPending({ kind, id });
 	};
+	const selectedTask =
+		section === "task" && selectedId ? model.snapshot?.tasks.find((task) => task.id === selectedId) : undefined;
+	const selectedChange =
+		section === "change" && selectedId
+			? model.snapshot?.changes.find((change) => change.id === selectedId)
+			: undefined;
 	const rowClass =
 		"h-16 w-full min-w-0 justify-start gap-2 whitespace-normal px-3 text-left aria-pressed:bg-accent/60";
 	return (
 		<div className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
 			<div className="flex shrink-0 gap-2">
-				<input
-					aria-label={t("workbench.search")}
-					placeholder={t("workbench.search")}
-					className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-[12px]"
-					value={query}
-					onChange={(event) => setQuery(event.target.value)}
-				/>
+				<div className="relative min-w-0 flex-1">
+					<Input
+						aria-label={t("workbench.search")}
+						placeholder={t("workbench.search")}
+						className={`w-full text-[12px] ${query.length > 0 ? "pr-8" : ""}`}
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+					/>
+					{query.length > 0 && (
+						<Button
+							size="icon-xs"
+							variant="ghost"
+							aria-label={t("workbench.clearSearch")}
+							className="absolute top-1/2 right-1 -translate-y-1/2"
+							onClick={() => setQuery("")}
+						>
+							<span className="icon-[solar--close-circle-linear] h-3.5 w-3.5" aria-hidden="true" />
+						</Button>
+					)}
+				</div>
 				<Button
 					size="sm"
 					variant="ghost"
@@ -90,7 +113,7 @@ export function SessionAssetsPanel({
 				className={`grid min-h-0 min-w-0 flex-1 gap-3 overflow-hidden ${hasDetail ? "md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" : "grid-cols-1"}`}
 			>
 				<div
-					className={`min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-lg border border-border [scrollbar-gutter:stable] ${hasDetail ? "hidden md:block" : ""}`}
+					className={`min-h-0 min-w-0 overflow-y-auto overscroll-contain rounded-xl border border-border/50 bg-card/20 [scrollbar-gutter:stable] ${hasDetail ? "hidden md:block" : ""}`}
 				>
 					{model.busy && !selectedId && (
 						<p role="status" className="p-3 text-[12px] text-muted-foreground">
@@ -98,10 +121,13 @@ export function SessionAssetsPanel({
 						</p>
 					)}
 					{section === "attachment" && queuedFiles.length + queuedImages.length > 0 && (
-						<div className="border-b border-border bg-primary/5">
-							<h3 className="px-3 pt-3 text-[11px] font-medium text-primary">
-								{t("workbench.pending")} · {t("workbench.draft")}
-							</h3>
+						<div className="border-b border-border/60 bg-primary/5">
+							<div className="flex items-center justify-between gap-2 px-3 pt-3 pb-1">
+								<h3 className="text-[11px] font-medium text-primary">{t("workbench.pending")}</h3>
+								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+									{t("workbench.draft")}
+								</span>
+							</div>
 							{queuedImages.map((image) => (
 								<Button
 									key={image.id}
@@ -111,8 +137,19 @@ export function SessionAssetsPanel({
 									onClick={() => selectPending("image", image.id)}
 									aria-pressed={pendingImage?.id === image.id}
 								>
-									<span className="icon-[solar--gallery-linear] h-4 w-4 shrink-0" aria-hidden="true" />
-									<span className="min-w-0 flex-1 truncate">{image.name}</span>
+									<span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/50 bg-muted/40">
+										<img
+											src={`data:${image.mimeType};base64,${image.data}`}
+											alt={image.name}
+											className="h-full w-full object-contain"
+										/>
+									</span>
+									<span className="min-w-0 flex-1">
+										<span className="block truncate text-[13px]">{image.name}</span>
+										<span className="block truncate text-[11px] text-muted-foreground">
+											{t("workbench.draftImage")}
+										</span>
+									</span>
 								</Button>
 							))}
 							{queuedFiles.map((file) => (
@@ -125,9 +162,32 @@ export function SessionAssetsPanel({
 									aria-pressed={pendingFile?.path === file.path}
 								>
 									<span className="icon-[solar--document-text-linear] h-4 w-4 shrink-0" aria-hidden="true" />
-									<span className="min-w-0 flex-1 truncate">{file.name}</span>
+									<span className="min-w-0 flex-1">
+										<span className="block truncate text-[13px]">{file.name}</span>
+										<span className="block truncate text-[11px] text-muted-foreground">{file.path}</span>
+									</span>
+									{file.readScope?.trim() && (
+										<span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+											{t("workbench.draftScopeSet")}
+										</span>
+									)}
 								</Button>
 							))}
+						</div>
+					)}
+					{section === "attachment" && attachments.length > 0 && (
+						<div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-2">
+							<h3 className="text-[11px] font-medium text-muted-foreground">
+								{t("workbench.historyAttachments")}
+							</h3>
+							<div className="flex items-center gap-1.5">
+								<span className="rounded-full bg-muted px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+									{t("workbench.itemCount", { count: attachments.length })}
+								</span>
+								<span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+									{t("workbench.readOnlyDetail")}
+								</span>
+							</div>
 						</div>
 					)}
 					<div className="divide-y divide-border/40">
@@ -171,14 +231,14 @@ export function SessionAssetsPanel({
 										<span className="block truncate text-[13px]">
 											{task.title || t("workbench.untitled")}
 										</span>
-										<span className="block truncate text-[11px] text-muted-foreground">
+										<span className="block truncate text-[11px] tabular-nums text-muted-foreground">
 											{new Date(task.timestamp).toLocaleString()} ·{" "}
-											{task.durationMs === null ? "—" : `${(task.durationMs / 1000).toFixed(1)} s`} ·{" "}
+											{task.durationMs === null ? "—" : formatDurationCompact(task.durationMs)} ·{" "}
 											{t("workbench.tools", { count: task.toolCount })}
 										</span>
 									</span>
 									<span
-										className={`shrink-0 text-[11px] ${task.status === "failed" ? "text-destructive" : "text-muted-foreground"}`}
+										className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${taskBadgeClass(task.status)}`}
 									>
 										{t(`workbench.status.${task.status}`)}
 									</span>
@@ -195,38 +255,88 @@ export function SessionAssetsPanel({
 									aria-pressed={selectedId === change.id}
 								>
 									<span className="min-w-0 flex-1 truncate text-[13px]">{change.path || change.id}</span>
-									<span className="shrink-0 text-[11px] text-muted-foreground">
-										{t(`workbench.review.${change.status}`)}
+									<span className="flex shrink-0 items-center gap-1.5">
+										{change.reversible && change.status !== "reverted" && (
+											<span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+												{t("workbench.reversible")}
+											</span>
+										)}
+										<span
+											className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${reviewBadgeClass(change.status)}`}
+										>
+											{t(`workbench.review.${change.status}`)}
+										</span>
 									</span>
 								</Button>
 							))}
 					</div>
 					{empty && !model.busy && (
-						<p className="p-6 text-center text-[12px] text-muted-foreground">
-							{t(query ? "workbench.noMatches" : "workbench.empty")}
-						</p>
+						<div className="space-y-2 p-6 text-center">
+							<p className="text-[12px] text-muted-foreground">
+								{t(query ? "workbench.noMatches" : "workbench.empty")}
+							</p>
+							{query && (
+								<Button size="xs" variant="outline" onClick={() => setQuery("")}>
+									{t("workbench.clearSearch")}
+								</Button>
+							)}
+						</div>
 					)}
 				</div>
 				{hasDetail &&
 					(pendingFile || pendingImage ? (
-						<div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border">
+						<div className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card/20">
 							<div className="flex shrink-0 items-start gap-2 border-b border-border p-3">
 								<h3 className="min-w-0 flex-1 break-all text-[13px] font-medium">
 									{pendingFile?.name ?? pendingImage?.name}
 								</h3>
 								<Button size="xs" variant="ghost" className="shrink-0" onClick={close}>
+									<span className="icon-[solar--alt-arrow-left-linear] h-3.5 w-3.5 md:hidden" aria-hidden="true" />
 									{t("workbench.close")}
 								</Button>
 							</div>
 							<div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto p-4">
 								<p className="text-[11px] text-primary">{t("workbench.draft")}</p>
+								{pendingImage && (
+									<>
+										<p className="text-[11px] text-muted-foreground">{pendingImage.mimeType}</p>
+										<img
+											src={`data:${pendingImage.mimeType};base64,${pendingImage.data}`}
+											alt={pendingImage.name}
+											className="max-h-72 max-w-full rounded-lg border border-border/50 object-contain"
+										/>
+									</>
+								)}
 								{pendingFile && (
 									<>
 										<p className="break-all text-[11px] text-muted-foreground">{pendingFile.path}</p>
-										<label className="block space-y-2 text-[12px]">
-											<span>{t("workbench.readScope")}</span>
-											<textarea
-												className="min-h-24 w-full rounded-lg border border-border bg-background p-2"
+										<div className="space-y-2 text-[12px]">
+											<div className="flex items-center justify-between gap-2">
+												<label htmlFor={readScopeId}>{t("workbench.readScope")}</label>
+												<div className="flex items-center gap-2 text-[10px] tabular-nums text-muted-foreground">
+													<span>
+														{t("workbench.readScopeCount", { count: (pendingFile.readScope ?? "").length })}
+													</span>
+													{(pendingFile.readScope ?? "").length > 0 && (
+														<Button
+															size="xs"
+															variant="ghost"
+															onClick={() =>
+																setPendingFiles((current) =>
+																	current.map((file) =>
+																		file.path === pendingFile.path ? { ...file, readScope: "" } : file,
+																	),
+																)
+															}
+														>
+															{t("workbench.clearScope")}
+														</Button>
+													)}
+												</div>
+											</div>
+											<Textarea
+												id={readScopeId}
+												className="min-h-24 w-full rounded-lg border border-border bg-background p-2 text-[13px]"
 												maxLength={300}
 												value={pendingFile.readScope ?? ""}
 												onChange={(event) =>
@@ -239,7 +349,7 @@ export function SessionAssetsPanel({
 													)
 												}
 											/>
-										</label>
+										</div>
 									</>
 								)}
 							</div>
@@ -276,7 +386,7 @@ export function SessionAssetsPanel({
 							</div>
 						</div>
 					) : (
-						<SessionAssetDetail model={model} onClose={close} />
+						<SessionAssetDetail model={model} onClose={close} taskMeta={selectedTask} changeMeta={selectedChange} />
 					))}
 			</div>
 		</div>

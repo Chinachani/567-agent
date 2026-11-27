@@ -36,6 +36,7 @@ export interface ModelsConfigData {
 				reasoningLevels?: string[];
 				defaultReasoningLevel?: string;
 				input?: string[];
+				output?: string[];
 				contextWindow?: number;
 				contextWindowSource?: ModelContextSource;
 				maxTokens?: number;

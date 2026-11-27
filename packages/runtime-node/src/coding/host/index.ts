@@ -50,7 +50,6 @@ export {
 	type NodePathBoundaryClassifier,
 	type NodePathBoundaryClassifierOptions,
 } from "./path-boundary-classifier.js";
-export { killNodeProcessTree } from "./process-tree.js";
 export {
 	createNodeSandboxCodingToolEnvironment,
 	type NodeSandboxCodingToolEnvironment,

@@ -1,9 +1,11 @@
 import { useState, type JSX } from "react";
-import { Button } from "@vetta-org/ui";
+import { Button, cn } from "@vetta-org/ui";
 import { SettingRow, SettingSection } from "./SettingChrome";
 import { InputField } from "./SettingsFormFields";
 import { BrowserConnectionSetupGuide } from "./BrowserConnectionSetupGuide";
 import { MotionSelect, type MotionSelectOption } from "./MotionSelect";
+
+export type BrowserConnectionBadgeTone = "neutral" | "pending" | "error";
 
 export interface BrowserConnectionSettingsModel {
 	readonly preferBundledInstall: boolean;
@@ -25,6 +27,10 @@ export interface BrowserConnectionSettingsModel {
 	readonly profile: string;
 	readonly feedback?: string;
 	readonly error?: string;
+	readonly connectionBadge: {
+		readonly tone: BrowserConnectionBadgeTone;
+		readonly label: string;
+	};
 	readonly labels: {
 		readonly target: string;
 		readonly chooseTarget: string;
@@ -95,6 +101,18 @@ export interface BrowserConnectionSettingsModel {
 	};
 }
 
+const BADGE_CLASS: Record<BrowserConnectionBadgeTone, string> = {
+	neutral: "bg-accent/60 text-muted-foreground",
+	pending: "bg-amber-500/15 text-amber-400",
+	error: "bg-destructive/15 text-destructive",
+};
+
+const BADGE_DOT_CLASS: Record<BrowserConnectionBadgeTone, string> = {
+	neutral: "bg-muted-foreground/60",
+	pending: "bg-amber-500",
+	error: "bg-destructive",
+};
+
 export function BrowserConnectionSettingsView({ model }: { model: BrowserConnectionSettingsModel }): JSX.Element {
 	const [guideOpen, setGuideOpen] = useState(false);
 	const { labels, actions } = model;
@@ -106,30 +124,51 @@ export function BrowserConnectionSettingsView({ model }: { model: BrowserConnect
 				title={labels.title}
 				description={labels.description}
 			>
-				<SettingRow title={labels.target} description={model.targetDescription}>
-					<div className="flex flex-wrap items-center gap-2">
-						<MotionSelect
-							aria-label={labels.target}
-							value={model.target}
-							options={model.targetOptions}
-							placeholder={labels.chooseTarget}
-							onValueChange={actions.setTarget}
-							disabled={busy || model.conflict}
-						/>
-						{model.enabled && model.targetDirty && (
-							<Button
-								variant="outline"
-								size="sm"
-								disabled={busy || model.conflict || !model.canSave}
-								onClick={actions.save}
+				<div className="border-b border-border">
+					<SettingRow title={labels.target} description={model.targetDescription} border={false}>
+						<div className="flex flex-wrap items-center gap-2">
+							<MotionSelect
+								aria-label={labels.target}
+								value={model.target}
+								options={model.targetOptions}
+								placeholder={labels.chooseTarget}
+								onValueChange={actions.setTarget}
+								disabled={busy || model.conflict}
+							/>
+							{model.enabled && model.targetDirty && (
+								<Button
+									variant="primary"
+									size="sm"
+									disabled={busy || model.conflict || !model.canSave}
+									onClick={actions.save}
+								>
+									{labels.saveTarget}
+								</Button>
+							)}
+						</div>
+					</SettingRow>
+					<p className="px-4 pb-3.5 text-[11px] leading-relaxed text-muted-foreground">{labels.targetHint}</p>
+				</div>
+				<div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4">
+					<div className="min-w-0 flex-1 basis-52">
+						<div className="flex flex-wrap items-center gap-2">
+							<span className="text-[13px] font-medium text-foreground">{labels.connection}</span>
+							<span
+								className={cn(
+									"inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
+									BADGE_CLASS[model.connectionBadge.tone],
+								)}
 							>
-								{labels.saveTarget}
-							</Button>
-						)}
+								<span
+									aria-hidden="true"
+									className={cn("h-1.5 w-1.5 rounded-full", BADGE_DOT_CLASS[model.connectionBadge.tone])}
+								/>
+								{model.connectionBadge.label}
+							</span>
+						</div>
+						<div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{labels.state}</div>
 					</div>
-				</SettingRow>
-				<SettingRow title={labels.connection} description={labels.state} border={false}>
-					<div className="flex flex-wrap items-center gap-2">
+					<div className="ml-auto flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2">
 						<BrowserConnectionSetupGuide model={model} open={guideOpen} onOpenChange={setGuideOpen} />
 						{model.enabled ? (
 							<Button variant="outline" size="sm" disabled={busy} onClick={actions.disable}>
@@ -149,8 +188,7 @@ export function BrowserConnectionSettingsView({ model }: { model: BrowserConnect
 							</Button>
 						)}
 					</div>
-				</SettingRow>
-				<p className="px-4 pb-3 text-[11px] leading-relaxed text-muted-foreground">{labels.targetHint}</p>
+				</div>
 				<details className="group border-t border-border px-4 py-3">
 					<summary className="flex cursor-pointer list-none items-center gap-2 rounded-md text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
 						<span>{labels.advanced}</span>
@@ -160,27 +198,29 @@ export function BrowserConnectionSettingsView({ model }: { model: BrowserConnect
 						/>
 					</summary>
 					<div className="mt-3 flex flex-col gap-4">
-						<label className="flex flex-col gap-1.5 text-[12px]">
-							<span>{labels.token}</span>
-							<InputField
-								aria-label={labels.token}
-								type="password"
-								value={model.token}
-								onChange={actions.setToken}
-								disabled={busy || model.conflict}
-							/>
-							<span className="text-[11px] leading-relaxed text-muted-foreground">{labels.tokenHint}</span>
-						</label>
-						<label className="flex flex-col gap-1.5 text-[12px]">
-							<span>{labels.profile}</span>
-							<InputField
-								aria-label={labels.profile}
-								value={model.profile}
-								onChange={actions.setProfile}
-								disabled={busy || model.conflict}
-							/>
-							<span className="text-[11px] leading-relaxed text-muted-foreground">{labels.profileHint}</span>
-						</label>
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<label className="flex flex-col gap-1.5 text-[12px]">
+								<span>{labels.token}</span>
+								<InputField
+									aria-label={labels.token}
+									type="password"
+									value={model.token}
+									onChange={actions.setToken}
+									disabled={busy || model.conflict}
+								/>
+								<span className="text-[11px] leading-relaxed text-muted-foreground">{labels.tokenHint}</span>
+							</label>
+							<label className="flex flex-col gap-1.5 text-[12px]">
+								<span>{labels.profile}</span>
+								<InputField
+									aria-label={labels.profile}
+									value={model.profile}
+									onChange={actions.setProfile}
+									disabled={busy || model.conflict}
+								/>
+								<span className="text-[11px] leading-relaxed text-muted-foreground">{labels.profileHint}</span>
+							</label>
+						</div>
 						<div className="flex flex-wrap items-center gap-2">
 							<Button
 								variant="outline"

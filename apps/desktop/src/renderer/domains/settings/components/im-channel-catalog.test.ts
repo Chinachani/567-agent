@@ -65,9 +65,19 @@ describe("IM_CHANNELS", () => {
 
 describe("isImChannelConfigured", () => {
 	it("空配置下只有 iMessage 算已配置（读本机数据库，无凭据可配）", () => {
+		const original = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { configurable: true, value: "MacIntel" });
 		const config = emptyConfig();
 		const configured = ALL_TRANSPORTS.filter((transport) => isImChannelConfigured(config, transport));
 		expect(configured).toEqual(["imessage"]);
+		if (original) Object.defineProperty(navigator, "platform", original);
+	});
+
+	it("非 macOS 不把 iMessage 标记为已配置", () => {
+		const original = Object.getOwnPropertyDescriptor(navigator, "platform");
+		Object.defineProperty(navigator, "platform", { configurable: true, value: "Linux x86_64" });
+		expect(isImChannelConfigured(emptyConfig(), "imessage")).toBe(false);
+		if (original) Object.defineProperty(navigator, "platform", original);
 	});
 
 	it.each([

@@ -176,7 +176,7 @@ export function InputBarView({ model, children, className, classNames }: InputBa
 											onSelectConnector={commands.onConnectorSelect}
 											filter={commands.slashFilter}
 											cwd={model.effectiveCwd || undefined}
-											className={model.isFocused ? "border-primary/20" : undefined}
+											className={model.isFocused ? "border-ring" : "border-input"}
 											allowCompaction={commands.allowCompaction}
 										/>
 									</PerfSendProfiler>

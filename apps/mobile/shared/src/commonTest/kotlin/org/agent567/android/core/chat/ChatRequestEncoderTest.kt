@@ -3,9 +3,14 @@ package org.agent567.android.core.chat
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import org.agent567.android.core.model.AssistantReplayState
 import org.agent567.android.core.model.ChatContentPart
 import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatRole
+import org.agent567.android.core.model.ChatToolCall
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -66,5 +71,31 @@ class ChatRequestEncoderTest {
         assertEquals(2, wires.size)
         assertEquals("user", (wires[0]["role"] as JsonPrimitive).content)
         assertEquals("assistant", (wires[1]["role"] as JsonPrimitive).content)
+    }
+
+    @Test
+    fun encodesToolCallsAndToolResultWithoutResponsesReasoningItems() {
+        val messages =
+            listOf(
+                ChatMessage(
+                    role = ChatRole.Assistant,
+                    parts = listOf(ChatContentPart.Text("")),
+                    replayState = AssistantReplayState(
+                        inferenceApi = InferenceApi.Responses.wireValue,
+                        serviceIdentity = "https://api.567.wiki",
+                        groupName = "vip",
+                        modelId = "gpt-5",
+                        reasoningItems = listOf("""{"type":"reasoning","id":"rs_1","encrypted_content":"secret"}"""),
+                        toolCalls = listOf(ChatToolCall("call_1|fc_1", "lookup", """{"q":"x"}""")),
+                    ),
+                ),
+                ChatMessage(ChatRole.Tool, listOf(ChatContentPart.Text("done")), toolCallId = "call_1|fc_1"),
+            )
+        val wires = ChatRequestEncoder.encodeMessages(messages)
+        assertEquals(2, wires.size)
+        assertFalse(wires.toString().contains("encrypted_content"))
+        val toolCall = wires[0].getValue("tool_calls").jsonArray.single().jsonObject
+        assertEquals("call_1", toolCall.getValue("id").jsonPrimitive.content)
+        assertEquals("call_1", wires[1].getValue("tool_call_id").jsonPrimitive.content)
     }
 }

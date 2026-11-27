@@ -19,7 +19,9 @@ export function SshHostDialog({ model }: { model: SshHostsSettingsModel }): JSX.
 	const editedHost = editing ? model.hosts.find((host) => host.id === model.editingId) : undefined;
 	const passwordSaved = editedHost?.authMethod === "password";
 	const usingPassword = form.authMethod === "password";
-	const canSubmit = form.host.trim().length > 0 && !model.saving;
+	const canSubmit = form.host.trim().length > 0 && !model.saving && !model.pickingPrivateKey;
+	const keySelection = model.privateKeySelection;
+	const keyActionsDisabled = model.saving || model.pickingPrivateKey;
 
 	return (
 		<Dialog
@@ -102,14 +104,34 @@ export function SshHostDialog({ model }: { model: SshHostsSettingsModel }): JSX.
 							/>
 						</Field>
 					) : (
-						<Field label={labels.fieldIdentityFile} hint={labels.fieldIdentityFileHint}>
-							<InputField
-								value={form.identityFile}
-								onChange={(value) => actions.setForm({ identityFile: value })}
-								placeholder="~/.ssh/id_ed25519"
-								aria-label={labels.fieldIdentityFile}
-							/>
-						</Field>
+						<div className="flex flex-col gap-2">
+							{keySelection ? (
+								<div role="status" className="flex min-w-0 flex-col gap-1">
+									<span className="break-all text-[12px] font-medium text-[var(--foreground)]">{keySelection.name}</span>
+									<span className="text-[11px] text-[var(--muted-foreground)]">{labels.privateKeyPending}</span>
+								</div>
+							) : (
+								<Field label={labels.fieldIdentityFile} hint={labels.fieldIdentityFileHint}>
+									<InputField
+										value={form.identityFile}
+										onChange={(value) => actions.setForm({ identityFile: value })}
+										placeholder="~/.ssh/id_ed25519"
+										aria-label={labels.fieldIdentityFile}
+										disabled={keyActionsDisabled}
+									/>
+								</Field>
+							)}
+							<div className="flex flex-wrap items-center gap-2">
+								<Button type="button" variant="field" size="sm" disabled={keyActionsDisabled} onClick={() => void actions.pickPrivateKey()}>
+									{keySelection ? labels.replacePrivateKey : labels.pickPrivateKey}
+								</Button>
+								{keySelection && (
+										<Button type="button" variant="ghost" size="sm" disabled={keyActionsDisabled} onClick={actions.discardPrivateKey}>
+										{labels.discardPrivateKey}
+									</Button>
+								)}
+							</div>
+						</div>
 					)}
 
 					<Field label={labels.fieldLabel} hint={labels.fieldLabelHint}>
@@ -128,7 +150,7 @@ export function SshHostDialog({ model }: { model: SshHostsSettingsModel }): JSX.
 					)}
 
 					<div className="flex items-center justify-end gap-2 pt-1">
-						<Button type="button" variant="ghost" size="sm" onClick={actions.cancelEdit}>
+						<Button type="button" variant="ghost" size="sm" disabled={model.saving} onClick={actions.cancelEdit}>
 							{labels.cancel}
 						</Button>
 						<Button type="submit" variant="primary" size="sm" disabled={!canSubmit}>

@@ -1,6 +1,10 @@
 import { resolveReasoning } from "@shared/components/ModelSelect/resolveReasoning";
 import { type ModelOption, useModelOptions } from "@shared/components/ModelSelect/useModelOptions";
-import { isValidReasoningLevel, useModelPickerModel } from "@shared/components/ModelSelect/useModelPickerModel";
+import {
+	fallbackOptionFromKey,
+	isValidReasoningLevel,
+	useModelPickerModel,
+} from "@shared/components/ModelSelect/useModelPickerModel";
 import {
 	activeSessionAtom,
 	modelSupportsImagesAtom,
@@ -10,6 +14,7 @@ import {
 import type { ModelSelectorViewProps } from "@vetta-org/theme-ui/chat";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo } from "react";
+import { modelOutputKind } from "../../../../shared/model-output-kind";
 
 export interface ModelSelectorModel {
 	empty: boolean;
@@ -24,11 +29,7 @@ export interface ModelSelectorScope {
 }
 
 export function isImageGenerationModel(option: ModelOption): boolean {
-	const tags = option.tags?.map((tag) => tag.toLowerCase()) ?? [];
-	if (tags.some((tag) => tag === "image-generation" || tag === "image-gen" || tag === "image-generation-only")) {
-		return true;
-	}
-	return /(?:^|[-/])(?:gpt-)?image(?:[-/]|$)|(?:^|[-/])imagen(?:[-/]|$)/i.test(option.modelId);
+	return option.imageOnly ?? modelOutputKind(option.modelId, option) === "image-only";
 }
 
 const isChatModel = (option: ModelOption): boolean => !isImageGenerationModel(option);
@@ -53,7 +54,13 @@ export function useModelSelectorModel({
 	const selectedModel = scope ? scope.modelKey : globalSelectedModel;
 	const activeSession = useAtomValue(activeSessionAtom);
 	const setModelSupportsImages = useSetAtom(modelSupportsImagesAtom);
-	const { options: allOptions } = useModelOptions();
+	const { options: allOptions, imageOnlyKeys } = useModelOptions();
+	const selectedIsImageOnly =
+		selectedModel !== null &&
+		(imageOnlyKeys.has(selectedModel) ||
+			isImageGenerationModel(
+				allOptions.find((option) => option.key === selectedModel) ?? fallbackOptionFromKey(selectedModel),
+			));
 
 	const handleModelSelect = useCallback(
 		(key: string | null, option: ModelOption | null) => {
@@ -85,7 +92,7 @@ export function useModelSelectorModel({
 	);
 
 	const picker = useModelPickerModel({
-		value: selectedModel,
+		value: selectedIsImageOnly ? null : selectedModel,
 		onChange: handleModelSelect,
 		reasoning,
 		filterModel: isChatModel,
@@ -94,17 +101,18 @@ export function useModelSelectorModel({
 
 	// Auto-apply the configured default model when nothing is selected yet.
 	useEffect(() => {
-		const selectedIsImageOnly = allOptions.some(
-			(option) => option.key === selectedModel && isImageGenerationModel(option),
-		);
-		if ((selectedModel && !selectedIsImageOnly) || !globalDefaultKey) return;
+		if (selectedModel && !selectedIsImageOnly) return;
+		if (!globalDefaultKey) {
+			if (selectedIsImageOnly && !scope) setSelectedModel(null);
+			return;
+		}
 		if (scope) {
 			const defaultReasoning = resolveReasoning(options.find((option) => option.key === globalDefaultKey))?.default;
 			scope.onModelSelect(globalDefaultKey, defaultReasoning);
 		} else {
 			setSelectedModel(globalDefaultKey);
 		}
-	}, [selectedModel, globalDefaultKey, setSelectedModel, scope, options, allOptions]);
+	}, [selectedModel, globalDefaultKey, setSelectedModel, scope, options, selectedIsImageOnly]);
 
 	// Keep image-support flag in sync with the resolved catalog selection only.
 	useEffect(() => {

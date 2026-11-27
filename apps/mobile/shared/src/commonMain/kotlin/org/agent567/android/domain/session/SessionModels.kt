@@ -1,6 +1,7 @@
 package org.agent567.android.domain.session
 
 import org.agent567.android.core.model.ChatContentPart
+import org.agent567.android.core.model.AssistantReplayState
 import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatRole
 import org.agent567.android.core.model.ChatQuestion
@@ -33,8 +34,20 @@ data class ChatSession(
     val remoteSessionId: String? = null,
     /** This mirror represents a new Desktop session initiated from the mobile app. */
     val remoteSessionCreatedOnMobile: Boolean = false,
+    /** A desktop turn whose prompt may have been accepted while the mobile stream was lost. */
+    val pendingRemoteTurn: PendingRemoteTurn? = null,
     val titleManuallyEdited: Boolean = false,
     val context: MobileSessionContext = MobileSessionContext(),
+)
+
+data class PendingRemoteTurn(
+    val turnId: String,
+    val deviceId: String,
+    val remoteSessionId: String?,
+    val assistantMessageId: String,
+    val createdAtEpochMs: Long,
+    val retryPreviousTurn: Boolean = false,
+    val confirmedNotReceived: Boolean = false,
 )
 
 data class MessageImage(
@@ -80,6 +93,8 @@ data class LocalMessage(
     /** 待用户回答的问题属于这条 assistant 消息，持久化后可在切换/重启后继续处理。 */
     val pendingQuestion: PendingQuestion? = null,
     val sources: List<org.agent567.android.core.model.ChatSource> = emptyList(),
+    val replayState: AssistantReplayState? = null,
+    val toolCallId: String? = null,
 ) {
     /** A projection only: old records retain their original source and image attachments. */
     val conversationText: String
@@ -95,11 +110,21 @@ data class LocalMessage(
         if (parts.isEmpty()) {
             parts.add(ChatContentPart.Text(""))
         }
-        return ChatMessage(role = role, parts = parts)
+        return ChatMessage(
+            role = role,
+            parts = parts,
+            replayState = if (role == ChatRole.Assistant && status == MessageStatus.Complete) replayState else null,
+            toolCallId = if (role == ChatRole.Tool) toolCallId?.takeIf { it.isNotBlank() } else null,
+        )
     }
 
     val hasVisualContent: Boolean
         get() = content.isNotBlank() || images.isNotEmpty() || files.isNotEmpty()
+
+    val hasReplayableContextContent: Boolean
+        get() = hasVisualContent ||
+            (role == ChatRole.Assistant && status == MessageStatus.Complete && replayState?.toolCalls?.isNotEmpty() == true) ||
+            (role == ChatRole.Tool && !toolCallId.isNullOrBlank())
 }
 
 data class ToolTrace(

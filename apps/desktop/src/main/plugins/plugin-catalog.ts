@@ -233,7 +233,7 @@ export async function installPluginFromArchive(
 		const registry = pluginRegistry.read();
 		const previous = registry[manifest.id];
 		await copyPluginPackage(sourceDir, pluginsBaseDir, manifest.id, manifest.version);
-		let installed = createInstalledPluginFromManifest({
+		const installed = createInstalledPluginFromManifest({
 			manifest,
 			options,
 			previous,
@@ -242,15 +242,6 @@ export async function installPluginFromArchive(
 			rootPath: computePluginRootPath(manifest.id, options?.source ?? "archive", manifest.version),
 			reloadToken: Date.now().toString(),
 		});
-		// Fresh install with explicit grants: if caller passed permissions, keep them.
-		// ADR-0042 agent path typically grants all declared permissions at approve time.
-		if (options?.grantedPermissions && options.grantedPermissions.length > 0) {
-			const allowed = new Set(installed.permissions);
-			installed = {
-				...installed,
-				grantedPermissions: options.grantedPermissions.filter((p) => allowed.has(p)),
-			};
-		}
 		if (manifest.contributionMode?.hardIsolation) {
 			pluginAgentContributionService.registerModeGate(manifest.id);
 		}
@@ -350,9 +341,9 @@ export function grantPluginPermissions(id: string, permissions: PluginPermission
 	const plugin = registry[id];
 	if (!plugin) throw new Error(`Plugin not found: ${id}`);
 	const allowed = new Set(effectivePluginPermissions(plugin.permissions));
-	plugin.grantedPermissions = Array.from(
-		new Set([...plugin.grantedPermissions, ...permissions.filter((p) => allowed.has(p))]),
-	);
+	const approved = permissions.filter((permission) => allowed.has(permission));
+	plugin.grantedPermissions = effectivePluginPermissions([...plugin.grantedPermissions, ...approved]);
+	if (approved.length > 0) delete plugin.permissionReviewRequired;
 	plugin.updatedAt = new Date().toISOString();
 	pluginRegistry.write(registry);
 	broadcastPluginChanged(id);
@@ -434,6 +425,7 @@ export function applyPluginSetup(
 	plugin.grantedPermissions = Array.from(
 		new Set(input.grantedPermissions.filter((permission) => allowedPermissions.has(permission))),
 	);
+	delete plugin.permissionReviewRequired;
 	plugin.grantedCommandNames = grantDeclaredPluginCommands(
 		[],
 		parseCommands(input.grantedCommands),

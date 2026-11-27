@@ -204,6 +204,12 @@ func (t *Transport) Capabilities() transport.Capabilities {
 // Handlers are invoked from the session's own goroutines, so the
 // MessageHandler must be cheap or hand off to a worker.
 func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler) error {
+	t.session.AddHandler(func(_ *discordgo.Session, _ *discordgo.Connect) {
+		transport.ReportConnection(ctx, transport.ConnectionOnline)
+	})
+	t.session.AddHandler(func(_ *discordgo.Session, _ *discordgo.Disconnect) {
+		transport.ReportConnection(ctx, transport.ConnectionConnecting)
+	})
 	t.session.AddHandler(func(_ *discordgo.Session, r *discordgo.Ready) {
 		if r.User != nil {
 			t.setBotUserID(r.User.ID)

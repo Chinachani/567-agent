@@ -13,15 +13,14 @@ const sessionSearchState = vi.hoisted(() => ({
 	skipped: 0,
 	sources: [],
 }));
+const useSessionSearch = vi.hoisted(() => vi.fn(() => sessionSearchState));
 const scopeBindings = vi.hoisted(() => ({ current: [] as { key: string; run: () => void }[] }));
 const projectSessions = vi.hoisted(() => ({ current: [] as unknown[] }));
 const prefetchCommandMenuAction = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 vi.mock("../../../root-layout/nav-route-prefetch", () => ({ prefetchCommandMenuAction }));
-vi.mock("../../project/hooks/useSessionSearch", () => ({
-	useSessionSearch: () => sessionSearchState,
-}));
+vi.mock("../../project/hooks/useSessionSearch", () => ({ useSessionSearch }));
 vi.mock("../../plugins/runtime/plugin-i18n", () => ({
 	usePluginTextResolver: () => (_pluginId: string, raw: string) => raw,
 }));
@@ -35,7 +34,7 @@ vi.mock("react-i18next", () => ({
 	useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-import { commandMenuOpenAtom, projectsAtom } from "@shared/store/atoms";
+import { commandMenuOpenAtom, defaultImConversationCwdAtom, projectsAtom, sessionsMapAtom } from "@shared/store/atoms";
 import { useCommandMenuModel } from "./useCommandMenuModel";
 
 function sessionResult(path: string, title: string): DesktopSessionSearchResult {
@@ -74,6 +73,7 @@ beforeEach(() => {
 	scopeBindings.current = [];
 	sessionSearchState.results = [];
 	sessionSearchState.loading = false;
+	useSessionSearch.mockClear();
 	projectSessions.current = [];
 	Object.defineProperty(window, "vetta", {
 		configurable: true,
@@ -86,6 +86,8 @@ beforeEach(() => {
 		},
 	});
 	store.set(commandMenuOpenAtom, true);
+	store.set(defaultImConversationCwdAtom, "");
+	store.set(sessionsMapAtom, new Map());
 	store.set(projectsAtom, [
 		{ cwd: "/w/alpha", name: "alpha", sessionCount: 0, type: "normal" },
 		{ cwd: "/w/alpine", name: "alpine", sessionCount: 0, type: "normal" },
@@ -219,15 +221,48 @@ it("clears the query when closed so the next open starts empty", async () => {
 	expect(result.current.query).toBe("");
 });
 
-it("shows no groups and issues no session search while the query is empty", () => {
+it("keeps projects and settings available when the query and the session cache are empty", () => {
 	const { result } = render();
-	// 空查询态：不发 IPC，只有本地目录，且逃生行不出现。
-	expect(result.current.groups.some((group) => group.key === "sessions")).toBe(false);
+	expect(result.current.groups.map((group) => group.key)).toEqual(["projects", "settings"]);
+	expect(useSessionSearch).toHaveBeenLastCalledWith(false, expect.objectContaining({ query: "" }));
 	expect(
 		result.current.groups
 			.flatMap((group) => group.items)
 			.some((item) => item.id === "ability:marketplace-search"),
 	).toBe(false);
+});
+
+it("opens the most recent cached conversation by Enter before the user types a query", () => {
+	const onOpenSession = vi.fn(async () => undefined);
+	const older = sessionResult("/sessions/project.jsonl", "Older project").session;
+	const recent = {
+		...sessionResult("/sessions/default.jsonl", "Latest conversation").session,
+		cwd: "/w/conversations/workdir",
+		modifiedAt: 6,
+	};
+	const locked = { ...older, path: "/sessions/locked.jsonl", modifiedAt: 10, access: undefined };
+	store.set(projectsAtom, [
+		{ cwd: "/w/conversations", name: "Conversations", type: "normal", sessionCount: 1, isDefault: true },
+		{ cwd: "/w/alpha", name: "Alpha", type: "normal", sessionCount: 2 },
+	]);
+	store.set(sessionsMapAtom, new Map([
+		["/w/alpha", [locked, older]],
+		["/w/conversations", [recent]],
+		["/removed-project", [{ ...recent, path: "/sessions/removed.jsonl", modifiedAt: 11 }]],
+	]));
+	// A search update arriving after the query was cleared must not replace the recent list.
+	sessionSearchState.results = [sessionResult("/sessions/search.jsonl", "Old search hit")];
+	sessionSearchState.loading = true;
+
+	const { result } = renderHook(() => useCommandMenuModel({ onOpenSession }));
+	expect(result.current.groups[0].label).toBe("commandMenu.groups.recentSessions");
+	expect(result.current.groups[0].items.map((item) => item.title)).toEqual(["Latest conversation", "Older project"]);
+	expect(result.current.groups.some((group) => group.key === "sessions")).toBe(false);
+	expect(useSessionSearch).toHaveBeenLastCalledWith(false, expect.objectContaining({ query: "" }));
+
+	press("enter");
+	expect(onOpenSession).toHaveBeenCalledWith("/w/conversations", recent.path, undefined);
+	expect(store.get(commandMenuOpenAtom)).toBe(false);
 });
 
 it("keeps an unavailable session out of keyboard navigation", async () => {
@@ -249,4 +284,21 @@ it("keeps an unavailable session out of keyboard navigation", async () => {
 	// 禁用行不参与导航，回车不应打开它。
 	act(() => result.current.onActivateItem("session:/w/locked.jsonl"));
 	expect(navigate).not.toHaveBeenCalled();
+});
+
+it("shows and opens results matched only in message text with the keyword highlighted", async () => {
+	const onOpenSession = vi.fn(async () => undefined);
+	const session = sessionResult("/w/notes.jsonl", "Sprint notes");
+	sessionSearchState.results = [
+		{ ...session, match: { field: "assistantMessage", snippet: "The timeout is 30 seconds", entryId: "m1" } },
+	];
+	const { result } = renderHook(() => useCommandMenuModel({ onOpenSession }));
+	act(() => result.current.onQueryChange("timeout"));
+
+	await waitFor(() => expect(result.current.selectedId).toBe("session:/w/notes.jsonl"));
+	const [match] = result.current.groups.find((group) => group.key === "sessions")?.items ?? [];
+	expect(match?.subtitle).toBe("The timeout is 30 seconds");
+	expect(match?.subtitleHighlights).toEqual([{ start: 4, end: 11 }]);
+	press("enter");
+	expect(onOpenSession).toHaveBeenCalledWith("/w/proj", "/w/notes.jsonl", undefined);
 });

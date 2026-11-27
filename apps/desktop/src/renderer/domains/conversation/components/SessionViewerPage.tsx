@@ -43,13 +43,13 @@ export function SessionViewerPage(): JSX.Element {
 	const model = useSessionViewerPageModel();
 	const setHeaderRight = useSetAtom(pageHeaderRightSlotAtom);
 	const workspace = useMemo(() => {
-		const cwd = model.kbCwd || model.imCwd || null;
+		const cwd = model.cwd;
 		return createActivityWorkspace(
 			cwd ?? model.path ?? (model.isKnowledge ? "knowledge:unbound" : "viewer:unbound"),
 			cwd,
 			activeRuntimeIds,
 		);
-	}, [activeRuntimeIds, model.imCwd, model.isKnowledge, model.kbCwd, model.path]);
+	}, [activeRuntimeIds, model.cwd, model.isKnowledge, model.path]);
 	const header = useMemo(
 		() => (
 			<div className="flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -163,13 +163,15 @@ export function SessionViewerPage(): JSX.Element {
 					workspace={workspace}
 					isStreaming={false}
 					sessionId={model.path || null}
+					initialTargetKey={model.initialTargetKey}
+					onInitialTargetHandled={model.onInitialTargetHandled}
 				/>
 			}
 			activityPanel={
 				model.isKnowledge ? (
 					<ActivityPanel workspace={workspace} enablePluginTabs={false} knowledgeHistory />
 				) : (
-					<ActivityPanel workspace={workspace} enablePluginTabs={false} />
+					<ActivityPanel workspace={workspace} enablePluginTabs={false} deliveryIndex={model.deliveryIndex} />
 				)
 			}
 		/>

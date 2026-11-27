@@ -1,4 +1,4 @@
-import type { TransportStatus } from "./host-protocol.js";
+import type { StatusEvent, TransportStatus } from "./host-protocol.js";
 
 /**
  * The current health snapshot of the IM bridge sidecar. Updated from
@@ -6,6 +6,7 @@ import type { TransportStatus } from "./host-protocol.js";
  */
 export interface ImBridgeStatus {
 	transport: TransportStatus;
+	channelStatuses?: StatusEvent["channelStatuses"];
 	lastError?: string;
 	lastErrorAt?: string;
 	activeSessions: number;
@@ -32,7 +33,17 @@ export class StatusStore {
 	private subscribers = new Set<(snapshot: ImBridgeStatus) => void>();
 
 	get(): ImBridgeStatus {
-		return { ...this.state };
+		const { channelStatuses } = this.state;
+		return { ...this.state, ...(channelStatuses && { channelStatuses: { ...channelStatuses } }) };
+	}
+
+	applyStatusEvent(event: StatusEvent): void {
+		this.patch({
+			transport: event.transport,
+			channelStatuses: event.channelStatuses ? { ...event.channelStatuses } : undefined,
+			lastError: event.lastError,
+			lastErrorAt: event.lastError ? event.time : undefined,
+		});
 	}
 
 	patch(update: Partial<ImBridgeStatus>): void {

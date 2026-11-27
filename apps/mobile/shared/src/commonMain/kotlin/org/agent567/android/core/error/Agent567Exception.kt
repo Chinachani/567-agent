@@ -16,6 +16,7 @@ sealed class Agent567Exception(
         val code: Int?,
         override val message: String,
         val rawBody: String? = null,
+        val providerCode: String? = null,
     ) : Agent567Exception(message)
 
     data class Unauthorized(
@@ -31,5 +32,6 @@ sealed class Agent567Exception(
     data class Protocol(
         override val message: String,
         override val cause: Throwable? = null,
+        val providerCode: String? = null,
     ) : Agent567Exception(message, cause)
 }

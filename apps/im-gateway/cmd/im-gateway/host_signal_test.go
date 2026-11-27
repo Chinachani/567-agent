@@ -19,6 +19,7 @@ func TestBindCoordinatorKind(t *testing.T) {
 	}{
 		{"nil spec", nil, ""},
 		{"wechat enabled", &buildSpec{Wechat: &hostproto.WechatConfig{Enabled: true}}, "wechat"},
+		{"whatsapp enabled", &buildSpec{Whatsapp: &hostproto.WhatsappConfig{Enabled: true}}, "whatsapp"},
 		{"wechat disabled", &buildSpec{Wechat: &hostproto.WechatConfig{}}, ""},
 		{"signal managed", &buildSpec{Signal: &hostproto.SignalConfig{}}, "signal"},
 		{
@@ -51,6 +52,9 @@ func TestBindFrames_RoutedToActiveChannelOnly(t *testing.T) {
 		{"signal logout on signal", "signal", &hostproto.SignalLogoutFrame{}, frameAction{logout: true}},
 		{"wechat frame on signal", "signal", &hostproto.WechatBindStartFrame{}, frameAction{}},
 		{"signal frame on wechat", "wechat", &hostproto.SignalBindStartFrame{}, frameAction{}},
+		{"whatsapp frame on whatsapp", "whatsapp", &hostproto.WhatsappBindStartFrame{}, frameAction{startBind: true}},
+		{"whatsapp logout on whatsapp", "whatsapp", &hostproto.WhatsappLogoutFrame{}, frameAction{logout: true}},
+		{"whatsapp frame on signal", "signal", &hostproto.WhatsappBindStartFrame{}, frameAction{}},
 		{"wechat frame on wechat", "wechat", &hostproto.WechatBindStartFrame{}, frameAction{startBind: true}},
 		{"signal frame with no coordinator", "", &hostproto.SignalBindStartFrame{}, frameAction{}},
 	}

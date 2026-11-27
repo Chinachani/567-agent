@@ -1,9 +1,12 @@
 package org.agent567.android.core.model
 
+import kotlinx.serialization.Serializable
+
 enum class ChatRole {
     System,
     User,
     Assistant,
+    Tool,
     ;
 
     fun toApiValue(): String =
@@ -11,6 +14,7 @@ enum class ChatRole {
             System -> "system"
             User -> "user"
             Assistant -> "assistant"
+            Tool -> "tool"
         }
 
     companion object {
@@ -18,6 +22,7 @@ enum class ChatRole {
             when (value.lowercase()) {
                 "system" -> System
                 "assistant" -> Assistant
+                "tool" -> Tool
                 else -> User
             }
     }
@@ -27,13 +32,41 @@ enum class ChatRole {
  * 发给 Gateway 的消息。文本与图片统一为 [parts]，由 [org.agent567.android.core.chat.ChatRequestEncoder]
  * 编码为 OpenAI 兼容 wire 形态。
  */
+@Serializable
+data class ChatToolCall(
+    val id: String,
+    val name: String,
+    val arguments: String,
+)
+
+@Serializable
+data class AssistantReplayState(
+    val inferenceApi: String,
+    val serviceIdentity: String,
+    val groupName: String? = null,
+    val modelId: String,
+    val reasoningItems: List<String> = emptyList(),
+    val toolCalls: List<ChatToolCall> = emptyList(),
+    val signedReasoningReset: Boolean = false,
+) {
+    override fun toString(): String =
+        "AssistantReplayState(inferenceApi=$inferenceApi, serviceIdentity=$serviceIdentity, " +
+            "groupName=${groupName.orEmpty()}, modelId=$modelId, " +
+            "reasoningCount=${reasoningItems.size}, toolCalls=${toolCalls.size}, " +
+            "signedReasoningReset=$signedReasoningReset)"
+}
+
 data class ChatMessage(
     val role: ChatRole,
     val parts: List<ChatContentPart>,
+    val replayState: AssistantReplayState? = null,
+    val toolCallId: String? = null,
 ) {
     constructor(role: ChatRole, content: String) : this(
         role = role,
         parts = if (content.isEmpty()) emptyList() else listOf(ChatContentPart.Text(content)),
+        replayState = null,
+        toolCallId = null,
     )
 
     val textContent: String
@@ -101,6 +134,8 @@ sealed class ChatStreamEvent {
         val finishReason: String?,
         val usage: TokenUsage? = null,
     ) : ChatStreamEvent()
+
+    data class ReplayState(val replayState: AssistantReplayState) : ChatStreamEvent()
 
     data object Done : ChatStreamEvent()
 

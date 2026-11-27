@@ -1,3 +1,5 @@
+import type { ImTransportSelector } from "./channels.js";
+
 /**
  * TypeScript counterpart of vetta-im-gateway/internal/hostproto.
  *
@@ -239,6 +241,7 @@ export interface CodingAgentSpec {
 
 export interface InitFrame {
 	type: typeof FRAME_INIT;
+	activeTransport?: string;
 	feishu?: FeishuConfig;
 	wechat?: WechatConfig;
 	telegram?: TelegramConfig;
@@ -255,6 +258,7 @@ export interface InitFrame {
 
 export interface ConfigUpdateFrame {
 	type: typeof FRAME_CONFIG_UPDATE;
+	activeTransport?: string;
 	feishu?: FeishuConfig;
 	wechat?: WechatConfig;
 	telegram?: TelegramConfig;
@@ -378,6 +382,7 @@ export interface LogEvent {
 export interface StatusEvent {
 	type: typeof EVENT_STATUS;
 	transport: TransportStatus;
+	channelStatuses?: Partial<Record<ImTransportSelector, TransportStatus>>;
 	lastError?: string;
 	time: string;
 }

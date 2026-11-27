@@ -3,9 +3,11 @@ package org.agent567.android.core
 import kotlinx.coroutines.ensureActive
 import org.agent567.android.core.api.ApiGroupInfoDto
 import org.agent567.android.core.api.Agent567Api
+import org.agent567.android.core.model.GroupModelKind
 import org.agent567.android.core.model.LlmModel
 import org.agent567.android.core.model.ModelsCatalog
 import org.agent567.android.core.model.MAX_IMAGE_PAYLOAD_BYTES
+import org.agent567.android.core.model.groupModelKind
 
 class ModelsRepository internal constructor(
     private val api: Agent567Api,
@@ -25,7 +27,11 @@ class ModelsRepository internal constructor(
     suspend fun refreshGroupModels(group: String?, allowProvision: Boolean = false): List<LlmModel> =
         api.goModels(group, background = true, allowProvision = allowProvision).goModels()
 
-    fun imageModels(ids: List<String>): List<String> = api.imageModels(ids)
+    internal fun conversationModels(models: List<LlmModel>): List<LlmModel> =
+        models.filterNot { groupModelKind(it.id) == GroupModelKind.ImageOnly }
+
+    fun imageModels(ids: List<String>): List<String> =
+        ids.distinct().filter { groupModelKind(it) != GroupModelKind.Conversation }
 
     suspend fun downloadBytes(url: String): ByteArray = api.downloadBytes(url)
 

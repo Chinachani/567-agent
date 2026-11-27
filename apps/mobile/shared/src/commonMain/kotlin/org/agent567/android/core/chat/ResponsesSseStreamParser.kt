@@ -5,14 +5,28 @@ import org.agent567.android.core.error.Agent567Exception
 import org.agent567.android.core.model.*
 import org.agent567.android.core.net.Agent567Json
 
+private const val MAX_REASONING_ITEMS = 64
+private const val MAX_REASONING_ITEM_CHARS = 1_000_000
+
 /** One HTTP attempt. Tools are released only by a completed response, never by argument deltas. */
 class ResponsesSseStreamParser {
     private val data = StringBuilder()
     private val streamedText = mutableMapOf<Pair<Int, Int>, StringBuilder>()
     private var textChars = 0
     private val completedTools = linkedMapOf<Int, JsonObject>()
+    private val completedReasoning = linkedMapOf<Int, JsonObject>()
     private var terminal = false
     private var hasText = false
+    internal var hiddenActivityCount = 0L
+        private set
+    internal var lastFailureFromStreamError = false
+        private set
+    private var lastReasoningItems: List<String> = emptyList()
+    private var lastToolCalls: List<ChatToolCall> = emptyList()
+
+    internal fun completedReasoningItems(): List<String> = lastReasoningItems
+
+    internal fun completedToolCalls(): List<ChatToolCall> = lastToolCalls
 
     fun parseLine(line: String): List<ChatStreamEvent> {
         if (terminal) return emptyList()
@@ -54,20 +68,56 @@ class ResponsesSseStreamParser {
                 val sources = event["annotation"]?.let { providerSources(JsonArray(listOf(it)), nested = false) }.orEmpty()
                 if (sources.isEmpty()) emptyList() else listOf(ChatStreamEvent.Delta("", sources))
             }
-            "response.output_item.done" -> {
+            "response.reasoning_text.delta", "response.reasoning_summary_text.delta" -> {
+                hiddenActivityCount += 1
+                emptyList()
+            }
+            "response.function_call_arguments.delta", "response.function_call_arguments.done" -> {
+                hiddenActivityCount += 1
+                emptyList()
+            }
+            "response.output_item.added", "response.output_item.done" -> {
                 val item = event["item"] as? JsonObject
-                if (item?.string("type") == "function_call") {
-                    val index = event.int("output_index") ?: return fail("工具调用缺少序号")
-                    if (index < 0 || (index !in completedTools && completedTools.size >= 16)) return fail("工具调用数量超过安全上限")
-                    completedTools[index] = item
-                    if (!validToolBudgets(completedTools.values)) return fail("工具参数超过安全长度限制")
+                val itemType = item?.string("type")
+                if (itemType == "function_call" || itemType == "reasoning") hiddenActivityCount += 1
+                if (event.string("type") == "response.output_item.done") {
+                    when (itemType) {
+                        "function_call" -> {
+                            val index = event.int("output_index") ?: return fail("工具调用缺少序号")
+                            if (index < 0 || (index !in completedTools && completedTools.size >= 16)) return fail("工具调用数量超过安全上限")
+                            completedTools[index] = item
+                            if (!validToolBudgets(completedTools.values)) return fail("工具参数超过安全长度限制")
+                        }
+                        "reasoning" -> {
+                            val index = event.int("output_index") ?: completedReasoning.size
+                            if (index >= 0 && isSignedReasoningJsonObject(item)) {
+                                if ((index in completedReasoning || completedReasoning.size < MAX_REASONING_ITEMS) &&
+                                    item.toString().length <= MAX_REASONING_ITEM_CHARS
+                                ) {
+                                    completedReasoning[index] = item
+                                }
+                            }
+                        }
+                    }
                 }
                 emptyList()
             }
             "response.completed" -> complete(event["response"] as? JsonObject, "completed")
             "response.incomplete" -> complete(event["response"] as? JsonObject, "incomplete")
-            "response.failed", "response.cancelled", "error" -> fail("Responses 请求失败：" +
-                ((event["response"] as? JsonObject)?.get("error") as? JsonObject ?: event["error"] as? JsonObject ?: event).string("message").orEmpty().take(500))
+            "response.failed", "error" -> {
+                val response = event["response"] as? JsonObject
+                val errorObj = response?.get("error") as? JsonObject ?: event["error"] as? JsonObject ?: event
+                val errorCode = errorObj.string("code")?.takeIf { it.isNotBlank() }
+                val errorMessage = errorObj.string("message").orEmpty().take(500)
+                usageEvent(response) + fail("Responses 请求失败：$errorMessage", providerCode = errorCode, fromStreamError = true)
+            }
+            "response.cancelled" -> {
+                val response = event["response"] as? JsonObject
+                val errorObj = response?.get("error") as? JsonObject ?: event["error"] as? JsonObject ?: event
+                val errorCode = errorObj.string("code")?.takeIf { it.isNotBlank() }
+                val errorMessage = errorObj.string("message").orEmpty().take(500)
+                usageEvent(response) + fail("Responses 请求失败：$errorMessage", providerCode = errorCode, fromStreamError = false)
+            }
             else -> emptyList()
         }
     }
@@ -79,6 +129,7 @@ class ResponsesSseStreamParser {
         if (output.size > 256) return fail("Responses 内容数量超过安全上限")
         val events = mutableListOf<ChatStreamEvent>()
         val tools = completedTools.toMutableMap()
+        val reasoning = completedReasoning.toMutableMap()
         for ((index, value) in output.withIndex()) {
             val item = value as? JsonObject ?: return fail("Responses 内容格式无效")
             when (item.string("type")) {
@@ -96,9 +147,23 @@ class ResponsesSseStreamParser {
                         if (suffix.isNotEmpty()) hasText = true
                     }
                 }
-                "function_call" -> tools[index] = item
+                "function_call" -> {
+                    tools[index] = item
+                }
+                "reasoning" -> {
+                    hiddenActivityCount += 1
+                    if (isSignedReasoningJsonObject(item) &&
+                        (index in reasoning || reasoning.size < MAX_REASONING_ITEMS) &&
+                        item.toString().length <= MAX_REASONING_ITEM_CHARS
+                    ) {
+                        reasoning[index] = item
+                    } else {
+                        reasoning.remove(index)
+                    }
+                }
             }
         }
+        val replayTools = mutableListOf<ChatToolCall>()
         if (status == "completed") {
             if (tools.size > 16 || !validToolBudgets(tools.values)) return fail("工具参数超过安全长度限制")
             val ids = mutableSetOf<String>()
@@ -106,24 +171,48 @@ class ResponsesSseStreamParser {
                 val id = tool.string("call_id"); val name = tool.string("name"); val args = tool.string("arguments")
                 if (id.isNullOrBlank() || name.isNullOrBlank() || args.isNullOrBlank() || !ids.add(id) ||
                     runCatching { Agent567Json.parseToJsonElement(args) }.getOrNull() !is JsonObject) return fail("工具调用缺少完整有效参数")
+                val itemId = tool.string("id")?.takeIf { it.isNotBlank() }
+                replayTools += ChatToolCall(if (itemId != null) "$id|$itemId" else id, name, args)
                 events += ChatStreamEvent.Tool("call", id, name, arguments = args)
             }
         }
-        if (!hasText && events.none { it is ChatStreamEvent.Tool }) return fail("Responses 返回空内容，请检查模型调用协议")
-        val usage = (response["usage"] as? JsonObject)?.let { TokenUsage(it.int("input_tokens"), it.int("output_tokens"), it.int("total_tokens")) }
+        if (status == "incomplete" && !hasText && events.isEmpty()) {
+            return usageEvent(response) + fail("Responses 未完成，未返回可显示的内容")
+        }
+        val usage = parseUsage(response)
+        lastReasoningItems = reasoning.toSortedMap().values.map { it.toString() }
+        lastToolCalls = if (status == "completed") replayTools else emptyList()
         events += ChatStreamEvent.Finished(if (status == "incomplete") "length" else if (tools.isNotEmpty()) "tool_calls" else "stop", usage)
         events += ChatStreamEvent.Done
         terminal = true
         completedTools.clear()
+        completedReasoning.clear()
         return events
+    }
+
+    private fun usageEvent(response: JsonObject?): List<ChatStreamEvent> =
+        parseUsage(response)?.let { listOf(ChatStreamEvent.State("usage", usage = it)) }.orEmpty()
+
+    private fun parseUsage(response: JsonObject?): TokenUsage? = (response?.get("usage") as? JsonObject)?.let {
+        TokenUsage(it.int("input_tokens"), it.int("output_tokens"), it.int("total_tokens"))
     }
 
     private fun validToolBudgets(tools: Collection<JsonObject>): Boolean = tools.all { it.string("arguments").orEmpty().length <= 1_000_000 } &&
         tools.sumOf { it.string("arguments").orEmpty().length.toLong() } <= 4_000_000
 
-    private fun fail(message: String): List<ChatStreamEvent> {
-        terminal = true; data.clear(); completedTools.clear()
-        return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol(message)))
+    private fun fail(
+        message: String,
+        providerCode: String? = null,
+        fromStreamError: Boolean = false,
+    ): List<ChatStreamEvent> {
+        terminal = true
+        lastFailureFromStreamError = fromStreamError
+        data.clear()
+        completedTools.clear()
+        completedReasoning.clear()
+        lastReasoningItems = emptyList()
+        lastToolCalls = emptyList()
+        return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol(message, providerCode = providerCode)))
     }
 }
 

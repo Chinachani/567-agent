@@ -64,6 +64,7 @@ import {
 import { DEFAULT_SERVER_URL } from "../constants.js";
 import { resolveDesktopRuntimeSessionRoots } from "../conversations/session-catalog-roots.js";
 import { resolveSessionListCwd } from "../conversations/session-paths.js";
+import { deleteTurnFileCheckpoints, desktopTurnFileObserver } from "../conversations/turn-file-checkpoints.js";
 import { getKnowledgeRoot } from "../knowledge/knowledge-layout.js";
 import { getAppLogger } from "../logger.js";
 import { getDesktopMcpAppRegistry } from "../mcp/mcp-app-runtime.js";
@@ -143,7 +144,12 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 	const defaultResultArtifacts = createDesktopResultArtifactRuntime(getAgentDir());
 	const conversationCatalog = new DesktopRuntimeSessionCatalog({
 		resolveRoots: resolveDesktopRuntimeSessionRoots,
-		artifactCleaner: defaultResultArtifacts.sessionArtifactCleaner,
+		artifactCleaner: {
+			async deleteSessionArtifacts(sessionId) {
+				await defaultResultArtifacts.sessionArtifactCleaner.deleteSessionArtifacts(sessionId);
+				await deleteTurnFileCheckpoints(sessionId);
+			},
+		},
 	});
 	const imConversationCatalog = new PathFilteredRuntimeSessionCatalog(
 		conversationCatalog,
@@ -195,6 +201,7 @@ export function createDesktopRuntimeComposition(): DesktopRuntimeComposition {
 			observationPublisher,
 			compositionDefaults: {
 				authorizeTool: authorizeCollaborationTool,
+				turnObservers: [desktopTurnFileObserver],
 				tracer: observability.tracer,
 				tracing: { captureContent: false, detail: "standard" },
 				agentRuntime: { runtime: agentRuntime },

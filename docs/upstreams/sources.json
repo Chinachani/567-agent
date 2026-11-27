@@ -1,0 +1,46 @@
+{
+	"sources": [
+		{
+			"id": "open-vetta",
+			"repository": "openvetta/open-vetta",
+			"ref": "main",
+			"pinned": "3a0c1477e1b95aba90761cd3e7388027c560dd2a",
+			"purpose": "OpenVetta compatibility upstream",
+			"highValuePaths": [
+				"packages/ai/src/",
+				"packages/runtime-core/",
+				"packages/coding-agent/",
+				"apps/desktop/src/",
+				"apps/cli-host/src/"
+			]
+		},
+		{
+			"id": "zcode",
+			"repository": "zai-org/ZCode",
+			"ref": "main",
+			"pinned": "a4b4445141eb7d3b3e99eada9292775383bfc44e",
+			"purpose": "ZCode architecture and product audit upstream",
+			"highValuePaths": [
+				"apps/zcode-cli/packages/adapters/src/model/",
+				"apps/zcode-cli/packages/provider/",
+				"apps/zcode-cli/packages/core/",
+				"packages/desktop/src/main/",
+				"packages/ui/src/root/",
+				"packages/ui/src/v4/",
+				"packages/shared/src/managed-worktree/",
+				"packages/services/src/managed-worktree-tasks/",
+				"packages/services/src/git/",
+				"packages/services/src/process/",
+				"packages/services/src/plugins/",
+				"packages/services/src/remote-sync/",
+				"packages/services/src/remote-projects/",
+				"packages/design-runtime/src/",
+				"packages/session-control/src/",
+				"packages/android/app/src/main/java/",
+				"scripts/architecture/",
+				"apps/zcode-cli/tools/provider-regression/",
+				"apps/zcode-cli/tools/prompt-trajectory/"
+			]
+		}
+	]
+}

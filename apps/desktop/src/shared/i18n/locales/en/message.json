@@ -1,10 +1,12 @@
 {
   "title": "Message Center",
   "triggerTitle": "Message Center",
+  "unread": "{{count}} unread notifications",
   "tabs": {
     "all": "All",
     "notifications": "Notifications",
-    "results": "Task results"
+    "results": "Task results",
+    "claw": "Claw"
   },
   "empty": {
     "all": "No messages",
@@ -20,6 +22,12 @@
     "minutesAgo": "{{n}}m ago",
     "hoursAgo": "{{n}}h ago",
     "daysAgo": "{{n}}d ago"
+  },
+  "claw": {
+    "empty": "No Claw conversations to view yet",
+    "loading": "Reading Claw conversations…",
+    "error": "Could not read Claw conversations",
+    "retry": "Try again"
   },
   "results": {
     "hint": "Recent conversation request outcomes. Separate background tool jobs are not included. Read state stays on this device.",

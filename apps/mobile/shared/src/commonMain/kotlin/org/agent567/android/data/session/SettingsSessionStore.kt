@@ -23,14 +23,19 @@ import kotlinx.serialization.Serializable
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import org.agent567.android.core.model.ChatRole
+import org.agent567.android.core.model.AssistantReplayState
+import org.agent567.android.core.model.ChatToolCall
 import org.agent567.android.core.model.ChatQuestion
 import org.agent567.android.core.model.ChatQuestionOption
 import org.agent567.android.core.model.TokenUsage
+import org.agent567.android.core.chat.InferenceApi
+import org.agent567.android.core.chat.isSignedReasoningWireItem
 import org.agent567.android.core.net.Agent567Json
 import org.agent567.android.domain.session.MobileSessionContext
 import org.agent567.android.domain.session.ChatSession
 import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.LocalMessage
+import org.agent567.android.domain.session.PendingRemoteTurn
 import org.agent567.android.domain.session.MessageImage
 import org.agent567.android.domain.session.MessageImageFileStore
 import org.agent567.android.domain.session.MessageStatus
@@ -305,6 +310,10 @@ class SettingsSessionStore(
                     val items = mutableListOf<MessageDto>()
                     (flowLru[session.id]?.value ?: loadMessages(session.id)).forEach { message ->
                         estimatedBytes += message.content.utf8ByteCount()
+                        estimatedBytes += message.replayState?.reasoningItems?.sumOf { it.utf8ByteCount() } ?: 0L
+                        estimatedBytes += message.replayState?.toolCalls?.sumOf {
+                            it.id.utf8ByteCount() + it.name.utf8ByteCount() + it.arguments.utf8ByteCount()
+                        } ?: 0L
                         if (estimatedBytes > maxBytes) {
                             throw MigrationBackupTooLargeException(estimatedBytes, maxBytes)
                         }
@@ -525,7 +534,46 @@ class SettingsSessionStore(
                     phaseLabel = event.phaseLabel?.boundedForStorage(256),
                 )
             },
+            replayState = sanitizeReplayStateForPersistence(message),
+            toolCallId = if (message.role == ChatRole.Tool) {
+                message.toolCallId?.trim()?.take(MAX_STORED_TOOL_CALL_ID_CHARS)?.takeIf { it.isNotEmpty() }
+            } else null,
         )
+
+    private fun sanitizeReplayStateForPersistence(message: LocalMessage): AssistantReplayState? {
+        if (message.role != ChatRole.Assistant || message.status != MessageStatus.Complete) return null
+        val state = message.replayState ?: return null
+        if (state.inferenceApi != InferenceApi.Responses.wireValue) return null
+        val serviceIdentity = state.serviceIdentity.trim().take(MAX_STORED_IDENTITY_CHARS)
+        val modelId = state.modelId.trim().take(MAX_STORED_IDENTITY_CHARS)
+        if (serviceIdentity.isEmpty() || modelId.isEmpty()) return null
+        val groupName = state.groupName?.trim()?.take(MAX_STORED_IDENTITY_CHARS)?.takeIf { it.isNotEmpty() }
+        val reasoningItems = state.reasoningItems
+            .asSequence()
+            .filter { it.length <= MAX_STORED_REASONING_ITEM_CHARS && isSignedReasoningWireItem(it) }
+            .take(MAX_STORED_REASONING_ITEMS)
+            .toList()
+        val toolCalls = state.toolCalls
+            .asSequence()
+            .mapNotNull { call ->
+                val id = call.id.trim().take(MAX_STORED_TOOL_CALL_ID_CHARS)
+                val name = call.name.trim().take(MAX_STORED_IDENTITY_CHARS)
+                if (id.isEmpty() || name.isEmpty() || call.arguments.length > MAX_STORED_REASONING_ITEM_CHARS) null
+                else ChatToolCall(id = id, name = name, arguments = call.arguments)
+            }
+            .take(MAX_STORED_REPLAY_TOOL_CALLS)
+            .toList()
+        if (reasoningItems.isEmpty() && toolCalls.isEmpty() && !state.signedReasoningReset) return null
+        return AssistantReplayState(
+            inferenceApi = InferenceApi.Responses.wireValue,
+            serviceIdentity = serviceIdentity,
+            groupName = groupName,
+            modelId = modelId,
+            reasoningItems = reasoningItems,
+            toolCalls = toolCalls,
+            signedReasoningReset = state.signedReasoningReset,
+        )
+    }
 
     private fun String.boundedForStorage(limit: Int): String {
         if (length <= limit) return this
@@ -742,6 +790,11 @@ class SettingsSessionStore(
         private const val MAX_STORED_ASSISTANT_CHARS = 1_000_000
         private const val MAX_STORED_TOOL_FIELD_CHARS = 8 * 1024
         private const val MAX_STORED_TOOL_EVENTS = 80
+        private const val MAX_STORED_REASONING_ITEMS = 64
+        private const val MAX_STORED_REASONING_ITEM_CHARS = 1_000_000
+        private const val MAX_STORED_REPLAY_TOOL_CALLS = 16
+        private const val MAX_STORED_TOOL_CALL_ID_CHARS = 256
+        private const val MAX_STORED_IDENTITY_CHARS = 512
         private const val MIGRATION_SCHEMA_VERSION = 1
         private const val MAX_MIGRATION_JSON_BYTES = MIGRATION_BACKUP_MAX_BYTES
         private const val MAX_MIGRATION_SESSIONS = 20_000
@@ -781,8 +834,20 @@ private data class SessionDto(
     val remoteDeviceId: String? = null,
     val remoteSessionId: String? = null,
     val remoteSessionCreatedOnMobile: Boolean = false,
+    val pendingRemoteTurn: PendingRemoteTurnDto? = null,
     val titleManuallyEdited: Boolean = false,
     val context: MobileSessionContext = MobileSessionContext(),
+)
+
+@Serializable
+private data class PendingRemoteTurnDto(
+    val turnId: String,
+    val deviceId: String,
+    val remoteSessionId: String? = null,
+    val assistantMessageId: String,
+    val createdAtEpochMs: Long,
+    val retryPreviousTurn: Boolean = false,
+    val confirmedNotReceived: Boolean = false,
 )
 
 @Serializable
@@ -811,6 +876,8 @@ private data class MessageDto(
     val contextPercent: Int? = null,
     val pendingQuestion: PendingQuestionDto? = null,
     val sources: List<org.agent567.android.core.model.ChatSource> = emptyList(),
+    val replayState: AssistantReplayState? = null,
+    val toolCallId: String? = null,
 )
 
 @Serializable
@@ -887,6 +954,17 @@ private fun SessionDto.toDomain() =
         remoteDeviceId = remoteDeviceId,
         remoteSessionId = remoteSessionId,
         remoteSessionCreatedOnMobile = remoteSessionCreatedOnMobile,
+        pendingRemoteTurn = pendingRemoteTurn?.let {
+            PendingRemoteTurn(
+                turnId = it.turnId,
+                deviceId = it.deviceId,
+                remoteSessionId = it.remoteSessionId,
+                assistantMessageId = it.assistantMessageId,
+                createdAtEpochMs = it.createdAtEpochMs,
+                retryPreviousTurn = it.retryPreviousTurn,
+                confirmedNotReceived = it.confirmedNotReceived,
+            )
+        },
         titleManuallyEdited = titleManuallyEdited,
         context = context,
     )
@@ -904,6 +982,17 @@ private fun ChatSession.toDto() =
         remoteDeviceId = remoteDeviceId,
         remoteSessionId = remoteSessionId,
         remoteSessionCreatedOnMobile = remoteSessionCreatedOnMobile,
+        pendingRemoteTurn = pendingRemoteTurn?.let {
+            PendingRemoteTurnDto(
+                turnId = it.turnId,
+                deviceId = it.deviceId,
+                remoteSessionId = it.remoteSessionId,
+                assistantMessageId = it.assistantMessageId,
+                createdAtEpochMs = it.createdAtEpochMs,
+                retryPreviousTurn = it.retryPreviousTurn,
+                confirmedNotReceived = it.confirmedNotReceived,
+            )
+        },
         titleManuallyEdited = titleManuallyEdited,
         context = context,
     )
@@ -953,6 +1042,8 @@ private fun MessageDto.toDomain() =
         contextPercent = contextPercent,
         pendingQuestion = pendingQuestion?.toDomain(),
         sources = org.agent567.android.core.model.normalizeChatSources(sources),
+        replayState = replayState,
+        toolCallId = toolCallId,
     )
 
 private fun LocalMessage.toDto() =
@@ -994,6 +1085,8 @@ private fun LocalMessage.toDto() =
         contextPercent = contextPercent,
         pendingQuestion = pendingQuestion?.toDto(),
         sources = sources,
+        replayState = replayState,
+        toolCallId = toolCallId,
     )
 
 private fun PendingQuestionDto.toDomain() =

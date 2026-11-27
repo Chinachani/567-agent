@@ -1,6 +1,7 @@
 package org.agent567.android.domain.conversation
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.agent567.android.core.model.ChatMessage
@@ -185,7 +186,18 @@ interface RemoteConversationGateway {
         retryPreviousTurn: Boolean,
         promptText: String,
         files: List<RemotePromptFileAttachment>,
+        remoteTurnId: String? = null,
     ): Flow<ChatStreamEvent> = stream(localSessionId, deviceId, remoteSessionId, messages, retryPreviousTurn)
+
+    /** Reads one previously submitted turn without submitting the prompt again. */
+    fun recoverRemoteTurn(
+        localSessionId: String,
+        deviceId: String,
+        remoteSessionId: String,
+        turnId: String,
+    ): Flow<ChatStreamEvent> = flow {
+        throw RemoteConversationException("当前电脑端不支持任务断线恢复，请更新电脑端后再试")
+    }
 
     fun resolvedRemoteSessionId(localSessionId: String): String?
 
@@ -233,4 +245,6 @@ object UnavailableRemoteConversationGateway : RemoteConversationGateway {
     ) = Unit
 }
 
-class RemoteConversationException(message: String) : IllegalStateException(message)
+open class RemoteConversationException(message: String) : IllegalStateException(message)
+
+class RemoteTurnNotFoundException(message: String) : RemoteConversationException(message)

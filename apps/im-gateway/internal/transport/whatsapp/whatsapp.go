@@ -121,7 +121,7 @@ func New(opts Options) (*Transport, error) {
 	if opts.StatePath == "" {
 		return nil, errors.New("whatsapp: Options.StatePath is required")
 	}
-	dsn := "file:" + opts.StatePath + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(10000)"
+	dsn := "file:" + filepath.ToSlash(opts.StatePath) + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(10000)"
 	container, err := sqlstore.New(context.Background(), "sqlite", dsn, waLog.Noop)
 	if err != nil {
 		return nil, fmt.Errorf("whatsapp open store: %w", err)
@@ -162,6 +162,17 @@ func (t *Transport) LoggedIn() bool {
 	return t.client.Store.ID != nil
 }
 
+// AccountJID returns the paired account identifier after a successful link.
+func (t *Transport) AccountJID() string {
+	if t.client.Store.ID == nil {
+		return ""
+	}
+	return t.client.Store.ID.String()
+}
+
+// Stopped reports whether Stop has closed the client and its store.
+func (t *Transport) Stopped() bool { return t.closed.Load() }
+
 // PairQR runs the QR pairing flow. It emits a PairEvent with a fresh QRCode
 // each time the previous code expires, then a terminal event with Done=true
 // (credentials persisted to the store) or Err set. The returned channel is
@@ -181,17 +192,33 @@ func (t *Transport) PairQR(ctx context.Context) (<-chan PairEvent, error) {
 	out := make(chan PairEvent, 8)
 	go func() {
 		defer close(out)
+		send := func(event PairEvent) bool {
+			select {
+			case out <- event:
+				return true
+			case <-ctx.Done():
+				return false
+			}
+		}
 		for item := range qrChan {
 			switch item.Event {
 			case whatsmeow.QRChannelEventCode:
-				out <- PairEvent{QRCode: item.Code}
+				if !send(PairEvent{QRCode: item.Code}) {
+					return
+				}
 			case whatsmeow.QRChannelSuccess.Event:
-				out <- PairEvent{Done: true}
+				if !send(PairEvent{Done: true}) {
+					return
+				}
 			case whatsmeow.QRChannelEventError:
-				out <- PairEvent{Err: fmt.Errorf("whatsapp pair: %w", item.Error)}
+				if !send(PairEvent{Err: fmt.Errorf("whatsapp pair: %w", item.Error)}) {
+					return
+				}
 			default:
 				// timeout / client-outdated / unexpected-state — all terminal.
-				out <- PairEvent{Err: fmt.Errorf("whatsapp pair: %s", item.Event)}
+				if !send(PairEvent{Err: fmt.Errorf("whatsapp pair: %s", item.Event)}) {
+					return
+				}
 			}
 		}
 	}()
@@ -201,6 +228,9 @@ func (t *Transport) PairQR(ctx context.Context) (<-chan PairEvent, error) {
 // Logout unlinks this device from the account and wipes the session from the
 // store. Requires an active connection (Connect is attempted if needed).
 func (t *Transport) Logout(ctx context.Context) error {
+	if t.Stopped() {
+		return errors.New("whatsapp logout: transport stopped")
+	}
 	if !t.client.IsConnected() {
 		if err := t.client.Connect(); err != nil && !errors.Is(err, whatsmeow.ErrAlreadyConnected) {
 			return fmt.Errorf("whatsapp logout connect: %w", err)
@@ -263,7 +293,7 @@ func (t *Transport) Stop() error {
 	}
 	close(t.done)
 	t.client.Disconnect()
-	return nil
+	return t.container.Close()
 }
 
 // handleMessage is the events.Message entry point: normalize, resolve media,

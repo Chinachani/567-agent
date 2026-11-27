@@ -221,6 +221,7 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			transport.ReportConnection(ctx, transport.ConnectionConnecting)
 			t.log.Warn("wechat getupdates failed, backing off",
 				zap.Duration("backoff", backoff),
 				zap.Error(err),
@@ -236,6 +237,7 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 			}
 			continue
 		}
+		transport.ReportConnection(ctx, transport.ConnectionOnline)
 		// Success: reset backoff.
 		backoff = t.pollInitialBackoff
 

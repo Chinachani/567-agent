@@ -96,18 +96,18 @@ describe("new session hero identity", () => {
 
 		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(agent.name);
 		expect(screen.getByText(agent.description)).toBeDefined();
-		expect(window.document.querySelectorAll(".ns-hero-avatar-slot img")).toHaveLength(1);
+		expect(window.document.querySelectorAll(".ns-hero-avatar-slot [data-agent-avatar]")).toHaveLength(1);
 	});
 
 	it("keeps a legacy team identity readable until an expert is selected", async () => {
 		render(<Harness initialTarget={teamTargetKey(team.id)} />);
 		await screen.findByRole("heading", { level: 1, name: team.name });
-		expect(window.document.querySelectorAll(".ns-hero-avatar-slot img").length).toBe(
+		expect(window.document.querySelectorAll(".ns-hero-avatar-slot [data-agent-avatar]").length).toBe(
 			Math.min(3, team.members.length),
 		);
 		await pick(agent.name);
 		expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(agent.name);
-		expect(window.document.querySelectorAll(".ns-hero-avatar-slot img")).toHaveLength(1);
+		expect(window.document.querySelectorAll(".ns-hero-avatar-slot [data-agent-avatar]")).toHaveLength(1);
 	});
 
 	it("folds a team larger than the avatar row into a trailing +n", async () => {
@@ -117,7 +117,7 @@ describe("new session hero identity", () => {
 		await screen.findByRole("heading", { level: 1, name: team.name });
 
 		const slot = window.document.querySelector(".ns-hero-avatar-slot");
-		expect(slot?.querySelectorAll("img")).toHaveLength(3);
+		expect(slot?.querySelectorAll("[data-agent-avatar]")).toHaveLength(3);
 		// 选择器 chip 里也有一枚 “+n”，这里只认 hero 槽内的那一枚。
 		expect(slot?.querySelector("[data-avatar-overflow]")?.textContent).toBe(`+${team.members.length - 3}`);
 	});
@@ -135,7 +135,7 @@ describe("new session hero identity", () => {
 		await screen.findByRole("heading", { level: 1, name: team.name });
 
 		const slot = window.document.querySelector(".ns-hero-avatar-slot");
-		expect(slot?.querySelectorAll("img")).toHaveLength(2);
+		expect(slot?.querySelectorAll("[data-agent-avatar]")).toHaveLength(2);
 		expect(slot?.querySelector("[data-avatar-overflow]")).toBeNull();
 	});
 
@@ -151,6 +151,6 @@ describe("new session hero identity", () => {
 		const slot = window.document.querySelector(".ns-hero-avatar-slot");
 		expect(slot?.getAttribute("data-visible")).toBe("false");
 		// 收起是宽度过渡，头像必须还在，否则会先凭空消失再收一个空盒子。
-		expect(slot?.querySelectorAll("img")).toHaveLength(1);
+		expect(slot?.querySelectorAll("[data-agent-avatar]")).toHaveLength(1);
 	});
 });

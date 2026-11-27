@@ -25,13 +25,13 @@ export function AddAbilityMenu({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button type="button" variant="primary">
+				<Button type="button" variant="primary" className="h-9 shrink-0">
 					<span className="icon-[solar--add-circle-linear] h-3.5 w-3.5" />
 					<span>{t("add.trigger")}</span>
 					<span className="icon-[solar--alt-arrow-down-linear] h-3 w-3" />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="w-72">
+			<DropdownMenuContent align="end" className="w-72 max-w-[var(--radix-dropdown-menu-content-available-width)]">
 				<DropdownMenuLabel>{t("add.title")}</DropdownMenuLabel>
 				<DropdownMenuItem disabled={importing} onSelect={onImportSkill} className="items-start gap-2.5 py-2.5">
 					<span

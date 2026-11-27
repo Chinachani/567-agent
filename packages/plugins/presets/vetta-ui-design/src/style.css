@@ -109,33 +109,14 @@
 	box-shadow: 0 0 0 calc(2px * var(--vetd-lscale, 1)) color-mix(in oklab, var(--primary) 50%, transparent);
 }
 
-/* ---------- 画廊 Hero ----------
-   通版的页面顶部，不是卡片：没有圆角、没有描边，层次只由光晕、点阵和底部一条
-   发丝线承担。发丝线两端渐隐，免得看起来又变成一条分割线。 */
-.vetd-hero::after {
-	content: "";
-	position: absolute;
-	inset: auto 0 0 0;
-	height: 1px;
-	background: linear-gradient(
-		to right,
-		transparent,
-		color-mix(in oklab, var(--foreground, #000) 10%, transparent) 12%,
-		color-mix(in oklab, var(--foreground, #000) 10%, transparent) 72%,
-		transparent
-	);
-}
-
+/* ---------- 画廊 Hero ---------- */
 /* 左上角的主色光晕：Hero 唯一一处敢用饱和度的地方，收在 16% 以内，
    mono 主题下退化成一团更亮的灰，不会打架。向下渐隐到内容区。 */
 .vetd-hero-glow {
 	background:
 		radial-gradient(60% 130% at 10% -10%, color-mix(in oklab, var(--primary, #6366f1) 15%, transparent), transparent 64%),
 		radial-gradient(45% 90% at 92% 0%, color-mix(in oklab, var(--primary, #6366f1) 8%, transparent), transparent 70%);
-	/* Hero 处在窗口最顶端（沉浸式页头浮在其上），光晕从第一像素全亮，
-	   只向内容区一侧渐隐。 */
-	-webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent);
-	mask-image: linear-gradient(to bottom, #000 58%, transparent);
+	mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 55%, transparent);
 }
 
 /* 极淡点阵：给平面一点「纸面」质感，向右下渐隐，避免和插画抢注意力。 */
@@ -143,8 +124,8 @@
 	background-image: radial-gradient(color-mix(in oklab, var(--foreground, #000) 12%, transparent) 1px, transparent 1px);
 	background-size: 12px 12px;
 	opacity: 0.4;
-	-webkit-mask-image: radial-gradient(70% 100% at 0% 0%, #000, transparent 72%);
-	mask-image: radial-gradient(70% 100% at 0% 0%, #000, transparent 72%);
+	-webkit-mask-image: radial-gradient(70% 95% at 0% 28%, #000, transparent 72%);
+	mask-image: radial-gradient(70% 95% at 0% 28%, #000, transparent 72%);
 }
 
 /* Hero 里的输入框与次级按钮：微微下沉的凹槽，聚焦时才浮起主色描边。
@@ -187,13 +168,15 @@
 	}
 }
 
-/* 画廊滚动容器：不显示滚动条（滚轮/触控板照常滚），沉浸页右缘不挂一条竖槽。 */
-.vetd-gallery-scroll {
-	scrollbar-width: none;
-	-ms-overflow-style: none;
+@media (prefers-reduced-motion: no-preference) {
+	.vetd-gallery-view-enter {
+		animation: vetd-gallery-view-enter 160ms ease-out both;
+	}
 }
-.vetd-gallery-scroll::-webkit-scrollbar {
-	display: none;
+
+@keyframes vetd-gallery-view-enter {
+	from { opacity: 0; }
+	to { opacity: 1; }
 }
 
 /* 会话卡片横排滚动条隐藏（翻页靠左右箭头） */

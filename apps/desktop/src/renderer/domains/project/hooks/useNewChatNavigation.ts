@@ -33,7 +33,7 @@ export function useNewChatNavigation(): () => void {
 			}
 		}
 		if (currentPath === "/" && activeSession?.cwd) {
-			return conversationBucketCwd(activeSession.cwd, defaultConversationCwd);
+			return activeSession.listCwd ?? conversationBucketCwd(activeSession.cwd, defaultConversationCwd);
 		}
 		return defaultConversationCwd || "";
 	})();

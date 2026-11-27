@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createAssistantMessage } from "../src/protocol/index.js";
-import { LanguageModelStream, normalizeLanguageModelResponse } from "../src/runtime/language-model-adapter.js";
+import { LanguageModelStream } from "../src/runtime/language-model-adapter.js";
 import { createModelCallMetadataFromMessage } from "../src/runtime/model-call-result.js";
+import { openProtectedModelStream } from "../src/runtime/stream-resilience.js";
 import type { Model } from "../src/types.js";
 import { AssistantMessageEventStream } from "../src/utils/event-stream.js";
 
@@ -53,14 +54,11 @@ describe("model call timing", () => {
 			now = 2500;
 			source.push({ type: "done", reason: "stop", message });
 			now = 9000;
-			const response = normalizeLanguageModelResponse(
-				{
-					events: source,
-					result: source.result(),
-					metadata: source.result().then(createModelCallMetadataFromMessage),
-				},
-				model,
-			);
+			const response = await openProtectedModelStream({ model, context: { messages: [] } }, () => ({
+				events: source,
+				result: source.result(),
+				metadata: source.result().then(createModelCallMetadataFromMessage),
+			}));
 			const result = await response.result;
 			expect(result.usage.performance).toEqual({ durationMs: 2400, firstOutputMs: 400, firstTextMs: 1000 });
 			expect((await response.metadata)?.usage?.performance).toEqual(result.usage.performance);

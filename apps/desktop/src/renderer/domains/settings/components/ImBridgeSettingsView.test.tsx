@@ -100,38 +100,195 @@ function model(overrides: Partial<Model> = {}): Model {
 }
 
 describe("ImBridgeSettingsView", () => {
-	it("渠道网格渲染全部渠道，各自一张卡", () => {
-		const view = render(<ImBridgeSettingsView model={model()} />);
+	it("渲染全部八个渠道与设置锚点，不显示单渠道活动卡与切换暗示", () => {
+		const view = render(
+			<ImBridgeSettingsView
+				model={model({
+					config: config({ enabled: false }),
+					transportStatus: "offline",
+				})}
+			>
+				<div data-testid="notifications-child" />
+			</ImBridgeSettingsView>,
+		);
 		expect(view.getByText("Telegram")).toBeDefined();
 		expect(view.getByText("Slack")).toBeDefined();
+		expect(view.getByText("Discord")).toBeDefined();
+		expect(view.getByText("Signal")).toBeDefined();
+		expect(view.getByText("WhatsApp")).toBeDefined();
 		expect(view.getByText("iMessage")).toBeDefined();
-		// 飞书是活动渠道，概览区与渠道卡各出现一次
-		expect(view.getAllByText("feishuName")).toHaveLength(2);
-		// 每个通用渠道都有自己的配置入口（未配置的渠道整卡也是同一个动作，故用 getAll）
+		expect(view.getByText("feishuName")).toBeDefined();
+		expect(view.getByText("wechatName")).toBeDefined();
+		expect(view.getByTestId("notifications-child")).toBeDefined();
+		expect(view.queryByText(/imbActiveChannel/)).toBeNull();
+		expect(view.queryByText("channelsSingleActiveHint")).toBeNull();
+		expect(view.queryByText("channelActive")).toBeNull();
+		expect(view.container.querySelector('[data-setting-section-id="imbridge-basics"]')).not.toBeNull();
+		expect(
+			view.container.querySelector('[data-setting-section-highlight-target="imbridge-channels"]'),
+		).not.toBeNull();
+		expect(view.container.querySelector('[data-setting-section-id="imbridge-status"]')).not.toBeNull();
 		for (const channel of IM_CHANNELS.filter((item) => item.dialogKind === "generic")) {
-			expect(
-				view.getAllByRole("button", { name: `${channel.brandName} · configureChannel` }).length,
-			).toBeGreaterThan(0);
+			expect(view.getByRole("button", { name: `${channel.brandName} · configureChannel` })).toBeDefined();
 		}
 	});
 
-	it("概览区展示当前活动渠道与实时状态", () => {
-		const view = render(<ImBridgeSettingsView model={model({ transportStatus: "online" })} />);
-		expect(view.getAllByText("imbStatusOnline").length).toBeGreaterThan(0);
-		expect(view.getByText(/imbActiveChannel/)).toBeDefined();
-	});
-
-	it("点击其它渠道卡切换活动渠道", async () => {
-		const onSwitchTransport = vi.fn();
+	it("多渠道同时在线、连接中、异常时，概览与渠道卡均展示各自真实状态", async () => {
+		const onOpenChannelDialog = vi.fn();
+		const onOpenWechatDialog = vi.fn();
 		const view = render(
 			<ImBridgeSettingsView
-				model={model({ onSwitchTransport, config: config({ telegram: { botToken: "tok" } }) })}
+				model={model({
+					config: config({
+						enabled: true,
+						transport: "wechat",
+						wechat: { bound: true, ilinkBotId: "bot_1" },
+						telegram: { botToken: "tg_tok" },
+						slack: { botToken: "xoxb", appToken: "xapp" },
+						discord: { botToken: "dc_tok" },
+					}),
+					channelStatuses: {
+						wechat: "online",
+						telegram: "online",
+						slack: "connecting",
+						discord: "error",
+					},
+					onOpenChannelDialog,
+					onOpenWechatDialog,
+				})}
 			/>,
 		);
 
-		await userEvent.click(view.getByRole("button", { name: "Telegram · activateChannelTitle" }));
+		expect(view.getByText("imbOverviewOnlineSummary")).toBeDefined();
+		expect(view.getByText("imbOverviewConnectingSummary")).toBeDefined();
+		expect(view.getByText("imbOverviewErrorSummary")).toBeDefined();
+		// 微信与 Telegram 在概览状态条和渠道卡中均显示在线
+		expect(view.getAllByText("imbStatusOnline").length).toBeGreaterThanOrEqual(4);
+		expect(view.getAllByText("imbStatusConnecting").length).toBeGreaterThanOrEqual(2);
+		expect(view.getAllByText("imbStatusError").length).toBeGreaterThanOrEqual(2);
 
-		expect(onSwitchTransport).toHaveBeenCalledWith("telegram");
+		// 点击概览区异常渠道芯片可直接打开对应渠道配置
+		await userEvent.click(view.getByRole("button", { name: /Discord.*imbStatusError/ }));
+		expect(onOpenChannelDialog).toHaveBeenCalledWith("discord");
+
+		await userEvent.click(view.getByRole("button", { name: "wechatName · wechatManage" }));
+		expect(onOpenWechatDialog).toHaveBeenCalledTimes(1);
+	});
+
+	it("有凭据但缺少状态时显示待确认或已配置，不凭凭据推断在线", () => {
+		const enabledView = render(
+			<ImBridgeSettingsView
+				model={model({
+					config: config({
+						enabled: true,
+						transport: "wechat",
+						wechat: { bound: true },
+						telegram: { botToken: "tg_tok" },
+					}),
+					channelStatuses: {
+						wechat: "online",
+					},
+				})}
+			/>,
+		);
+
+		expect(enabledView.getAllByText("imbStatusOnline")).toHaveLength(2);
+		expect(enabledView.getAllByText("channelPendingStatus").length).toBeGreaterThanOrEqual(1);
+		enabledView.unmount();
+
+		const disabledView = render(
+			<ImBridgeSettingsView
+				model={model({
+					config: config({
+						enabled: false,
+						wechat: { bound: true },
+						telegram: { botToken: "tg_tok" },
+					}),
+					channelStatuses: {},
+					transportStatus: "offline",
+				})}
+			/>,
+		);
+
+		expect(disabledView.queryByText("imbStatusOnline")).toBeNull();
+		expect(disabledView.getAllByText("channelConfigured").length).toBeGreaterThanOrEqual(2);
+	});
+
+	it("未提供 channelStatuses 时保留 model.transportStatus 兼容且不泛化到其他渠道", () => {
+		const view = render(
+			<ImBridgeSettingsView
+				model={model({
+					config: config({
+						enabled: true,
+						transport: "feishu",
+						telegram: { botToken: "tg_tok" },
+					}),
+					transportStatus: "online",
+				})}
+			/>,
+		);
+
+		// 仅 legacy default transport (feishu) 回退显示在线（概览芯片 + 卡片），Telegram 显示待确认
+		expect(view.getAllByText("imbStatusOnline")).toHaveLength(2);
+		expect(view.getAllByText("channelPendingStatus").length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("诊断区呈现运行错误且保留诊断与模型交互", async () => {
+		const onProbeModel = vi.fn();
+		const onOpenLogs = vi.fn();
+		const view = render(
+			<ImBridgeSettingsView
+				model={model({
+					config: config({
+						enabled: true,
+						agentModel: { provider: "openai", model: "gpt-5" },
+						wechat: { bound: true },
+					}),
+					transportStatus: "error",
+					channelStatuses: { wechat: "offline" },
+					status: {
+						transport: "offline",
+						activeSessions: 2,
+						sidecarPid: 4321,
+						consecutiveStartFailures: 1,
+						lastError: "socket closed",
+					},
+					probeResult: { ok: true, msg: "模型连通正常" },
+					onProbeModel,
+					onOpenLogs,
+				})}
+			/>,
+		);
+
+		expect(view.getByText("imbStatusError")).toBeDefined();
+		expect(view.getByText("4321")).toBeDefined();
+		expect(view.getByText("socket closed")).toBeDefined();
+		expect(view.getByText("模型连通正常")).toBeDefined();
+
+		await userEvent.click(view.getByRole("button", { name: "testConnect" }));
+		expect(onProbeModel).toHaveBeenCalledTimes(1);
+
+		await userEvent.click(view.getByRole("button", { name: "viewLogs" }));
+		expect(onOpenLogs).toHaveBeenCalledTimes(1);
+	});
+
+	it("点击已配置渠道卡直接打开管理或配置弹窗，不触发旧活动渠道切换", async () => {
+		const onSwitchTransport = vi.fn();
+		const onOpenChannelDialog = vi.fn();
+		const view = render(
+			<ImBridgeSettingsView
+				model={model({
+					onSwitchTransport,
+					onOpenChannelDialog,
+					config: config({ telegram: { botToken: "tok" } }),
+				})}
+			/>,
+		);
+
+		await userEvent.click(view.getByRole("button", { name: "Telegram · configureChannel" }));
+
+		expect(onOpenChannelDialog).toHaveBeenCalledWith("telegram");
+		expect(onSwitchTransport).not.toHaveBeenCalled();
 	});
 
 	it("保存失败时在页面上给出可见反馈，并可关闭", async () => {

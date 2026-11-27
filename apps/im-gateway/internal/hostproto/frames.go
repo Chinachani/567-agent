@@ -183,10 +183,12 @@ type SessionStateEntry struct {
 //   - IMessage non-nil with Enabled=true → run the imessage transport
 //     (macOS-local, no credentials).
 //
-// Exactly one sub-config should be non-nil for a configured run; none
-// yields the legacy "fall back to mock" behavior used in tests.
+// Multiple sub-configs may be non-nil. The host starts every channel with
+// usable credentials and skips unbound pairing channels until their bind flow
+// completes. None yields the legacy "fall back to mock" behavior used in tests.
 type InitFrame struct {
 	Type            string              `json:"type"` // always TypeInit
+	ActiveTransport string              `json:"activeTransport,omitempty"`
 	Feishu          *FeishuConfig       `json:"feishu,omitempty"`
 	Wechat          *WechatConfig       `json:"wechat,omitempty"`
 	Telegram        *TelegramConfig     `json:"telegram,omitempty"`
@@ -246,15 +248,16 @@ type CodingAgentSpec struct {
 // active transport. Triggers a reconnect because the underlying clients
 // cannot swap creds in flight. Same nil-discriminator rule as InitFrame.
 type ConfigUpdateFrame struct {
-	Type     string          `json:"type"` // always TypeConfigUpdate
-	Feishu   *FeishuConfig   `json:"feishu,omitempty"`
-	Wechat   *WechatConfig   `json:"wechat,omitempty"`
-	Telegram *TelegramConfig `json:"telegram,omitempty"`
-	Slack    *SlackConfig    `json:"slack,omitempty"`
-	Discord  *DiscordConfig  `json:"discord,omitempty"`
-	Signal   *SignalConfig   `json:"signal,omitempty"`
-	Whatsapp *WhatsappConfig `json:"whatsapp,omitempty"`
-	IMessage *IMessageConfig `json:"imessage,omitempty"`
+	Type            string          `json:"type"` // always TypeConfigUpdate
+	ActiveTransport string          `json:"activeTransport,omitempty"`
+	Feishu          *FeishuConfig   `json:"feishu,omitempty"`
+	Wechat          *WechatConfig   `json:"wechat,omitempty"`
+	Telegram        *TelegramConfig `json:"telegram,omitempty"`
+	Slack           *SlackConfig    `json:"slack,omitempty"`
+	Discord         *DiscordConfig  `json:"discord,omitempty"`
+	Signal          *SignalConfig   `json:"signal,omitempty"`
+	Whatsapp        *WhatsappConfig `json:"whatsapp,omitempty"`
+	IMessage        *IMessageConfig `json:"imessage,omitempty"`
 }
 
 // ShutdownFrame requests graceful shutdown. Equivalent semantics to closing
@@ -300,10 +303,12 @@ type LogEvent struct {
 
 // StatusEvent reports transport connectivity. Sent on every state change.
 type StatusEvent struct {
-	Type      string    `json:"type"` // always TypeStatus
-	Transport string    `json:"transport"`
-	LastError string    `json:"lastError,omitempty"`
-	Time      time.Time `json:"time"`
+	Type      string `json:"type"` // always TypeStatus
+	Transport string `json:"transport"`
+	LastError string `json:"lastError,omitempty"`
+	// Pointer distinguishes an empty snapshot from an older sender omitting this field.
+	ChannelStatuses *map[string]string `json:"channelStatuses,omitempty"`
+	Time            time.Time          `json:"time"`
 }
 
 // StatePatchEvent reports a routing-table mutation. Parent persists the

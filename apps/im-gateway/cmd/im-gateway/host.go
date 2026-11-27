@@ -17,6 +17,7 @@ import (
 	"github.com/Chinachani/567-agent/apps/im-gateway/internal/state"
 	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport"
 	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/wechat/ilink"
+	"github.com/Chinachani/567-agent/apps/im-gateway/internal/transport/whatsapp"
 )
 
 // transportBuilder constructs a transport.Transport from the active
@@ -88,14 +89,8 @@ func runHostWithIO(opts hostOptions) int {
 			Time:   time.Now().UTC(),
 		})
 	}
-	emitStatus := func(status, lastErr string) {
-		_ = out.WriteFrame(hostproto.StatusEvent{
-			Type:      hostproto.TypeStatus,
-			Transport: status,
-			LastError: lastErr,
-			Time:      time.Now().UTC(),
-		})
-	}
+	status := &hostStatus{out: out}
+	emitStatus := status.set
 
 	// 1. Wait for init frame (or stdin EOF / timeout).
 	initFrame, err := waitForInit(rdr, initTimeout)
@@ -184,6 +179,7 @@ func runHostWithIO(opts hostOptions) int {
 	//    runtime instead of failing.
 	currentSpec := specFromInit(initFrame)
 	currentSpec.Log = emitLog
+	currentSpec.ReportChannelStatus = status.begin()
 	tr, err := opts.buildTransport(currentSpec)
 	awaitingBind := false
 	if errors.Is(err, errAwaitingBind) {
@@ -213,12 +209,25 @@ func runHostWithIO(opts hostOptions) int {
 	// 4. Start transport (or skip if awaiting bind).
 	tCtx, tCancel := context.WithCancel(context.Background())
 	var transportDone chan error
+	wechatExpired := make(chan context.Context, 1)
+	whatsappExpired := make(chan context.Context, 1)
 	startTransport := func(t transport.Transport) {
-		// Emit "connecting" synchronously before spawning the start
-		// goroutine. Emitting from inside the goroutine races with the
-		// caller's subsequent "online" emit and can leave the renderer
-		// stuck on "connecting" if the goroutine is scheduled after.
-		emitStatus(hostproto.TransportStatusConnecting, "")
+		if multi, ok := t.(*multiTransport); ok {
+			multi.onError = func(ctx context.Context, channel string, err error) {
+				if channel == "wechat" && errors.Is(err, ilink.ErrSessionTimeout) {
+					select {
+					case wechatExpired <- ctx:
+					case <-ctx.Done():
+					}
+				}
+				if channel == "whatsapp" && errors.Is(err, whatsapp.ErrNotLoggedIn) {
+					select {
+					case whatsappExpired <- ctx:
+					case <-ctx.Done():
+					}
+				}
+			}
+		}
 		transportDone = make(chan error, 1)
 		go func(t transport.Transport, ctx context.Context, done chan error) {
 			done <- t.Start(ctx, r)
@@ -237,9 +246,10 @@ func runHostWithIO(opts hostOptions) int {
 	}); err != nil {
 		emitLog("error", "write ready", map[string]any{"err": err.Error()})
 	}
-	if awaitingBind {
+	if awaitingBind || transportAwaitingActiveBind(tr) {
 		emitStatus(hostproto.TransportStatusAwaitingBind, "")
 	} else {
+		// Global status describes the bridge; receiving readiness is per channel.
 		emitStatus(hostproto.TransportStatusOnline, "")
 	}
 	emitLog("info", "im-gateway host ready",
@@ -257,6 +267,7 @@ func runHostWithIO(opts hostOptions) int {
 	//     the transport should be (re)built.
 	bindRebuildCh := make(chan struct{}, 1)
 	coord, coordKind := newBindCoordinator(currentSpec, out, emitLog, bindRebuildCh)
+	lastBuiltSpec := currentSpec
 
 	// 6. Main loop: handle inbound control frames until EOF / shutdown /
 	// transport failure.
@@ -287,12 +298,15 @@ func runHostWithIO(opts hostOptions) int {
 			transportDone = nil
 		}
 		_ = tr.Stop()
+		cleanupRemovedChannelState(lastBuiltSpec, hostState.spec, emitLog)
+		lastBuiltSpec = hostState.spec
 
 		// Fresh context for the new transport.
 		newCtx, newCancel := context.WithCancel(context.Background())
 		tCtx = newCtx
 		tCancel = newCancel
 
+		hostState.spec.ReportChannelStatus = status.begin()
 		newTr, buildErr := opts.buildTransport(hostState.spec)
 		if errors.Is(buildErr, errAwaitingBind) {
 			tr = newPlaceholderTransport()
@@ -311,7 +325,11 @@ func runHostWithIO(opts hostOptions) int {
 		tr = newTr
 		r.SetTransport(tr)
 		startTransport(tr)
-		emitStatus(hostproto.TransportStatusOnline, "")
+		if transportAwaitingActiveBind(tr) {
+			emitStatus(hostproto.TransportStatusAwaitingBind, "")
+		} else {
+			emitStatus(hostproto.TransportStatusOnline, "")
+		}
 		emitLog("info", "transport (re)started", map[string]any{"transport": tr.Name()})
 	}
 
@@ -332,8 +350,23 @@ loop:
 				hostState.coord.Start(context.Background())
 			}
 			if action.logout && hostState.coord != nil {
-				if err := hostState.coord.LogoutAndClear("user logout"); err != nil {
-					emitLog("error", "logout failed", map[string]any{"channel": hostState.coordKind, "err": err.Error()})
+				var logoutErr error
+				if hostState.coordKind == "whatsapp" {
+					if handled, err := logoutActiveWhatsapp(tr); handled {
+						logoutErr = err
+						if logoutErr == nil {
+							if coordinator, ok := hostState.coord.(*whatsappBindCoordinator); ok {
+								coordinator.emitUnbound("user logout")
+							}
+						}
+					} else {
+						logoutErr = hostState.coord.LogoutAndClear("user logout")
+					}
+				} else {
+					logoutErr = hostState.coord.LogoutAndClear("user logout")
+				}
+				if logoutErr != nil {
+					emitLog("error", "logout failed", map[string]any{"channel": hostState.coordKind, "err": logoutErr.Error()})
 				} else {
 					rebuildTransport()
 				}
@@ -351,6 +384,26 @@ loop:
 			emitLog("error", "stdin reader error", map[string]any{"err": err.Error()})
 			shutdownReason = "stdin error"
 			break loop
+		case expiredCtx := <-wechatExpired:
+			if wcoord, ok := hostState.coord.(*wechatBindCoordinator); ok && expiredCtx == tCtx {
+				if err := wcoord.LogoutAndClear("session timeout"); err != nil {
+					emitLog("error", "wechat clear after session timeout failed", map[string]any{"err": err.Error()})
+				} else {
+					rebuildTransport()
+				}
+			}
+		case expiredCtx := <-whatsappExpired:
+			if expiredCtx == tCtx && hostState.spec.Whatsapp != nil {
+				stopActiveWhatsapp(tr)
+				if err := removeSQLiteState(hostState.spec.WhatsappStatePath); err != nil {
+					emitLog("error", "whatsapp clear after server logout failed", map[string]any{"err": err.Error()})
+				} else {
+					if coordinator, ok := hostState.coord.(*whatsappBindCoordinator); ok {
+						coordinator.emitUnbound("server logout")
+					}
+					rebuildTransport()
+				}
+			}
 		case err := <-transportDone:
 			transportDone = nil
 			// wechat session timeout (-14) is recoverable: the bot token is
@@ -409,6 +462,11 @@ loop:
 		return 1
 	}
 	return 0
+}
+
+func transportAwaitingActiveBind(t transport.Transport) bool {
+	multi, ok := t.(*multiTransport)
+	return ok && multi.awaitingActive
 }
 
 // hostRuntime bundles helpers shared by frame handlers so the main loop
@@ -482,6 +540,12 @@ func (h *hostRuntime) handleFrame(frame any) frameAction {
 	case *hostproto.WechatLogoutFrame:
 		return h.bindFrameAction("wechat", "wechat_logout", frameAction{logout: true})
 
+	case *hostproto.WhatsappBindStartFrame:
+		return h.bindFrameAction("whatsapp", "whatsapp_bind_start", frameAction{startBind: true})
+
+	case *hostproto.WhatsappLogoutFrame:
+		return h.bindFrameAction("whatsapp", "whatsapp_logout", frameAction{logout: true})
+
 	case *hostproto.FeishuBindStartFrame:
 		return h.bindFrameAction("feishu", "feishu_bind_start", frameAction{startBind: true})
 
@@ -528,8 +592,30 @@ func bindCoordinatorKind(spec *buildSpec) string {
 	switch {
 	case spec == nil:
 		return ""
+	case spec.ActiveTransport != "":
+		switch spec.ActiveTransport {
+		case "wechat":
+			if spec.Wechat != nil && spec.Wechat.Enabled {
+				return "wechat"
+			}
+		case "whatsapp":
+			if spec.Whatsapp != nil && spec.Whatsapp.Enabled {
+				return "whatsapp"
+			}
+		case "feishu":
+			if spec.Feishu != nil {
+				return "feishu"
+			}
+		case "signal":
+			if signalManaged(spec.Signal) {
+				return "signal"
+			}
+		}
+		return ""
 	case spec.Wechat != nil && spec.Wechat.Enabled:
 		return "wechat"
+	case spec.Whatsapp != nil && spec.Whatsapp.Enabled:
+		return "whatsapp"
 	case spec.Feishu != nil:
 		// Feishu accepts credentials either way — typed in by hand or
 		// minted by the scan flow — so the coordinator exists whenever
@@ -554,6 +640,8 @@ func newBindCoordinator(
 	switch bindCoordinatorKind(spec) {
 	case "wechat":
 		return newWechatBindCoordinator(spec.WechatStatePath, out, emitLog, rebuildCh), "wechat"
+	case "whatsapp":
+		return newWhatsappBindCoordinator(spec.WhatsappStatePath, out, emitLog, rebuildCh), "whatsapp"
 	case "feishu":
 		return newFeishuBindCoordinator(spec.Feishu, out, emitLog, rebuildCh), "feishu"
 	case "signal":

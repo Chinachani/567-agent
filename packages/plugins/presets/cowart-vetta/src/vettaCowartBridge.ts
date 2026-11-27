@@ -33,6 +33,14 @@ function canvasDirOf(projectDir: string): string {
 	return joinPath(projectDir, "canvas");
 }
 
+export async function hasStoredCanvas(fs: PluginFsApi, canvasDir: string): Promise<boolean> {
+	const [manifest, snapshot] = await Promise.all([
+		fs.stat(joinPath(canvasDir, "pages", "manifest.json")),
+		fs.stat(joinPath(canvasDir, CANVAS_FILE)),
+	]);
+	return manifest !== null || snapshot !== null;
+}
+
 function pageDirName(pageId: string): string {
 	return encodeURIComponent(String(pageId).replace(PAGE_ID_PREFIX, ""));
 }

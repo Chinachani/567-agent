@@ -93,6 +93,7 @@
 		"check:staged": "bunx @biomejs/biome check --write --error-on-warnings --staged --no-errors-on-unmatched",
 		"check:precommit": "bun run scripts/quality/precommit.mjs",
 		"check:quick": "bun run scripts/quality/check-quick.mjs",
+		"check:upstreams": "bun scripts/check-upstreams.mjs",
 		"check": "concurrently --names \"lint,types,guards\" --prefix-colors \"cyan,yellow,magenta\" \"bun run check:lint\" \"bun run check:types\" \"bun run check:guards\"",
 		"fix": "bun run check:lint:fix",
 		"test": "bun run scripts/quality/test-pkg.mjs --all",

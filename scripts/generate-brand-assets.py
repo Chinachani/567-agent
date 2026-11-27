@@ -173,7 +173,6 @@ def main():
     save(f"{desktop}/trayTemplate@2x.png", renderer.png(template, 44))
     save("apps/desktop/src/renderer/public/icon.png", images[512])
 
-    save("apps/mobile/shared/src/commonMain/composeResources/drawable/brand_icon.png", images[256])
 
     mobile = "apps/mobile/androidApp/src/main/res"
     # Keep the bracket corners inside Android's central 66dp safe circle.

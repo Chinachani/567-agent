@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import { AgentAvatarView } from "../chat/AgentAvatarView";
 
 export interface JourneyUserIdentity {
 	name: string;
@@ -77,7 +78,6 @@ export type JourneyPanelViewState =
 
 function UserIdentity({
 	name,
-	avatar,
 	className = "",
 }: {
 	name: string;
@@ -86,13 +86,7 @@ function UserIdentity({
 }): JSX.Element {
 	return (
 		<div className={`flex min-w-0 items-center gap-1.5 ${className}`}>
-			{avatar ? (
-				<img src={avatar} alt={name} className="h-5 w-5 shrink-0 rounded-full border border-border object-cover" />
-			) : (
-				<div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-muted/40">
-					<span className="icon-[mdi--account-outline] text-[11px] text-muted-foreground/70" />
-				</div>
-			)}
+			<AgentAvatarView name={name} size="sm" />
 			<span className="truncate text-[11px] text-foreground/90">{name}</span>
 		</div>
 	);

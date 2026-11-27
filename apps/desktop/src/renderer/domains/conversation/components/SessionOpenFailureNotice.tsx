@@ -11,9 +11,11 @@ export function SessionOpenFailureNotice(): JSX.Element | null {
 	if (!pending) return null;
 	if (!pending.error) {
 		return (
-			<div className="flex shrink-0 items-center gap-2 px-4 py-2 text-[12px] text-muted-foreground" role="status">
-				<span className="icon-[solar--refresh-linear] h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-				{t("session.openFailure.opening")}
+			<div className="px-2 sm:px-4">
+				<div className="mx-auto flex max-w-2xl items-center gap-2 px-1 py-1 text-[12px] text-muted-foreground" role="status">
+					<span className="icon-[solar--refresh-linear] h-3.5 w-3.5 shrink-0 motion-safe:animate-spin" aria-hidden="true" />
+					{t("session.openFailure.opening")}
+				</div>
 			</div>
 		);
 	}
@@ -25,21 +27,23 @@ export function SessionOpenFailureNotice(): JSX.Element | null {
 		);
 	};
 	return (
-		<ChatError>
-			<div className="flex items-start gap-3">
-				<span className="icon-[solar--danger-triangle-linear] mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-				<div className="min-w-0 flex-1">
-					<p className="font-medium">{t("session.openFailure.title")}</p>
-					<p className="mt-1 text-muted-foreground">{t("session.openFailure.description")}</p>
-					<details className="mt-2 text-muted-foreground">
-						<summary className="cursor-pointer">{t("session.openFailure.details")}</summary>
-						<p className="mt-1 whitespace-pre-wrap break-words">{pending.error}</p>
-					</details>
+		<div className="px-2 sm:px-4">
+			<ChatError>
+				<div className="flex items-start gap-3">
+					<span className="icon-[solar--danger-triangle-linear] mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+					<div className="min-w-0 flex-1">
+						<p className="font-medium">{t("session.openFailure.title")}</p>
+						<p className="mt-1 text-muted-foreground">{t("session.openFailure.description")}</p>
+						<details className="mt-2 text-muted-foreground">
+							<summary className="cursor-pointer">{t("session.openFailure.details")}</summary>
+							<p className="mt-1 whitespace-pre-wrap break-words">{pending.error}</p>
+						</details>
+					</div>
+					<Button size="xs" variant="outline" className="shrink-0" onClick={retry}>
+						{t("session.openFailure.retry")}
+					</Button>
 				</div>
-				<Button size="xs" variant="outline" className="shrink-0" onClick={retry}>
-					{t("session.openFailure.retry")}
-				</Button>
-			</div>
-		</ChatError>
+			</ChatError>
+		</div>
 	);
 }

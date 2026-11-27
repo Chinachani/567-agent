@@ -17,18 +17,6 @@ export interface MacosSeatbeltCommandOptions {
 	readonly resolveShell: () => NodeSandboxShell;
 }
 
-function killProcessGroup(pid: number): void {
-	try {
-		process.kill(-pid, "SIGKILL");
-	} catch {
-		try {
-			process.kill(pid, "SIGKILL");
-		} catch {
-			// Process already exited.
-		}
-	}
-}
-
 function findOnPathUnix(binary: string): string | undefined {
 	try {
 		const result = spawnSync("which", [binary], { encoding: "utf-8", timeout: 5000 });
@@ -188,36 +176,41 @@ export function createMacosSeatbeltCommandOperations(
 							stdio: ["ignore", "pipe", "pipe"],
 						},
 					);
-					let timedOut = false;
+					let stopReason: Error | undefined;
 					let timeoutHandle: NodeJS.Timeout | undefined;
-					if (typeof timeout === "number" && timeout > 0) {
-						timeoutHandle = setTimeout(() => {
-							timedOut = true;
-							if (child.pid) killProcessGroup(child.pid);
-						}, timeout * 1000);
-					}
-					child.stdout?.on("data", onData);
-					child.stderr?.on("data", onData);
-					const onAbort = () => {
-						if (child.pid) killProcessGroup(child.pid);
-					};
-					if (signal?.aborted) onAbort();
-					else signal?.addEventListener("abort", onAbort, { once: true });
 					const cleanup = (): void => {
 						if (timeoutHandle) clearTimeout(timeoutHandle);
 						signal?.removeEventListener("abort", onAbort);
 						removeTemporaryRoot();
 					};
+					const stop = (error: Error): void => {
+						if (stopReason) return;
+						stopReason = error;
+						void child.stopTree().finally(() => {
+							cleanup();
+							child.stdout?.destroy();
+							child.stderr?.destroy();
+							reject(error);
+						});
+					};
+					const onAbort = () => stop(new Error("aborted"));
+					child.stdout?.on("data", onData);
+					child.stderr?.on("data", onData);
 					child.on("error", (error) => {
+						if (stopReason) return;
 						cleanup();
 						reject(error);
 					});
 					child.on("close", (code) => {
+						if (stopReason) return;
 						cleanup();
-						if (signal?.aborted) return reject(new Error("aborted"));
-						if (timedOut) return reject(new Error(`timeout:${timeout}`));
 						resolve({ exitCode: code });
 					});
+					if (signal?.aborted) onAbort();
+					else signal?.addEventListener("abort", onAbort, { once: true });
+					if (!stopReason && typeof timeout === "number" && timeout > 0) {
+						timeoutHandle = setTimeout(() => stop(new Error(`timeout:${timeout}`)), timeout * 1_000);
+					}
 				})().catch((error: unknown) => {
 					removeTemporaryRoot();
 					reject(error);

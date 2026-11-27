@@ -2,7 +2,7 @@ import { DEFAULT_IM_CONVERSATION_CWD } from "../ipc/fs.js";
 import { getAppLogger } from "../logger.js";
 import { probeModelProvider } from "../models/probe.js";
 import { resolveImGatewayBinary } from "./binary-resolver.js";
-import { getImChannelDescriptor } from "./channels.js";
+import { getImChannelDescriptor, IM_TRANSPORT_SELECTORS } from "./channels.js";
 import { buildCodingAgentSpec } from "./coding-agent-spec.js";
 import {
 	defaultImConfig,
@@ -274,12 +274,6 @@ export class ImHost {
 		this.manager = new SidecarManager({
 			hooks: {
 				onReady: (event) => {
-					// Don't override an awaiting_bind status that the
-					// sidecar emits immediately after ready: the wechat
-					// path uses ready+awaiting_bind as a normal state.
-					if (this.statusStore.get().transport !== "awaiting_bind") {
-						this.statusStore.patch({ transport: "online", lastError: undefined });
-					}
 					this.pushLog({
 						type: "log",
 						level: "info",
@@ -287,13 +281,7 @@ export class ImHost {
 						time: new Date().toISOString(),
 					});
 				},
-				onStatus: (event) => {
-					this.statusStore.patch({
-						transport: event.transport,
-						lastError: event.lastError,
-						lastErrorAt: event.lastError ? event.time : undefined,
-					});
-				},
+				onStatus: (event) => this.statusStore.applyStatusEvent(event),
 				onLog: (event) => {
 					this.pushLog(event);
 				},
@@ -324,17 +312,20 @@ export class ImHost {
 				},
 				onSpawned: (pid) => {
 					this.statusStore.patch({
+						transport: "connecting",
+						channelStatuses: undefined,
 						sidecarPid: pid,
 						sidecarStartedAt: new Date().toISOString(),
 						consecutiveStartFailures: 0,
 					});
 				},
 				onExit: () => {
-					this.statusStore.patch({ sidecarPid: undefined });
+					this.statusStore.patch({ transport: "offline", channelStatuses: {}, sidecarPid: undefined });
 				},
 				onFatal: (reason) => {
 					this.statusStore.patch({
 						transport: "error",
+						channelStatuses: {},
 						lastError: reason,
 						lastErrorAt: new Date().toISOString(),
 					});
@@ -840,11 +831,8 @@ export class ImHost {
 	 * Disconnect one channel: drop its credentials/identifiers and, for the
 	 * pairing-based ones, tell the sidecar to forget its session too.
 	 *
-	 * Static-credential channels cannot run without their tokens, so if the
-	 * cleared channel is the active transport the bridge is switched off and
-	 * the sidecar stopped — otherwise it would restart-loop against an empty
-	 * config. Pairing channels keep running: the sidecar parks in
-	 * awaiting_bind, ready for the next scan.
+	 * If the selected channel needs credentials to restart, use a remaining
+	 * configured channel. Pairing channels can remain ready for the next scan.
 	 */
 	async clearChannel(transport: ImTransportSelector): Promise<{ ok: boolean; error?: string }> {
 		const descriptor = getImChannelDescriptor(transport);
@@ -866,10 +854,14 @@ export class ImHost {
 
 		const nextConfig = descriptor.clearConfig(this.config);
 		const nextCredentials = descriptor.clearCredentials(this.credentials);
-		const mustDisable = isActive && !descriptor.hasRequiredCredentials(nextConfig, nextCredentials);
-
-		this.config = mustDisable ? { ...nextConfig, enabled: false } : nextConfig;
+		this.config = nextConfig;
 		this.credentials = nextCredentials;
+		if (isActive && !descriptor.hasRequiredCredentials(nextConfig, nextCredentials)) {
+			const remaining = IM_TRANSPORT_SELECTORS.find(
+				(channel) => channel !== transport && this.isEstablishedChannel(channel),
+			);
+			this.config = remaining ? { ...nextConfig, transport: remaining } : { ...nextConfig, enabled: false };
+		}
 
 		try {
 			saveImConfig(this.config);
@@ -884,16 +876,15 @@ export class ImHost {
 
 		this.appendLog("info", `channel ${transport} disconnected by user`);
 
-		if (!isActive) {
-			return { ok: true };
-		}
 		if (this.config.enabled && this.hasRequiredCredentials()) {
 			if (this.manager.getCurrentChild()) {
 				await this.manager.applyConfig(this.buildSidecarConfig());
+			} else {
+				await this.startSidecar();
 			}
 		} else {
 			await this.manager.stop();
-			this.statusStore.patch({ transport: "offline", lastError: undefined });
+			this.statusStore.patch({ transport: "offline", channelStatuses: {}, lastError: undefined });
 		}
 		return { ok: true };
 	}
@@ -1103,7 +1094,7 @@ export class ImHost {
 				// Status is global to the sidecar. Clear the old channel's state
 				// before applying the new config so e.g. "awaiting_bind" from a
 				// previous QR flow is not shown on the newly selected channel.
-				this.statusStore.patch({ transport: "connecting", lastError: undefined });
+				this.statusStore.patch({ transport: "connecting", channelStatuses: {}, lastError: undefined });
 			}
 			if (this.manager.getCurrentChild()) {
 				await this.manager.applyConfig(this.buildSidecarConfig());
@@ -1112,7 +1103,7 @@ export class ImHost {
 			}
 		} else {
 			await this.manager.stop();
-			this.statusStore.patch({ transport: "offline", lastError: undefined });
+			this.statusStore.patch({ transport: "offline", channelStatuses: {}, lastError: undefined });
 		}
 
 		return { ok: true, mode };
@@ -1233,10 +1224,11 @@ export class ImHost {
 		return probeModelProvider(ref);
 	}
 
-	/** Whether the active transport has enough info to start the sidecar.
-	 * The per-channel rules live in the descriptor registry (channels.ts). */
 	private hasRequiredCredentials(): boolean {
-		return getImChannelDescriptor(this.config.transport).hasRequiredCredentials(this.config, this.credentials);
+		return (
+			getImChannelDescriptor(this.config.transport).hasRequiredCredentials(this.config, this.credentials) ||
+			IM_TRANSPORT_SELECTORS.some((channel) => this.isEstablishedChannel(channel))
+		);
 	}
 
 	private buildFeishuConfig(): FeishuConfig {
@@ -1316,11 +1308,7 @@ export class ImHost {
 		};
 	}
 
-	/**
-	 * Per-transport channel slot builders. Exactly one slot is sent per
-	 * init/config_update frame — the sidecar uses nil-discrimination to
-	 * pick which transport to start.
-	 */
+	/** Build the protocol slot for each configured or pairing channel. */
 	private readonly channelSlotBuilders: Record<ImTransportSelector, () => Partial<SidecarConfig>> = {
 		feishu: () => ({ feishu: this.buildFeishuConfig() }),
 		wechat: () => ({ wechat: this.buildWechatConfig() }),
@@ -1361,12 +1349,51 @@ export class ImHost {
 		const codingAgent = buildCodingAgentSpec({ agentModel: this.config.agentModel });
 		return {
 			binaryPath: this.binaryPath,
+			activeTransport: this.config.transport,
 			conversationCwd: DEFAULT_IM_CONVERSATION_CWD,
 			state: this.stateAsEntries(),
 			codingAgent,
 			proxyEnv: this.proxyEnv,
-			...this.channelSlotBuilders[this.config.transport](),
+			...this.buildSidecarChannelSlots(),
 		};
+	}
+
+	/** Include every configured channel with usable credentials. The active
+	 * channel is always included so QR bind flows can park and resume. */
+	private buildSidecarChannelSlots(): Partial<SidecarConfig> {
+		const slots: Partial<SidecarConfig> = {};
+		for (const transport of IM_TRANSPORT_SELECTORS) {
+			const isPairingOrUsableActive =
+				transport === this.config.transport &&
+				getImChannelDescriptor(transport).hasRequiredCredentials(this.config, this.credentials);
+			if (!isPairingOrUsableActive && !this.isEstablishedChannel(transport)) continue;
+			Object.assign(slots, this.channelSlotBuilders[transport]());
+		}
+		return slots;
+	}
+
+	private isEstablishedChannel(transport: ImTransportSelector): boolean {
+		switch (transport) {
+			case "feishu":
+				return Boolean(this.config.feishu.appId && this.credentials.feishu?.appSecret);
+			case "wechat":
+				return this.config.wechat.bound;
+			case "telegram":
+				return Boolean(this.credentials.telegram?.botToken);
+			case "slack":
+				return Boolean(this.credentials.slack?.botToken && this.credentials.slack.appToken);
+			case "discord":
+				return Boolean(this.credentials.discord?.botToken);
+			case "signal":
+				return this.config.signal.bound || Boolean(this.config.signal.endpoint && this.config.signal.account);
+			case "whatsapp":
+				return this.config.whatsapp.bound;
+			case "imessage":
+				return (
+					process.platform === "darwin" &&
+					Boolean(this.config.imessage.dbPath || this.config.imessage.allowedHandles?.length)
+				);
+		}
 	}
 
 	private stateAsEntries(): SessionStateEntry[] {
@@ -1377,7 +1404,7 @@ export class ImHost {
 		try {
 			await this.refreshProxyEnv();
 			const cfg = this.buildSidecarConfig();
-			this.statusStore.patch({ transport: "connecting", lastError: undefined });
+			this.statusStore.patch({ transport: "connecting", channelStatuses: {}, lastError: undefined });
 			await this.manager.start(cfg);
 		} catch (err) {
 			const msg = (err as Error).message;

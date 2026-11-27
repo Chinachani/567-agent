@@ -144,7 +144,7 @@ describe("DefaultSessionRowView leading icon", () => {
 			/>,
 		);
 
-		expect(view.container.querySelector('[data-avatar-stack="true"]')?.querySelectorAll("img")).toHaveLength(1);
+		expect(view.container.querySelector('[data-avatar-stack="true"]')?.querySelectorAll('[data-agent-avatar="true"]')).toHaveLength(1);
 		expect(view.container.querySelector('[data-session-leading-icon="true"]')?.className).toContain(
 			"icon-[solar--refresh-linear]",
 		);
@@ -155,7 +155,7 @@ describe("DefaultSessionRowView leading icon", () => {
 		const view = render(<DefaultSessionRowView {...props({ trailingAvatarUrls: avatarUrls })} />);
 
 		const stack = view.container.querySelector('[data-avatar-stack="true"]');
-		expect(stack?.querySelectorAll("img")).toHaveLength(3);
+		expect(stack?.querySelectorAll('[data-agent-avatar="true"]')).toHaveLength(3);
 		expect(stack?.textContent).toBe("+29");
 		expect(stack?.querySelector('[data-avatar-overflow="29"]')).not.toBeNull();
 		expect(view.container.querySelector('[data-session-leading-icon="true"]')?.className).toContain(
@@ -184,7 +184,7 @@ describe("DefaultSessionRowView leading icon", () => {
 		const view = render(<DefaultSessionRowView {...props({ trailingAvatarUrls: avatarUrls })} />);
 		const stack = view.container.querySelector('[data-avatar-stack="true"]');
 
-		expect(stack?.querySelectorAll("img")).toHaveLength(count);
+		expect(stack?.querySelectorAll('[data-agent-avatar="true"]')).toHaveLength(count);
 		expect(stack?.textContent).toBe("");
 	});
 });
@@ -342,7 +342,7 @@ describe("SessionRowView Team identity", () => {
 		expect(view.container.querySelector('[data-session-leading-icon="true"]')?.className).toContain(
 			"icon-[solar--users-group-rounded-linear]",
 		);
-		expect(view.container.querySelector('[data-avatar-stack="true"]')?.querySelectorAll("img")).toHaveLength(3);
+		expect(view.container.querySelector('[data-avatar-stack="true"]')?.querySelectorAll('[data-agent-avatar="true"]')).toHaveLength(3);
 	});
 
 	it("replaces the Agent Team icon with the running spinner without moving member avatars", () => {
@@ -366,7 +366,7 @@ describe("SessionRowView Team identity", () => {
 			"icon-[solar--refresh-linear]",
 		);
 		expect(view.container.querySelector('[data-session-leading-icon="true"]')?.className).toContain("animate-spin");
-		expect(view.container.querySelector('[data-avatar-stack="true"]')?.querySelectorAll("img")).toHaveLength(2);
+		expect(view.container.querySelector('[data-avatar-stack="true"]')?.querySelectorAll('[data-agent-avatar="true"]')).toHaveLength(2);
 	});
 });
 

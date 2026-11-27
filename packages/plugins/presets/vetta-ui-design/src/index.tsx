@@ -19,10 +19,10 @@ import { watchPickedSystem } from "./new-session/picked-system";
 import { setPluginCtx } from "./plugin-context";
 import { CANVAS_TAB_ID, GALLERY_VIEW_ID } from "./tab-ids";
 import { registerDesignTools } from "./tools";
-import { claimCanvasAutoOpen, openCanvasAfterWarmup } from "./vetd/auto-open";
+import { openCanvasAfterWarmup } from "./vetd/auto-open";
 import { setDesignPresence } from "./vetd/design-presence";
 import { registerToolGate } from "./vetd/tool-gate";
-import { isPureDesignProject, pickDesignPaths } from "./vetd/discover";
+import { pickDesignPaths } from "./vetd/discover";
 
 /**
  * 大件 UI 面组件全部懒加载：App 启动时宿主会整包求值本插件的入口 chunk，
@@ -101,48 +101,38 @@ export default definePlugin({
 		// 品牌图由宿主从 plugin.json#icon 解析后注入；插件不拼宿主协议、不 import 包内 png。
 		const packageIcon = ctx.plugin.iconUrl ? <VetdFileIcon src={ctx.plugin.iconUrl} /> : undefined;
 
-		/** 最近一次 conversation-changed 的 cwd 与会话 id，用于丢弃过期的探测结果。 */
-		let latestCwd: string | null = null;
-		let latestSessionId: string | null = null;
+		let active: { cwd: string | null; id: string | null; opening: boolean; scan: number } | undefined;
 
 		/**
 		 * cwd 里有 .vetd 才把画布 Tab 上栏。
 		 *
-		 * 纯设计项目（除设计稿和 README 之类外没有别的文件）额外自动展开画布：
-		 * 这种目录打开就是为了看设计，先给面板。混合项目不抢；每次打开（切入）
-		 * 会话都展开一次，同一会话内关掉后不再反复弹。
+		 * 只要工作区存在设计稿就自动展开画布。每次切入会话只展开一次，
+		 * 同一会话内手动关掉后不再反复弹。
 		 */
-		const revealTabForCwd = (cwd: string | null, sessionId: string | null): void => {
+		const revealTabForCwd = (candidate: NonNullable<typeof active>): void => {
+			const { cwd, id } = candidate;
 			if (!cwd) return;
+			const scan = ++candidate.scan;
 			void ctx.fs
 				.listFilesRecursive(cwd)
 				.catch(() => [])
 				.then((files) => {
-					if (latestCwd !== cwd || latestSessionId !== sessionId) return;
+					if (active !== candidate || candidate.scan !== scan) return;
 					// 还没迁移的旧格式也算数：Tab 先亮出来，真正的迁移在画布打开时发生。
 					const { bundles, legacyFiles } = pickDesignPaths(files);
 					const found = bundles.length + legacyFiles.length;
 					// 这趟全量列举同时是设计工具闸门的判定依据，顺手喂进去，
 					// 免得闸门在每次模型调用前自己再扫一遍工作区。
 					setDesignPresence(cwd, found > 0);
-					ctx.ui.setActivityTabVisible(CANVAS_TAB_ID, found > 0);
+					ctx.ui.setActivityTabVisible(CANVAS_TAB_ID, found > 0, { cwd });
 					if (found === 0) return;
-					// 从画廊点进来的这一次，用户已经说清楚要看设计了：混合项目也铺开，
-					// 且不受「同一会话只弹一次」的去重影响（那是给自动判断兜底的）。
-					const openCanvas = (): void => {
-						void openCanvasAfterWarmup(
-							loadCanvasTab,
-							() => latestCwd !== cwd || latestSessionId !== sessionId,
-							() => ctx.ui.openActivityTab(CANVAS_TAB_ID, { width: "max" }),
-						);
-					};
-					if (claimCanvasReveal(cwd)) {
-						openCanvas();
-						return;
-					}
-					if (!isPureDesignProject(files)) return;
-					if (!claimCanvasAutoOpen(sessionId)) return;
-					openCanvas();
+					if (!claimCanvasReveal(cwd) && (!id || candidate.opening)) return;
+					candidate.opening = true;
+					void openCanvasAfterWarmup(
+						loadCanvasTab,
+						() => active !== candidate,
+						() => ctx.ui.openActivityTab(CANVAS_TAB_ID, { cwd, width: "max" }),
+					);
 				});
 		};
 
@@ -193,23 +183,21 @@ export default definePlugin({
 		// .vetd 目录，纯代码仓库里是空操作，所以无条件注册不会产生噪音提交。
 		registerTurnHistory(ctx);
 
-		ctx.conversation.on((event) => {
+		const conversationSubscription = ctx.conversation.on((event) => {
 			if (event.type === "conversation-changed") {
 				const { cwd, id } = event.conversation;
-				if (!cwd) return;
-				latestCwd = cwd;
-				latestSessionId = id;
-				revealTabForCwd(cwd, id);
+				if (!active || active.cwd !== cwd || active.id !== id) active = { cwd, id, opening: false, scan: 0 };
+				revealTabForCwd(active);
 				return;
 			}
 			// 生成阶段就点亮：edit/write 的时间几乎全花在生成参数上，等到执行事件
 			// 才亮的话，浮层是在活干完之后才出现的。
 			if (event.type === "tool-call-args") {
-				notifyAgentToolArgs(event.toolCallId, event.toolName, event.args, latestCwd);
+				notifyAgentToolArgs(event.toolCallId, event.toolName, event.args, active?.cwd ?? null);
 				return;
 			}
 			if (event.type === "tool-call-start") {
-				notifyAgentToolStart(event.toolCallId, event.toolName, event.args, latestCwd);
+				notifyAgentToolStart(event.toolCallId, event.toolName, event.args, active?.cwd ?? null);
 				return;
 			}
 			if (event.type === "tool-call-end") {
@@ -247,6 +235,10 @@ export default definePlugin({
 		registerDesignTools(ctx);
 		// 设计专用工具只在有设计稿的会话里进入工具表（见 vetd/tool-gate）。
 		registerToolGate(ctx);
+		return () => {
+			active = undefined;
+			conversationSubscription.dispose();
+		};
 	},
 	deactivate() {
 		void stopAllDesignServers();

@@ -1,5 +1,6 @@
 import { useState, type JSX } from "react";
 import { Button } from "@vetta-org/ui";
+import { AgentAvatarView } from "../chat/AgentAvatarView";
 import { SettingSection, type SettingSectionMeta } from "./SettingChrome";
 
 export interface TeamMemberView {
@@ -110,13 +111,7 @@ export function TeamDetailView({
 						}`}
 					>
 						<div className="flex items-center gap-3">
-							{member.avatar ? (
-								<img src={member.avatar} alt="" className="h-7 w-7 rounded-full" />
-							) : (
-								<div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-[11px] font-medium text-muted-foreground">
-									{member.username[0]}
-								</div>
-							)}
+							<AgentAvatarView name={member.username} size="lg" />
 							<div>
 								<span className="text-[13px] text-foreground">{member.username}</span>
 								<span className="ml-2 text-[11px] text-muted-foreground">

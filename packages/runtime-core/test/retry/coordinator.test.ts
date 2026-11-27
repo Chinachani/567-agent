@@ -9,6 +9,26 @@ import {
 } from "../../src/retry/index.js";
 
 describe("RuntimeTurnRetryCoordinator", () => {
+	it("adds bounded positive jitter to exponential backoff when configured", () => {
+		const policy = new ConfigurableRuntimeTurnRetryPolicy({
+			readSettings: () => ({ enabled: true, maxRetries: 2, baseDelayMs: 100, maxDelayMs: 500, jitterMs: 100 }),
+			random: () => 0.5,
+		});
+
+		expect(policy.decide({ failure: failed("AI_RATE_LIMITED").error, completedRetries: 0 })).toMatchObject({
+			action: "retry",
+			delayMs: 150,
+		});
+		expect(policy.decide({ failure: failed("AI_RATE_LIMITED", 300).error, completedRetries: 1 })).toMatchObject({
+			action: "retry",
+			delayMs: 350,
+		});
+		expect(policy.decide({ failure: failed("AI_RATE_LIMITED", 480).error, completedRetries: 0 })).toMatchObject({
+			action: "retry",
+			delayMs: 500,
+		});
+	});
+
 	it("retries with exponential backoff and publishes privacy-safe lifecycle observations", async () => {
 		const events: RuntimeTurnRetryEvent[] = [];
 		const records: RuntimeObservationRecord[] = [];

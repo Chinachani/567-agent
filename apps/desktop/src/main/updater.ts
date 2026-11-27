@@ -10,6 +10,7 @@ import { parse as parseYaml } from "yaml";
 import { resolveGitHubUpdateProxyPrefix } from "../shared/github-download-source.js";
 import { getApplicationCacheService } from "./cache/application-cache-service.js";
 import { readConfigSync, updateDesktopConfig } from "./config/desktop-config-store.js";
+import { discoverGitHubProxyPrefix } from "./github-proxy-discovery.js";
 import { mainT } from "./i18n/index.js";
 import {
 	InnoWindowsUpdateController,
@@ -56,7 +57,7 @@ if (app.isPackaged && fullDownloadExecutor) {
 }
 
 /** Opt-in GitHub release acceleration. The official provider remains the default. */
-function configureUpdateSource(): void {
+async function configureUpdateSource(): Promise<void> {
 	if (!app.isPackaged || process.env.AGENT567_E2E === "1") return;
 	const { updateSource = "github", updateProxyUrl } = readConfigSync();
 	if (updateSource === "github") return;
@@ -74,12 +75,22 @@ function configureUpdateSource(): void {
 			console.warn("[updater] ignored invalid GitHub update repository configuration");
 			return;
 		}
-		const prefix = resolveGitHubUpdateProxyPrefix(updateSource, updateProxyUrl);
+		const feedPath = `https://github.com/${config.owner}/${config.repo}/releases/latest/download/`;
+		const metadataName =
+			process.platform === "win32"
+				? "latest.yml"
+				: process.platform === "darwin"
+					? "latest-mac.yml"
+					: "latest-linux.yml";
+		const prefix =
+			updateSource === "auto"
+				? await discoverGitHubProxyPrefix(`${feedPath}${metadataName}`)
+				: resolveGitHubUpdateProxyPrefix(updateSource, updateProxyUrl);
 		if (!prefix) {
-			console.warn("[updater] custom GitHub update proxy URL is invalid; using the packaged update source");
+			console.warn("[updater] GitHub acceleration unavailable; using the packaged update source");
 			return;
 		}
-		const feedUrl = `${prefix}https://github.com/${config.owner}/${config.repo}/releases/latest/download/`;
+		const feedUrl = `${prefix}${feedPath}`;
 		autoUpdater.setFeedURL({ provider: "generic", url: feedUrl, useMultipleRangeRequest: true });
 		console.info(`[updater] GitHub release acceleration enabled (${updateSource})`);
 	} catch (error) {
@@ -87,7 +98,7 @@ function configureUpdateSource(): void {
 	}
 }
 
-configureUpdateSource();
+const updateSourceReady = configureUpdateSource();
 
 /**
  * Packaged E2E runs against an explicitly supplied test feed. Keeping this
@@ -214,10 +225,13 @@ const finalizeQuit = async () => {
 		app.exit(0);
 	}
 };
-const updaterEngine = new ElectronUpdaterEngine(autoUpdater, innoWindowsUpdate, nativeMacUpdateEvents, {
-	prepare: prepareQuit,
-	finalize: finalizeQuit,
-});
+const updaterEngine = new ElectronUpdaterEngine(
+	autoUpdater,
+	innoWindowsUpdate,
+	nativeMacUpdateEvents,
+	{ prepare: prepareQuit, finalize: finalizeQuit },
+	updateSourceReady,
+);
 // powerMonitor 只能在 app ready 之后订阅，因此这里只传订阅函数，
 // 由 UpdaterService.onAppReady() 在合适的时机调用。
 const systemEvents = {

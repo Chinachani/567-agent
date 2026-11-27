@@ -1037,10 +1037,11 @@ class RelayRemoteConversationGateway(
         retryPreviousTurn: Boolean,
         promptText: String,
         files: List<RemotePromptFileAttachment>,
+        remoteTurnId: String?,
     ): Flow<ChatStreamEvent> =
         channelFlow {
             val generation = connectionGeneration
-            val turnId = "mobile_${kotlin.random.Random.nextLong().toULong().toString(16)}_${kotlin.random.Random.nextLong().toULong().toString(16)}"
+            val turnId = remoteTurnId ?: "mobile_${kotlin.random.Random.nextLong().toULong().toString(16)}_${kotlin.random.Random.nextLong().toULong().toString(16)}"
             var submitted = false
             var turnSessionId = remoteSessionId ?: remoteSessionIds[localSessionId]
             val active = connection ?: throw RemoteConversationException("请先连接桌面设备")
@@ -1209,6 +1210,7 @@ class RelayRemoteConversationGateway(
                 }
                 result?.jsonObject?.get("sessionId")?.jsonPrimitive?.content?.let {
                     remoteSessionIds[localSessionId] = it
+                    send(ChatStreamEvent.State("submitted", detail = it, detailCode = "remote_session_id"))
                 }
                 _devices.updateLatency(active.snapshot().lastRttMs?.toIntOrNull())
                 val finalState = terminal.await()
@@ -1243,6 +1245,15 @@ class RelayRemoteConversationGateway(
                 connectionJob.cancel()
             }
         }
+
+    override fun recoverRemoteTurn(
+        localSessionId: String,
+        deviceId: String,
+        remoteSessionId: String,
+        turnId: String,
+    ): Flow<ChatStreamEvent> = channelFlow {
+        recoverRemoteTurn(deviceId, remoteSessionId, turnId, connectionGeneration) { send(it) }
+    }
 
     private suspend fun rememberEventCursor(active: RemoteConnection?, target: String?) {
         if (active == null || target == null) return
@@ -1287,7 +1298,7 @@ class RelayRemoteConversationGateway(
                     sessionId,
                     timeoutMs = 10_000,
                 ) as? JsonObject ?: throw RemoteConversationException("电脑没有返回本次任务状态")
-                if (snapshot["found"]?.jsonPrimitive?.booleanOrNull != true) throw RemoteConversationException("电脑未找到本次任务的恢复记录，请先查看电脑会话结果再决定是否重试")
+                if (snapshot["found"]?.jsonPrimitive?.booleanOrNull != true) throw RemoteTurnNotFoundException("电脑未找到本次任务的恢复记录，请先查看电脑会话结果再决定是否重试")
                 (snapshot["eventCursor"] as? JsonObject)?.let { cursor ->
                     val publisher = cursor.stringValue("publisherId")
                     val sequence = cursor.longValue("sequence")

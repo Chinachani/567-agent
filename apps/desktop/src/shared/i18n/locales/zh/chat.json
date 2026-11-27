@@ -426,6 +426,9 @@
 				"confirm": "关闭并结束进程"
 			}
 		},
+		"backgroundTasks": {
+			"title": "后台任务"
+		},
 		"title": "底部面板",
 		"openTerminal": "打开终端"
 	},
@@ -846,7 +849,12 @@
 		"readReply": {
 			"play": "朗读回复",
 			"stop": "停止朗读",
-			"unavailable": "系统未能朗读这条回复，请检查是否已安装离线语音。"
+			"unavailable": "系统未能朗读这条回复。",
+			"installHint": {
+				"linux": "Linux：在终端运行 sudo apt install speech-dispatcher espeak-ng（Fedora 用 sudo dnf install speech-dispatcher espeak-ng），然后重启 567 Agent。",
+				"windows": "Windows：打开“设置 → 时间和语言 → 语音”，安装中文或其他本地语音。",
+				"mac": "macOS：打开“系统设置 → 辅助功能 → 朗读内容 → 系统声音”，下载并启用语音。"
+			}
 		},
 		"copyButton": {
 			"failed": "未能复制，可重试或手动选中文字。",
@@ -1361,7 +1369,51 @@
 		"discardTitle": "尚有未保存的上下文更改",
 		"discardHint": "关闭会放弃本次范围和固定信息的编辑，聊天记录不受影响。",
 		"continueEditing": "继续编辑",
-		"discard": "放弃更改"
+		"discard": "放弃更改",
+		"unsavedBadge": "未保存草稿",
+		"readOnlyBadge": "只读",
+		"readOnlyRunning": "当前会话正在回复或压缩上下文，暂时只读。",
+		"syncedBadge": "当前已生效",
+		"nextSendTitle": "下一次发送会包含",
+		"nextSendTurns": "完整回合",
+		"nextSendTurnsValue": "{{included}} / {{shown}} 轮",
+		"nextSendTurnsBreakdown": "{{summarized}} 轮已摘要 · {{excluded}} 轮已排除",
+		"nextSendTurnsTotal": "显示最近 {{shown}} 轮，共 {{total}} 轮",
+		"nextSendPinned": "固定重要信息",
+		"nextSendPinnedValue": "{{count}} 字",
+		"nextSendPinnedUnset": "未设置",
+		"nextSendSummary": "历史摘要",
+		"nextSendSummaryActive": "已启用",
+		"nextSendSummaryTokens": "压缩前 {{count}} tokens",
+		"nextSendSummaryRebuild": "保存后将重建",
+		"nextSendSummaryNone": "无摘要",
+		"nextSendDraftFiles": "本轮待发送附件",
+		"nextSendDraftFilesValue": "{{count}} 个待发送",
+		"nextSendDraftFilesNone": "无",
+		"saveImpact": "保存仅更新后续发送的模型输入（固定信息与回合范围），不会删除聊天记录。",
+		"saveImpactRebuild": "已调整排除范围：保存会失效旧摘要并在后续发送时重新整理，原聊天记录保持完整。",
+		"syncedFooter": "当前无未保存修改。",
+		"unsavedTurns": "有 {{count}} 处未保存变更，保存后对下一次发送生效。",
+		"filter": {
+			"all": "全部 ({{count}})",
+			"included": "下轮发送 ({{count}})",
+			"excluded": "已排除 ({{count}})",
+			"summarized": "已摘要 ({{count}})"
+		},
+		"expandDetails": "详情",
+		"collapseDetails": "收起",
+		"expandSection": "编辑",
+		"collapseSection": "收起",
+		"clearPinned": "清空",
+		"pinnedCount": "{{count}} / 16,000",
+		"attachmentsCount": "{{count}} 个附件",
+		"modifiedBadge": "未保存",
+		"pinnedDone": "已固定",
+		"readOnlyTag": "只读",
+		"clearSearch": "清空搜索",
+		"resetFilters": "重置筛选",
+		"noTurns": "当前会话还没有可管理的回合。",
+		"retry": "重试"
 	},
 	"workbench": {
 		"title": "会话工作台",
@@ -1376,6 +1428,17 @@
 		"attachmentHint": "原文件保留原格式，点击后按需预览；文件存在不代表模型已经读取。预览最多 32 KB。读取范围作为你的要求发送给 Agent，由工具按需解析。显示最近 200 项。",
 		"taskHint": "读取已保存的任务结果与工具记录，不会重新执行或收费。中断后的可用结果仍可查看，部分外部任务无法续接。显示最近 200 个回合。",
 		"changeHint": "审阅 Agent 的文件修改。小型文本有完整快照时可撤销；较大文件、命令或外部工具的修改可能没有可撤销记录。",
+		"turnFiles": {
+			"open": "按回合恢复文件",
+			"hint": "先选择回合，再确认要恢复的文件。恢复会撤销该回合的新增、编辑或删除。之后又改过的文件会保留当前内容。",
+			"empty": "暂无可预览的回合文件。文件检查点适用于符合大小限制的本地 Git 工作区。",
+			"error": "无法读取或恢复回合文件。请刷新预览后重试。",
+			"confirm": "确认恢复 {{count}} 个文件",
+			"restoring": "正在恢复文件…",
+			"result": "恢复已结束，请查看每个文件的结果。",
+			"change": { "added": "本轮新增", "modified": "本轮修改", "deleted": "本轮删除", "unsupported": "快照不完整" },
+			"status": { "ready": "可恢复", "conflict": "有冲突，已保留", "unavailable": "暂不可恢复", "restored": "已恢复" }
+		},
 		"pending": "待发送附件",
 		"readScope": "读取范围，如第 2–5 页、第三章或第 10–80 行",
 		"failed": "操作失败，文件或会话可能已变化。请刷新后重试；为保护后续修改，自动撤销会在版本不符时拒绝。",
@@ -1414,7 +1477,23 @@
 		"remove": "移除",
 		"noMatches": "没有匹配的记录",
 		"thumbnail": "图片缩略图",
-		"thumbnailUnavailable": "缩略图不可用，请查看附件详情"
+		"thumbnailUnavailable": "缩略图不可用，请查看附件详情",
+		"draftScopeSet": "已设范围",
+		"historyAttachments": "历史附件引用",
+		"readOnlyDetail": "只读",
+		"reversible": "可撤销",
+		"cancel": "取消",
+		"clearSearch": "清空搜索",
+		"clearScope": "清空范围",
+		"readScopeCount": "{{count}} / 300",
+		"taskNoOutput": "该任务没有可展示的文本输出或工具结果。",
+		"changeNoDiff": "此修改没有保存可展示的差异或快照。",
+		"changeKeptNotice": "此修改已标记为保留。",
+		"changeRevertedNotice": "此修改已撤销；原变更前内容已写回，并保存了恢复备份。",
+		"changeUnavailableNotice": "此修改没有可用的完整文本快照，暂不支持自动撤销。",
+		"itemCount": "{{count}} 项",
+		"draftImage": "待发送图片",
+		"backToList": "返回列表"
 	},
 	"taskProgress": {
 		"phases": {

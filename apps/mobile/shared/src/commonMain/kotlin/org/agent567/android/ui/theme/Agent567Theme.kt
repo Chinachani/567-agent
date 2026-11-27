@@ -49,6 +49,7 @@ data class Agent567ExtraColors(
     val imageAccent: Color = Color(0xFF7142B5),
     val amberAccent: Color = Agent567Palette.AmberLight,
     val amberContainer: Color = Agent567Palette.AmberContainerLight,
+    val isDark: Boolean = false,
 )
 
 val LocalAgent567Extra =
@@ -249,6 +250,7 @@ internal fun mobileExtraColors(dark: Boolean): Agent567ExtraColors =
                 imageAccent = Color(0xFFC5A2F5),
                 amberAccent = Agent567Palette.AmberDark,
                 amberContainer = Agent567Palette.AmberContainerDark,
+                isDark = true,
             )
         } else {
             Agent567ExtraColors(
@@ -260,6 +262,7 @@ internal fun mobileExtraColors(dark: Boolean): Agent567ExtraColors =
                 chatAccent = Agent567Palette.AmberLight,
                 amberAccent = Agent567Palette.AmberLight,
                 amberContainer = Agent567Palette.AmberContainerLight,
+                isDark = false,
             )
         }
 

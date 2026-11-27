@@ -1,5 +1,6 @@
 import { Button } from "@shared/components/ui/button";
 import { Input } from "@shared/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@shared/components/ui/select";
 import { cn } from "@shared/lib/utils";
 import { formatTokenCount } from "@vetta-org/theme-ui/settings";
 import {
@@ -12,6 +13,12 @@ import {
 import { useTranslation } from "react-i18next";
 import { UNASSIGNED_GROUP_KEY } from "../hooks/useUsageLogData";
 import type { UsageCallRecord } from "../types";
+import {
+	USAGE_PRIMARY_ACCENT,
+	USAGE_TOKEN_SEGMENT_COLORS,
+	usageAccentTextStyle,
+	usageBadgeStyle,
+} from "../usage-palette";
 
 export interface UsageCallDetailsTableProps {
 	records: UsageCallRecord[];
@@ -72,7 +79,7 @@ export function UsageCallDetailsTable({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden rounded-xl border border-border/50 bg-card/40 backdrop-blur-sm",
+				"min-w-0 overflow-hidden rounded-xl border border-border/60 bg-card/70",
 				className,
 			)}
 		>
@@ -80,8 +87,14 @@ export function UsageCallDetailsTable({
 			<div className="flex flex-col gap-3 border-b border-border/40 p-4">
 				<div className="flex flex-wrap items-center justify-between gap-2">
 					<div>
-						<div className="flex items-center gap-1.5">
-							<Filter className="h-4 w-4 text-primary" />
+						<div className="flex items-center gap-2">
+							<span
+								className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
+								style={usageBadgeStyle(USAGE_PRIMARY_ACCENT)}
+								aria-hidden="true"
+							>
+								<Filter className="h-3.5 w-3.5" />
+							</span>
 							<h2 className="text-sm font-semibold text-foreground">
 								{t("usageLog.table.title")}
 							</h2>
@@ -116,93 +129,58 @@ export function UsageCallDetailsTable({
 				{/* 多维筛选行：会话、分组、模型、状态、搜索 */}
 				<div className="flex flex-wrap items-center gap-2 pt-1">
 					{/* 搜索框 */}
-					<div className="relative min-w-[160px] flex-1 sm:max-w-[220px]">
+					<div className="relative min-w-[min(100%,160px)] flex-[1_1_180px] @xl:max-w-[260px]">
 						<Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
 						<Input
 							type="search"
 							placeholder={t("usageLog.filters.searchPlaceholder")}
 							value={searchQuery}
 							onChange={(e) => onSearchChange(e.target.value)}
-							className="h-7 pl-8 text-xs bg-background/50 border-border/50"
+							aria-label={t("usageLog.filters.searchPlaceholder")}
+							className="h-7 border-border/60 bg-background/70 pl-8 text-xs"
 						/>
 					</div>
 
-					{/* 会话筛选 */}
 					{availableSessions.length > 0 && (
-						<select
-							value={selectedSessionId}
-							onChange={(e) => onSelectSession(e.target.value)}
-							className="h-7 max-w-[150px] truncate rounded-md border border-border/50 bg-background/50 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-						>
-							<option value="all">{t("usageLog.filters.allSessions")}</option>
-							{availableSessions.map((s) => (
-								<option key={s.id} value={s.id}>
-									{s.name}
-								</option>
-							))}
-						</select>
+						<UsageFilter label={t("usageLog.table.colSession")} value={selectedSessionId} onChange={onSelectSession}
+							options={[{ value: "all", label: t("usageLog.filters.allSessions") }, ...availableSessions.map((s) => ({ value: s.id, label: s.name }))]} />
 					)}
-
-					{/* 分组筛选 */}
 					{availableGroups.length > 0 && (
-						<select
-							value={selectedGroup}
-							onChange={(e) => onSelectGroup(e.target.value)}
-							className="h-7 max-w-[140px] truncate rounded-md border border-border/50 bg-background/50 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-						>
-							<option value="all">{t("usageLog.filters.allGroups")}</option>
-							{availableGroups.map((g) => (
-								<option key={g.key} value={g.key}>
-									{g.key === UNASSIGNED_GROUP_KEY
-										? t("usageLog.filters.unassignedGroup")
-										: g.name}
-								</option>
-							))}
-						</select>
+						<UsageFilter label={t("usageLog.table.colGroup")} value={selectedGroup} onChange={onSelectGroup}
+							options={[{ value: "all", label: t("usageLog.filters.allGroups") }, ...availableGroups.map((g) => ({ value: g.key, label: g.key === UNASSIGNED_GROUP_KEY ? t("usageLog.filters.unassignedGroup") : g.name }))]} />
 					)}
-
-					{/* 模型筛选 */}
 					{availableModels.length > 0 && (
-						<select
-							value={selectedModel}
-							onChange={(e) => onSelectModel(e.target.value)}
-							className="h-7 max-w-[140px] truncate rounded-md border border-border/50 bg-background/50 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-						>
-							<option value="all">{t("usageLog.filters.allModels")}</option>
-							{availableModels.map((m) => (
-								<option key={m} value={m}>
-									{m}
-								</option>
-							))}
-						</select>
+						<UsageFilter label={t("usageLog.table.colModel")} value={selectedModel} onChange={onSelectModel}
+							options={[{ value: "all", label: t("usageLog.filters.allModels") }, ...availableModels.map((m) => ({ value: m, label: m }))]} />
 					)}
-
-					{/* 状态筛选 */}
-					<select
-						value={selectedStatus}
-						onChange={(e) =>
-							onSelectStatus(
-								e.target.value as "all" | "success" | "error" | "aborted",
-							)
-						}
-						className="h-7 rounded-md border border-border/50 bg-background/50 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-					>
-						<option value="all">{t("usageLog.filters.allStatus")}</option>
-						<option value="success">
-							{t("usageLog.filters.statusSuccess")}
-						</option>
-						<option value="error">{t("usageLog.filters.statusError")}</option>
-						<option value="aborted">
-							{t("usageLog.filters.statusAborted")}
-						</option>
-					</select>
+					<UsageFilter label={t("usageLog.table.colStatus")} value={selectedStatus} onChange={(value) => {
+						if (value === "all" || value === "success" || value === "error" || value === "aborted") onSelectStatus(value);
+					}} options={[
+						{ value: "all", label: t("usageLog.filters.allStatus") },
+						{ value: "success", label: t("usageLog.filters.statusSuccess") },
+						{ value: "error", label: t("usageLog.filters.statusError") },
+						{ value: "aborted", label: t("usageLog.filters.statusAborted") },
+					]} />
 				</div>
 			</div>
 
 			{/* 表格内容 */}
 			<div className="overflow-x-auto">
-				<table className="w-full text-left text-xs">
-					<thead className="border-b border-border/30 bg-muted/20 text-[11px] font-medium text-muted-foreground">
+				<table className="w-full min-w-[850px] table-fixed text-left text-xs">
+					<colgroup>
+						<col className="w-[13%]" />
+						<col className="w-[13%]" />
+						<col className="w-[8%]" />
+						<col className="w-[14%]" />
+						<col className="w-[8%]" />
+						<col className="w-[7%]" />
+						<col className="w-[7%]" />
+						<col className="w-[8%]" />
+						<col className="w-[8%]" />
+						<col className="w-[8%]" />
+						<col className="w-[6%]" />
+					</colgroup>
+					<thead className="border-b border-border/50 bg-muted/45 text-[11px] font-medium text-muted-foreground">
 						<tr>
 							<th className="px-3.5 py-2.5">{t("usageLog.table.colTime")}</th>
 							<th className="px-3 py-2.5">{t("usageLog.table.colSession")}</th>
@@ -226,7 +204,7 @@ export function UsageCallDetailsTable({
 							<th className="px-3 py-2.5 text-right">
 								{t("usageLog.table.colFirstText")}
 							</th>
-							<th className="px-3.5 py-2.5 text-center">
+							<th className="px-1 py-2.5 text-center">
 								{t("usageLog.table.colStatus")}
 							</th>
 						</tr>
@@ -267,7 +245,7 @@ export function UsageCallDetailsTable({
 								return (
 									<tr
 										key={r.id}
-										className="transition-colors hover:bg-muted/10 font-mono"
+										className="font-mono transition-colors hover:bg-muted/35"
 									>
 										{/* 时间 */}
 										<td className="px-3.5 py-2 text-muted-foreground font-sans text-[11px] whitespace-nowrap">
@@ -289,9 +267,12 @@ export function UsageCallDetailsTable({
 										</td>
 
 										{/* 分组 */}
-										<td className="px-3 py-2 font-sans">
+										<td className="px-3 py-2 font-sans truncate" title={r.group}>
 											{r.group?.trim() ? (
-												<span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+												<span
+													className="rounded px-1.5 py-0.5 text-[10px] font-medium"
+													style={usageBadgeStyle(USAGE_TOKEN_SEGMENT_COLORS.prompt)}
+												>
 													{r.group}
 												</span>
 											) : (
@@ -309,7 +290,7 @@ export function UsageCallDetailsTable({
 
 										{/* 总 Tokens */}
 										<td className="px-3 py-2 text-right font-semibold text-foreground tabular-nums">
-											{totalTokens != null && totalTokens > 0 ? formatTokenCount(totalTokens) : "—"}
+											{totalTokens != null ? formatTokenCount(totalTokens) : "—"}
 										</td>
 
 										{/* 提示词 */}
@@ -323,7 +304,17 @@ export function UsageCallDetailsTable({
 										</td>
 
 										{/* 缓存读取 */}
-										<td className="px-3 py-2 text-right text-amber-500 tabular-nums">
+										<td
+											className={cn(
+												"px-3 py-2 text-right tabular-nums",
+												r.cacheRead == null && "text-muted-foreground",
+											)}
+											style={
+												r.cacheRead != null
+													? usageAccentTextStyle(USAGE_TOKEN_SEGMENT_COLORS.cacheRead)
+													: undefined
+											}
+										>
 											{r.cacheRead != null ? formatTokenCount(r.cacheRead) : "—"}
 										</td>
 
@@ -342,16 +333,23 @@ export function UsageCallDetailsTable({
 										</td>
 
 										{/* 状态 */}
-										<td className="px-3.5 py-2 text-center whitespace-nowrap">
+										<td className="px-1 py-2 text-center whitespace-nowrap">
 											<span
 												className={cn(
-													"inline-block rounded px-1.5 py-0.2 text-[10px] font-medium font-sans",
+													"inline-block rounded px-1.5 py-0.5 text-[10px] font-medium font-sans",
 													isSuccess
-														? "bg-emerald-500/15 text-emerald-400"
+														? "bg-emerald-500/15"
 														: isAborted
-															? "bg-amber-500/15 text-amber-400"
+															? "bg-amber-500/15"
 															: "bg-destructive/15 text-destructive",
 												)}
+												style={
+													isSuccess
+														? usageAccentTextStyle(USAGE_TOKEN_SEGMENT_COLORS.completion)
+														: isAborted
+															? usageAccentTextStyle(USAGE_TOKEN_SEGMENT_COLORS.cacheRead)
+															: undefined
+												}
 											>
 												{isSuccess
 													? t("usageLog.table.statusSuccess")
@@ -382,6 +380,10 @@ export function UsageCallDetailsTable({
 							variant="ghost"
 							size="icon-xs"
 							disabled={currentPage <= 1}
+							aria-label={t("usageLog.table.pagination", {
+								page: Math.max(1, currentPage - 1),
+								total: totalPages,
+							})}
 							onClick={() => onPageChange(currentPage - 1)}
 						>
 							<ChevronLeft className="h-3.5 w-3.5" />
@@ -390,6 +392,10 @@ export function UsageCallDetailsTable({
 							variant="ghost"
 							size="icon-xs"
 							disabled={currentPage >= totalPages}
+							aria-label={t("usageLog.table.pagination", {
+								page: Math.min(totalPages, currentPage + 1),
+								total: totalPages,
+							})}
 							onClick={() => onPageChange(currentPage + 1)}
 						>
 							<ChevronRight className="h-3.5 w-3.5" />
@@ -398,5 +404,28 @@ export function UsageCallDetailsTable({
 				</div>
 			)}
 		</div>
+	);
+}
+
+function UsageFilter({ label, value, onChange, options }: {
+	label: string;
+	value: string;
+	onChange: (value: string) => void;
+	options: readonly { value: string; label: string }[];
+}): JSX.Element {
+	const selected = options.find((option) => option.value === value)?.label;
+	return (
+		<Select value={value} onValueChange={onChange}>
+			<SelectTrigger size="sm" aria-label={label} title={selected} className="min-w-0 w-full max-w-full text-xs @md:w-36 [&_[data-slot=select-value]]:truncate">
+				<SelectValue />
+			</SelectTrigger>
+			<SelectContent position="popper" align="start" className="max-w-[min(25rem,calc(100vw-2rem))]">
+				{options.map((option) => (
+					<SelectItem key={option.value} value={option.value} textValue={option.label}>
+						<span className="line-clamp-2 break-all" title={option.label}>{option.label}</span>
+					</SelectItem>
+				))}
+			</SelectContent>
+		</Select>
 	);
 }

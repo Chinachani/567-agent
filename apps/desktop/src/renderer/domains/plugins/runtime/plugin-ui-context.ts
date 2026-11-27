@@ -64,6 +64,7 @@ import {
 	createPluginPermissionApi,
 	hasPluginPermission,
 	noopDisposable,
+	pluginPermissionRecovery,
 	warnSkippedPluginContribution,
 } from "./plugin-permissions";
 import { pluginRendererCapabilityHost } from "./plugin-renderer-capability-host";
@@ -996,7 +997,7 @@ export function createPluginUiApi({
 		showToast({
 			variant,
 			title,
-			message,
+			message: pluginPermissionRecovery(options.error) ?? message,
 			durationMs,
 			action: detail
 				? {

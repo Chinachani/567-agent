@@ -43,6 +43,7 @@ export function canonicalizeAssistantMessage(message: AssistantMessage): Canonic
 			cost: { ...message.usage.cost },
 		},
 		stopReason: message.stopReason,
+		...(message.signedReasoningReset === undefined ? {} : { signedReasoningReset: message.signedReasoningReset }),
 		...(message.errorMessage === undefined ? {} : { errorMessage: message.errorMessage }),
 		...(message.failure === undefined ? {} : { failure: { ...message.failure } }),
 	};

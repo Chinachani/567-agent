@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { spawnGuardedCommand } from "../../src/coding/host/guarded-command-process.js";
-import { killNodeProcessTree } from "../../src/coding/host/process-tree.js";
 import { createNodeCommandExecutor } from "../../src/host/command-executor.js";
 
 const roots: string[] = [];
@@ -38,7 +37,7 @@ function alive(pid: number) {
 	}
 }
 afterEach(() => {
-	for (const pid of processes) killNodeProcessTree(pid);
+	for (const pid of processes) if (alive(pid)) process.kill(pid, "SIGKILL");
 	processes.clear();
 	for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 	vi.unstubAllEnvs();
@@ -68,6 +67,25 @@ describe.skipIf(process.platform === "win32")("bounded command process ownership
 			},
 			{ timeout: 2000 },
 		);
+	});
+	it("lets a cancelled command finish its SIGTERM cleanup before reporting cancellation", async () => {
+		const f = fixture((marker) => {
+			const cleanup = JSON.stringify(`${marker}.cleanup`);
+			return [
+				"const { writeFileSync } = require('node:fs');",
+				`process.on('SIGTERM', () => { writeFileSync(${cleanup}, 'clean'); process.exit(0); });`,
+				`writeFileSync(${JSON.stringify(marker)}, JSON.stringify({ parent: process.pid }));`,
+				"setInterval(() => {}, 1000);",
+			].join("\n");
+		});
+		const controller = new AbortController();
+		const pending = createNodeCommandExecutor().execute(process.execPath, [f.script], f.root, {
+			signal: controller.signal,
+		});
+		await ready(f.marker);
+		controller.abort();
+		expect(await pending).toMatchObject({ killed: true, code: 143 });
+		expect(readFileSync(`${f.marker}.cleanup`, "utf8")).toBe("clean");
 	});
 	it("cancels descendants which retain pipes after their parent exits", async () => {
 		const f = fixture(
@@ -108,7 +126,7 @@ describe.skipIf(process.platform === "win32")("bounded command process ownership
 		if (child.pid) processes.add(child.pid);
 		const result = await new Promise<Error | null>((resolve, reject) => {
 			const timer = setTimeout(() => {
-				if (child.pid) killNodeProcessTree(child.pid);
+				void child.stopTree({ force: true });
 				reject(new Error("guard did not settle"));
 			}, 3000);
 			let failure: Error | null = null;

@@ -19,7 +19,7 @@ export function resolveSidebarSelectionState(sources: SidebarSelectionSources): 
 			: null;
 		return { fallbackSelection: selection, settledSelection: selection };
 	}
-	if (sources.pendingSessionPath) {
+	if (sources.pendingSessionPath && sources.currentPath === "/") {
 		return {
 			fallbackSelection: { kind: "conversation", path: sources.pendingSessionPath },
 			settledSelection: null,
@@ -31,7 +31,11 @@ export function resolveSidebarSelectionState(sources: SidebarSelectionSources): 
 	}
 	if (sources.activeSessionPath) {
 		const selection: SidebarSelectionTarget = { kind: "conversation", path: sources.activeSessionPath };
-		return { fallbackSelection: selection, settledSelection: sources.currentPath === "/" ? selection : null };
+		// A session atom can outlive navigation to settings, abilities, projects, or
+		// the new-session page. Keep it as the fallback only on the conversation
+		// surface so unrelated pages do not retain a stale highlighted row.
+		if (sources.currentPath !== "/") return { fallbackSelection: null, settledSelection: null };
+		return { fallbackSelection: selection, settledSelection: selection };
 	}
 	return { fallbackSelection: null, settledSelection: null };
 }

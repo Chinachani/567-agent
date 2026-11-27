@@ -11,6 +11,7 @@ import {
 import type { CacheRetention, Context, JsonValue, Model, ToolResultMessage } from "../../types.js";
 import { sanitizeSurrogates } from "../../utils/sanitize-unicode.js";
 import { transformMessages } from "../transform-messages.js";
+import { isBedrockClaudeModel } from "./options.js";
 
 export function resolveCacheRetention(cacheRetention?: CacheRetention): CacheRetention {
 	if (cacheRetention) return cacheRetention;
@@ -82,7 +83,7 @@ export function convertBedrockMessages(
 						reasoningContent: {
 							reasoningText: {
 								text: sanitizeSurrogates(content.thinking),
-								...(supportsThinkingSignature(model) ? { signature: content.thinkingSignature } : {}),
+								...(isBedrockClaudeModel(model.id) ? { signature: content.thinkingSignature } : {}),
 							},
 						},
 					});
@@ -140,11 +141,6 @@ function supportsPromptCaching(model: Model<"bedrock-converse-stream">): boolean
 	const id = model.id.toLowerCase();
 	if (id.includes("claude") && (id.includes("-4-") || id.includes("-4."))) return true;
 	return id.includes("claude-3-7-sonnet") || id.includes("claude-3-5-haiku");
-}
-
-function supportsThinkingSignature(model: Model<"bedrock-converse-stream">): boolean {
-	const id = model.id.toLowerCase();
-	return id.includes("anthropic.claude") || id.includes("anthropic/claude");
 }
 
 function normalizeToolCallId(id: string): string {

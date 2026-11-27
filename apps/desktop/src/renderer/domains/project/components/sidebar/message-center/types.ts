@@ -1,4 +1,4 @@
-export type MessageCenterTab = "all" | "notifications" | "results";
+export type MessageCenterTab = "all" | "notifications" | "results" | "claw";
 
 export type MessageCenterTabConfig = {
 	value: MessageCenterTab;
@@ -8,6 +8,7 @@ export type MessageCenterTabConfig = {
 export const MESSAGE_CENTER_TABS: MessageCenterTabConfig[] = [
 	{ value: "all", icon: "icon-[solar--inbox-linear]" },
 	{ value: "results", icon: "icon-[solar--checklist-linear]" },
+	{ value: "claw", icon: "icon-[solar--chat-line-linear]" },
 	{ value: "notifications", icon: "icon-[solar--bell-linear]" },
 ];
 

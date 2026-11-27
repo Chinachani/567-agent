@@ -28,7 +28,13 @@ vi.mock("../logger.js", () => ({
 }));
 
 import { recordAbilityInstall } from "../abilities/ability-ledger.js";
-import { getPluginsBaseDir, installPluginFromArchive, installPluginFromPath } from "./plugin-catalog.js";
+import {
+	getPluginsBaseDir,
+	grantPluginPermissions,
+	installPluginFromArchive,
+	installPluginFromPath,
+	listPlugins,
+} from "./plugin-catalog.js";
 
 const PLUGIN_ID = "install-activation-demo";
 const originalResourcesPath = Object.getOwnPropertyDescriptor(process, "resourcesPath");
@@ -144,5 +150,28 @@ describe("installPluginFromArchive", () => {
 		expect(upgraded.grantedPermissions).toEqual([]);
 		expect(upgraded.declaredCommands).toEqual([]);
 		expect(upgraded.grantedCommandNames).toEqual([]);
+	});
+
+	it("标记缺少授权清单的旧安装，保留显式空清单，等待用户复核已声明的权限", async () => {
+		const packageBytes = archive("0.4.0", { permissions: ["storage.read"] });
+		const installed = await installPluginFromArchive(packageBytes, { source: "archive", grantedPermissions: [] });
+		const registryPath = join(testPaths.home, "plugins-manifest.json");
+		const readInstalled = () => listPlugins().find(({ id }) => id === PLUGIN_ID);
+		expect(readInstalled()?.permissionReviewRequired).toBeUndefined();
+
+		const { grantedPermissions: _, ...legacy } = installed;
+		await writeFile(registryPath, JSON.stringify({ [PLUGIN_ID]: legacy }));
+		expect(readInstalled()).toMatchObject({ grantedPermissions: [], permissionReviewRequired: true });
+		await expect(installPluginFromArchive(packageBytes, { source: "archive" })).resolves.toMatchObject({
+			grantedPermissions: [],
+			permissionReviewRequired: true,
+		});
+		expect(grantPluginPermissions(PLUGIN_ID, ["network.fetch"])).toMatchObject({
+			grantedPermissions: [],
+			permissionReviewRequired: true,
+		});
+		grantPluginPermissions(PLUGIN_ID, ["storage.read"]);
+		expect(readInstalled()?.grantedPermissions).toEqual(["storage.read"]);
+		expect(readInstalled()?.permissionReviewRequired).toBeUndefined();
 	});
 });

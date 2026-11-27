@@ -9,11 +9,19 @@ export function parseModelList(value: unknown): ModelDefinition[] {
 		const id = typeof entry === "string" ? entry : (raw.id ?? raw.name ?? raw.model);
 		if (typeof id !== "string" || !id.trim() || id.length > 1024) return [];
 		const metadata = parseModelContext(raw);
+		const modalities = raw.modalities;
+		const output =
+			raw.output_modalities ??
+			raw.output ??
+			(typeof modalities === "object" && modalities !== null && "output" in modalities
+				? modalities.output
+				: undefined);
 		return [
 			{
 				id,
 				name: id,
 				input: ["text", "image"],
+				...(Array.isArray(output) && output.every((value) => typeof value === "string") ? { output } : {}),
 				...metadata,
 				contextWindowSource: metadata.contextWindow === undefined ? ("unknown" as const) : ("api" as const),
 			},

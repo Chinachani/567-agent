@@ -242,7 +242,9 @@ export function useAbilityActions({
 				enabled: installedPlugin.enabled,
 				busy: false,
 				plugin: installedPlugin,
+				permissions: installedPlugin.permissions,
 				grantedPermissions: installedPlugin.grantedPermissions,
+				commands: installedPlugin.declaredCommands,
 				grantedCommands: installedPlugin.grantedCommandNames,
 				setupMode: "install",
 			});

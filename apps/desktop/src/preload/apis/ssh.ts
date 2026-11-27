@@ -24,6 +24,8 @@ const CHANNELS = {
 export function createSshApi(ipc: IpcRenderer): Pick<DesktopApi, "ssh"> {
 	return {
 		ssh: {
+			pickPrivateKey: () => ipc.invoke(SSH_CHANNELS.PICK_PRIVATE_KEY),
+			discardPrivateKey: (ref) => ipc.invoke(SSH_CHANNELS.DISCARD_PRIVATE_KEY, ref),
 			listHosts: () => ipc.invoke(CHANNELS.LIST_HOSTS),
 			createHost: (input) => ipc.invoke(CHANNELS.CREATE_HOST, input),
 			updateHost: (input) => ipc.invoke(CHANNELS.UPDATE_HOST, input),

@@ -22,13 +22,14 @@ describe("IM domain capabilities", () => {
 	it("validates status, logs, and model settings", () => {
 		const runtime = {
 			transport: IM_TRANSPORT_STATUSES.ONLINE,
+			channelStatuses: { telegram: "online", wechat: "error", unknown: true },
 			activeSessions: 2,
 			consecutiveStartFailures: 0,
 			ignored: true,
 		};
 		const status = DOMAIN_IM_CAPABILITIES.GET_STATUS.parseOutput({
 			enabled: true,
-			transport: IM_TRANSPORTS.FEISHU,
+			transport: IM_TRANSPORTS.TELEGRAM,
 			agentModel: { provider: "openai", model: "gpt-5", reasoningLevel: "high", ignored: true },
 			wechatBound: false,
 			feishuAppId: "app-id",
@@ -37,6 +38,7 @@ describe("IM domain capabilities", () => {
 		});
 		expect(status).not.toHaveProperty("agentModel.ignored");
 		expect(status).not.toHaveProperty("runtime.ignored");
+		expect(status.runtime.channelStatuses).toEqual({ telegram: "online", wechat: "error" });
 		expect(
 			DOMAIN_IM_CAPABILITIES.LIST_LOGS.parseOutput([
 				{

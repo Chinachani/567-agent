@@ -315,6 +315,7 @@ const AssistantMessageSchema = Type.Object(
 		model: Type.String(),
 		usage: UsageSchema,
 		stopReason: StopReasonSchema,
+		signedReasoningReset: Type.Optional(Type.Literal(true)),
 		errorMessage: Type.Optional(Type.String()),
 		failure: Type.Optional(AssistantFailureSchema),
 		timestamp: Type.Number(),

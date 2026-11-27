@@ -79,32 +79,6 @@ export interface ModelGenerateResponse {
 	readonly result: Promise<ModelCallResult>;
 }
 
-/**
- * Applies the shared Provider failure contract to an Adapter response.
- *
- * Adapters are allowed to focus on wire decoding. The registry owns the
- * invocation boundary so extension adapters cannot accidentally leak raw SDK
- * errors through `events`, `result`, or `metadata`.
- */
-export function normalizeLanguageModelResponse<TApi extends Api>(
-	source: ModelStreamResponse,
-	model: Model<TApi>,
-): ModelStreamResponse {
-	const target = new LanguageModelStream();
-	// A provider may reject result after publishing an error event. Keep that
-	// rejection observed while the event stream remains the user-facing source.
-	void source.result.catch(() => undefined);
-	void forwardNormalizedResponse(source, model, target);
-	const result = target.result();
-	const metadata = source.metadata
-		? source.metadata.catch((error) => {
-				throw normalizeLegacyProviderError(error, model);
-			})
-		: result.then(createModelCallMetadataFromMessage, () => ({}));
-	void metadata.catch(() => undefined);
-	return { events: target, result, metadata };
-}
-
 /** Normalizes a native non-streaming response at the same Adapter boundary. */
 export function normalizeLanguageModelGenerateResponse<TApi extends Api>(
 	source: ModelGenerateResponse,
@@ -150,41 +124,6 @@ export function adaptApiProvider<TApi extends Api, TOptions extends StreamOption
 			return adaptLegacyAssistantMessageStream(source, model);
 		},
 	};
-}
-
-async function forwardNormalizedResponse<TApi extends Api>(
-	source: ModelStreamResponse,
-	model: Model<TApi>,
-	target: LanguageModelStream,
-): Promise<void> {
-	try {
-		for await (const event of source.events) {
-			target.push(event);
-			if (event.type === "done") return;
-			if (event.type === "error") {
-				target.fail(
-					event.failure
-						? createAIErrorFromDetails(event.failure)
-						: normalizeLegacyProviderError(new Error(event.error.errorMessage || "Model call failed"), model),
-				);
-				return;
-			}
-		}
-
-		// The event iterable is the lifecycle source of truth. A malformed source
-		// must fail immediately; its result is observed separately so a late
-		// rejection cannot become an unhandled Promise.
-		failLanguageModelStream(
-			target,
-			model,
-			new AIError(AI_ERROR_CODES.STREAM_PROTOCOL_FAILED, "Model stream ended without a terminal event", {
-				provider: model.provider,
-				modelId: model.id,
-			}),
-		);
-	} catch (error) {
-		failLanguageModelStream(target, model, normalizeLegacyProviderError(error, model));
-	}
 }
 
 export function adaptLegacyAssistantMessageStream<TApi extends Api>(

@@ -1,8 +1,6 @@
 import { Button, cn } from "@vetta-org/ui";
 import { AnimatePresence, motion } from "motion/react";
-import type { JSX, RefObject } from "react";
-import { ProjectCollaborationView } from "./ProjectCollaborationView";
-import type { ProjectCollaborationViewProps } from "./ProjectCollaborationView";
+import type { JSX, ReactNode, RefObject } from "react";
 
 const easeOut = [0.22, 1, 0.36, 1] as const;
 
@@ -33,7 +31,7 @@ export type ProjectDetailSection = "collaboration" | "rules";
 
 export interface ProjectDetailPageViewProps {
 	activityOpen: boolean;
-	collaboration: ProjectCollaborationViewProps;
+	children: ReactNode;
 	content: string;
 	createdAtLabel: string | null;
 	cwd: string;
@@ -62,7 +60,7 @@ export interface ProjectDetailPageViewProps {
 
 export function ProjectDetailPageView({
 	activityOpen,
-	collaboration,
+	children,
 	content,
 	createdAtLabel,
 	cwd,
@@ -240,12 +238,12 @@ export function ProjectDetailPageView({
 					<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 						{activeSection === "collaboration" ? (
 							<motion.section
-								className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 pb-3 @md:px-8 @md:pb-4"
+								className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden px-4 pb-3 @md:px-8 @md:pb-4"
 								initial={{ opacity: 0, y: 8 }}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{ duration: 0.35, ease: easeOut }}
 							>
-								<ProjectCollaborationView key={cwd} {...collaboration} />
+								{children}
 							</motion.section>
 						) : (
 							<motion.section

@@ -31,6 +31,8 @@
 			"packages/npm-compat/tsconfig.json",
 			"knip.config.ts",
 			".claude/hooks/**/*.mjs",
+			"scripts/check-upstreams*.mjs",
+			"docs/upstreams/**",
 			"scripts/quality/**/*.mjs",
 			"packages/*/src/**/*.ts",
 			"packages/*/test/**/*.ts",

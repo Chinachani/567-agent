@@ -1,9 +1,5 @@
 package org.agent567.android.ui.auth
 
-import org.agent567.android.resources.Res
-import org.agent567.android.resources.brand_icon
-import org.jetbrains.compose.resources.painterResource
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,6 +54,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.error.UiError
+import org.agent567.android.ui.components.Agent567BrandIcon
 import org.agent567.android.ui.components.Agent567Card
 import org.agent567.android.ui.components.groupDisplayName
 import org.agent567.android.ui.components.PrimaryBlackButton
@@ -95,7 +92,7 @@ fun WelcomeScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         Spacer(Modifier.height(32.dp))
-        Image(painterResource(Res.drawable.brand_icon), contentDescription = null, modifier = Modifier.size(56.dp))
+        Agent567BrandIcon(modifier = Modifier.size(56.dp))
         Spacer(Modifier.height(20.dp))
         Text(Str.mobileWelcomeEyebrow, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.agent567Extra.secondaryText)
         Spacer(Modifier.height(8.dp))

@@ -16,6 +16,7 @@ export interface RetrySettings {
 	maxRetries?: number;
 	baseDelayMs?: number;
 	maxDelayMs?: number;
+	jitterMs?: number;
 }
 
 export interface TerminalSettings {

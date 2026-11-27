@@ -1,5 +1,5 @@
 import type { ChildProcess } from "node:child_process";
-import { killNodeProcessTree } from "@567agent/runtime-node/host";
+import { trackNodeProcessTree } from "@567agent/runtime-node/host";
 import { isSshProjectUri } from "@567agent/ssh-transport";
 import type { PluginCommandRunOptions, PluginCommandRunResult } from "../../preload/api-types/plugins.js";
 import { getAppLogger } from "../logger.js";
@@ -95,12 +95,13 @@ export async function runPluginCommand(
 	}
 
 	let child: ChildProcess;
+	const detached = process.platform !== "win32";
 	try {
 		child = spawnCrossPlatformCommand(file, normalizedArgs, {
 			cwd,
 			env: createPluginCommandEnvironment(env),
 			windowsHide: true,
-			detached: process.platform !== "win32",
+			detached,
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 	} catch (error) {
@@ -108,6 +109,7 @@ export async function runPluginCommand(
 		commandLog.warn("plugin command spawn failed", { pluginId, file, code });
 		throw new Error(`Command failed to start: ${file} (${code ?? String(error)})`);
 	}
+	const tree = trackNodeProcessTree(child, { detached });
 
 	return new Promise<PluginCommandRunResult>((resolvePromise, rejectPromise) => {
 		const stdout: Buffer[] = [];
@@ -116,6 +118,7 @@ export async function runPluginCommand(
 		let stderrBytes = 0;
 		const runId = Symbol(pluginId);
 		let settled = false;
+		let stopping = false;
 
 		const finish = (result: PluginCommandRunResult | Error): void => {
 			if (settled) return;
@@ -125,20 +128,21 @@ export async function runPluginCommand(
 			if (result instanceof Error) rejectPromise(result);
 			else resolvePromise(result);
 		};
-		const stop = (reason: Error): void => {
-			if (settled) return;
-			if (child.pid) killNodeProcessTree(child.pid);
-			else child.kill("SIGKILL");
-			child.stdout?.destroy();
-			child.stderr?.destroy();
-			finish(reason);
+		const stop = (reason: Error, force = false): void => {
+			if (settled || stopping) return;
+			stopping = true;
+			void tree.terminate({ force }).finally(() => {
+				child.stdout?.destroy();
+				child.stderr?.destroy();
+				finish(reason);
+			});
 		};
 		const append = (chunks: Buffer[], chunk: Buffer, stream: "stdout" | "stderr"): void => {
-			if (settled) return;
+			if (settled || stopping) return;
 			if (stream === "stdout") stdoutBytes += chunk.length;
 			else stderrBytes += chunk.length;
 			if (stdoutBytes + stderrBytes > MAX_BUFFER_BYTES) {
-				stop(new Error(`Command output exceeded ${MAX_BUFFER_BYTES} bytes: ${file}`));
+				stop(new Error(`Command output exceeded ${MAX_BUFFER_BYTES} bytes: ${file}`), true);
 				return;
 			}
 			chunks.push(chunk);
@@ -154,6 +158,7 @@ export async function runPluginCommand(
 			stop(new Error(`Command failed to start: ${file} (${error.code ?? error.message})`));
 		});
 		child.once("close", (exitCode, signal) => {
+			if (stopping) return;
 			finish({
 				stdout: Buffer.concat(stdout).toString(),
 				stderr: Buffer.concat(stderr).toString(),

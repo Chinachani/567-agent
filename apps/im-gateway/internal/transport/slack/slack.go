@@ -157,6 +157,12 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 				if !ok {
 					return
 				}
+				switch evt.Type {
+				case socketmode.EventTypeHello:
+					transport.ReportConnection(runCtx, transport.ConnectionOnline)
+				case socketmode.EventTypeConnecting, socketmode.EventTypeDisconnect, socketmode.EventTypeConnectionError:
+					transport.ReportConnection(runCtx, transport.ConnectionConnecting)
+				}
 				t.dispatch(runCtx, sm, evt, handler)
 			}
 		}

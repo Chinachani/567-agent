@@ -487,8 +487,9 @@ function toJsonValue(value: unknown): unknown {
 }
 
 export function createStorageApi(plugin: InstalledPlugin, capabilitySessionId: string) {
-	const requireRead = (): void => createPermissionApi(plugin).require("storage.read");
-	const requireWrite = (): void => createPermissionApi(plugin).require("storage.write");
+	const permissions = createPermissionApi(plugin);
+	const requireRead = (): void => permissions.require("storage.read");
+	const requireWrite = (): void => permissions.require("storage.write");
 	return createPluginStorageApi(capabilitySessionId, window.agent567.plugins, requireRead, requireWrite);
 }
 

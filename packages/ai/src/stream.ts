@@ -2,7 +2,11 @@ import "./providers/register-builtins.js";
 import "./utils/http-proxy.js";
 
 import { getApiProvider, getApiProviderSource } from "./api-registry.js";
-import { projectLanguageModelAdapter, projectLanguageModelSimpleAdapter } from "./providers/legacy-adapter-stream.js";
+import {
+	projectLanguageModelAdapter,
+	projectLanguageModelSimpleAdapter,
+	projectLegacyProviderStream,
+} from "./providers/legacy-adapter-stream.js";
 import { getDefaultAdapterRegistry } from "./runtime/default-adapter-registry.js";
 import type {
 	Api,
@@ -53,7 +57,9 @@ export function stream<TApi extends Api>(
 		return projectLanguageModelAdapter(nativeAdapter, model, context, options as StreamOptions);
 	}
 	const provider = resolveApiProvider(model.api);
-	return provider.stream(model, context, options as StreamOptions);
+	return projectLegacyProviderStream(model, context, options, (signal, projectedContext) =>
+		provider.stream(model, projectedContext, { ...options, signal }),
+	);
 }
 
 export async function complete<TApi extends Api>(
@@ -75,7 +81,9 @@ export function streamSimple<TApi extends Api>(
 		return projectLanguageModelSimpleAdapter(nativeAdapter, model, context, options);
 	}
 	const provider = resolveApiProvider(model.api);
-	return provider.streamSimple(model, context, options);
+	return projectLegacyProviderStream(model, context, options, (signal, projectedContext) =>
+		provider.streamSimple(model, projectedContext, { ...options, signal }),
+	);
 }
 
 export async function completeSimple<TApi extends Api>(

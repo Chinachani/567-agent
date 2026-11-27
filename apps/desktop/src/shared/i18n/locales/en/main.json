@@ -1,4 +1,14 @@
 {
+	"ssh": {
+		"pickPrivateKey": "Select an SSH private key",
+		"privateKeyErrors": {
+			"unreadable": "Could not read the private key. Select a readable file.",
+			"tooLarge": "The private key is over 64 KiB. Select a smaller key file.",
+			"invalid": "Select a valid OpenSSH or PEM private key file.",
+			"unavailable": "This private key selection is no longer available. Select the file again.",
+			"storeFailed": "Could not save the private key with private permissions. Check access to the app data folder and try again."
+		}
+	},
 	"tray": {
 		"showWindow": "Show Window",
 		"hideWindow": "Hide Window",

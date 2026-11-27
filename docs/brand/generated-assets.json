@@ -97,10 +97,6 @@
       "bytes": 15277,
       "sha256": "2e30dcfb9b18032574cbbf4ed46f23ae4170f5b993d3da86c75b9b5dbfcb84eb"
     },
-    "apps/mobile/shared/src/commonMain/composeResources/drawable/brand_icon.png": {
-      "bytes": 7542,
-      "sha256": "2b4f788bbe31c18af3d1f333a79b6656ffeef97b8d4679f161e7b701279f5b9d"
-    },
     "apps/mobile/androidApp/src/main/res/mipmap-mdpi/ic_launcher.png": {
       "bytes": 1776,
       "sha256": "c31f11165bd007d56b3d35177cdc86dcc5b24e7484603e5aace6269449f74aa8"

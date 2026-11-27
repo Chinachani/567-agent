@@ -49,14 +49,44 @@ class ResponsesSseParserTest {
         assertEquals("hello world", events.filterIsInstance<ChatStreamEvent.Delta>().joinToString("") { it.text })
         val plain = ResponsesSseStreamParser().parseNonStreamJson("""{"status":"completed","output":[{"type":"message","content":[{"type":"refusal","refusal":"cannot help"}]}]}""")
         assertEquals("cannot help", plain.filterIsInstance<ChatStreamEvent.Delta>().single().text)
-        for (output in listOf("[]", """[{"type":"function_call","call_id":"c","name":"generate_image","arguments":"{"}]""")) {
-            assertTrue(ResponsesSseStreamParser().parseNonStreamJson("""{"status":"completed","output":$output}""").any { it is ChatStreamEvent.Error })
-        }
+        val empty = ResponsesSseStreamParser().parseNonStreamJson("""{"status":"completed","output":[]}""")
+        assertEquals("stop", empty.filterIsInstance<ChatStreamEvent.Finished>().single().finishReason)
+        assertEquals(ChatStreamEvent.Done, empty.last())
+        val malformedTool = """[{"type":"function_call","call_id":"c","name":"generate_image","arguments":"{"}]"""
+        assertTrue(ResponsesSseStreamParser().parseNonStreamJson("""{"status":"completed","output":$malformedTool}""").any { it is ChatStreamEvent.Error })
     }
     @Test fun oversizedEventsAndToolCountsAreRejected() {
         assertTrue(ResponsesSseStreamParser().parseLine("data: " + "x".repeat(1_000_001)).any { it is ChatStreamEvent.Error })
         val parser = ResponsesSseStreamParser()
         for (i in 0..15) assertTrue(parser.event("""{"type":"response.output_item.done","output_index":$i,"item":$tool}""").isEmpty())
         assertTrue(parser.event("""{"type":"response.output_item.done","output_index":16,"item":$tool}""").any { it is ChatStreamEvent.Error })
+    }
+
+    @Test fun capturesSignedReasoningAndDistinguishesStreamErrorsFromCancellation() {
+        val parser = ResponsesSseStreamParser()
+        val signed = """{"type":"reasoning","id":"rs_1","encrypted_content":"enc_abc","summary":[]}"""
+        val unsigned = """{"type":"reasoning","id":"rs_2","summary":[{"type":"summary_text","text":"hi"}]}"""
+        assertTrue(parser.event("""{"type":"response.output_item.done","output_index":0,"item":$signed}""").isEmpty())
+        assertTrue(parser.event("""{"type":"response.output_item.done","output_index":1,"item":$unsigned}""").isEmpty())
+        val events = parser.event("""{"type":"response.completed","response":{"status":"completed","output":[$signed,$unsigned,{"type":"message","content":[{"type":"output_text","text":"ok"}]}]}}""")
+        assertTrue(events.any { it is ChatStreamEvent.Done })
+        assertEquals(1, parser.completedReasoningItems().size)
+        assertTrue(parser.completedReasoningItems().single().contains("enc_abc"))
+
+        val failedParser = ResponsesSseStreamParser()
+        val failedEvents = failedParser.event("""{"type":"response.failed","response":{"error":{"code":"invalid_encrypted_content","message":"cannot verify"}}}""")
+        val failedErr = failedEvents.filterIsInstance<ChatStreamEvent.Error>().single().exception as org.agent567.android.core.error.Agent567Exception.Protocol
+        assertTrue(failedParser.lastFailureFromStreamError)
+        assertEquals("invalid_encrypted_content", failedErr.providerCode)
+
+        val topErrorParser = ResponsesSseStreamParser()
+        val topErrorEvents = topErrorParser.event("""{"type":"error","error":{"code":"invalid_encrypted_content","message":"cannot verify"}}""")
+        assertTrue(topErrorParser.lastFailureFromStreamError)
+        assertTrue(topErrorEvents.single() is ChatStreamEvent.Error)
+
+        val cancelledParser = ResponsesSseStreamParser()
+        val cancelledEvents = cancelledParser.event("""{"type":"response.cancelled","response":{"error":{"code":"invalid_encrypted_content","message":"cancelled"}}}""")
+        assertFalse(cancelledParser.lastFailureFromStreamError)
+        assertTrue(cancelledEvents.single() is ChatStreamEvent.Error)
     }
 }

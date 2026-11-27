@@ -42,12 +42,13 @@ vi.mock("node:https", async () => {
 										},
 									],
 								}
-							: (url.searchParams.get("group") === "画图" ? ["fixture-image"] : state.listedModels).map(
-									(id) => ({
-										id,
-										context_window: 64000,
-									}),
-								);
+							: (url.searchParams.get("group") === "画图"
+									? ["fixture-image", "nano-banana-2.1", "seedream-v5.5"]
+									: state.listedModels
+								).map((id) => ({
+									id,
+									context_window: 64000,
+								}));
 						const response = Object.assign(new PassThrough(), { statusCode: 200, headers: {} });
 						queueMicrotask(() => {
 							receive(response);
@@ -198,4 +199,17 @@ it("keeps group-only callers selecting the recommended model and rejects malform
 	expect(await state.handlers.get("vetta:567api:set-active-group")!({}, "反重力Gemini", 42)).toMatchObject({
 		success: false,
 	});
+});
+
+it("keeps drawing aliases in the image catalog and out of conversation defaults", async () => {
+	await api.setImageGroup("画图");
+	expect(await api.setImageModel("nano-banana-2.1")).toMatchObject({ success: true });
+	expect(await api.setActiveGroup("画图", "seedream-v5.5")).toMatchObject({ success: false });
+	const service = (await import("./newapi-service.js")).NewApiService.getInstance();
+	expect(service.getAvailableImageModels().map((model) => model.id)).toEqual([
+		"fixture-image",
+		"nano-banana-2.1",
+		"seedream-v5.5",
+	]);
+	expect(service.getImageModel()).toBe("nano-banana-2.1");
 });

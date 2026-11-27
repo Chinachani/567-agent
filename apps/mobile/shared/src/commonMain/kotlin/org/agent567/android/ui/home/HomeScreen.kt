@@ -51,12 +51,9 @@ import androidx.compose.ui.unit.dp
 import org.agent567.android.domain.device.DesktopDevice
 import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.device.SessionListItem
-import org.agent567.android.resources.Res
-import org.agent567.android.resources.brand_icon
-import org.jetbrains.compose.resources.painterResource
-import androidx.compose.foundation.Image
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.foundation.layout.PaddingValues
+import org.agent567.android.ui.components.Agent567BrandIcon
 import org.agent567.android.ui.components.MobilePageIntro
 import org.agent567.android.ui.components.MobileIconTile
 import org.agent567.android.ui.components.PrimaryBlackButton
@@ -98,7 +95,7 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(Modifier.fillMaxWidth().padding(bottom = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Image(painterResource(Res.drawable.brand_icon), contentDescription = null, modifier = Modifier.size(26.dp).clip(RoundedCornerShape(6.dp)))
+                Agent567BrandIcon(modifier = Modifier.size(26.dp), cornerShape = RoundedCornerShape(6.dp))
                 Text(Str.appName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 NewConversationButton(onClick = onNewConversation)
             }

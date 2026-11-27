@@ -1,5 +1,5 @@
 import { AbilitySpotlight } from "./AbilitySpotlight";
-import { DiscoveryFiltersView, DiscoverySearchStatusView } from "@vetta-org/theme-ui/skills";
+import { DiscoveryFiltersView, DiscoverySearchStatusView, FilterSelectField } from "@vetta-org/theme-ui/skills";
 import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import { SegmentedControl } from "@vetta-org/theme-ui/shared";
 import { Button, Popover, PopoverContent, PopoverTrigger } from "@vetta-org/ui";
@@ -25,6 +25,9 @@ import { AbilityMcpDialogs } from "./AbilityMcpDialogs";
 import { AddAbilityMenu } from "./AddAbilityMenu";
 import { MarketplaceSourcesDialog } from "./MarketplaceSourcesDialog";
 import { UnreviewedMcpPromptDialog } from "./UnreviewedMcpPromptDialog";
+
+const ABILITIES_PAGE_CONTENT = "mx-auto w-full min-w-0 max-w-7xl px-[clamp(1rem,4%,2rem)]";
+const ABILITY_CARD_GRID = "grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3";
 
 export interface AbilitiesPageViewProps {
 	model: AbilitiesModel;
@@ -105,7 +108,7 @@ export function AbilitiesPageView({
 	}, [model.marketplaceCatalog.snapshots, model.refresh, model.refreshing, t]);
 
 	return (
-		<div className="relative flex h-full w-full flex-1 flex-col overflow-hidden">
+		<div className="relative flex h-full w-full min-w-0 flex-1 flex-col overflow-hidden">
 			<input
 				ref={skillFileInputRef}
 				type="file"
@@ -129,23 +132,44 @@ export function AbilitiesPageView({
 				}}
 			/>
 
-			<div className="flex-1 overflow-y-auto px-5 pb-8 sm:px-8 [scrollbar-gutter:stable]">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-5">
+			<div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
+				<div className={`${ABILITIES_PAGE_CONTENT} flex flex-col gap-5 pb-4`}>
 					<WorkspacePageHeader
 						title={t("page.title")}
 						description={t("page.subtitle")}
-						actions={<SettingsAiAssist tabId="mcp" />}
-						className="border-b border-border/60 pb-6 pt-6"
+						actions={
+							<>
+								<Button variant="ghost" size="sm" onClick={() => setSourcesDialogOpen(true)}>
+									<span className="icon-[mdi--github] h-3.5 w-3.5" />
+									{t("sources.trigger")}
+								</Button>
+								<Button variant="ghost" size="sm" disabled={model.refreshing} onClick={model.refresh}>
+									<span
+										className={`icon-[solar--refresh-linear] h-3.5 w-3.5 ${model.refreshing ? "animate-spin" : ""}`}
+									/>
+									{t("actions.refresh")}
+								</Button>
+								<SettingsAiAssist tabId="mcp" />
+							</>
+						}
+						className="pt-6"
 					/>
 
 					<AbilitiesBanner />
 					{(model.scope === "discover" || model.scope === "public") && !hasActiveFilter && (
 						<AbilitySpotlight items={model.allItems} />
 					)}
+				</div>
 
-					<div className="sticky top-0 z-30 flex flex-col gap-3 border-b border-border/60 bg-background/95 py-3 backdrop-blur-md">
-						<div data-tour="capabilities-search-add" className="flex min-w-0 items-center gap-2">
-							<div className="relative min-w-0 flex-1">
+				<div className="sticky top-0 z-30 bg-background after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-background after:to-transparent">
+					<div
+						className={`${ABILITIES_PAGE_CONTENT} flex flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5`}
+					>
+						<div
+							data-tour="capabilities-search-add"
+							className="flex min-w-0 flex-[1_1_22rem] flex-wrap items-center gap-2"
+						>
+							<div className="relative min-w-[min(100%,9rem)] flex-1">
 								<span className="icon-[solar--magnifer-linear] absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/40" />
 								<input
 									type="text"
@@ -156,179 +180,144 @@ export function AbilitiesPageView({
 									className="h-9 w-full rounded-lg border border-border bg-card pl-8 pr-3 text-[13px] text-foreground placeholder:text-muted-foreground transition-colors focus:outline-none focus:ring-1 focus:ring-ring"
 								/>
 							</div>
-							<Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
-								<PopoverTrigger asChild>
-									<Button
-										variant={activeFilterCount > 0 ? "secondary" : "outline"}
-										size="sm"
-										className="h-8 shrink-0"
-									>
-										<span className="icon-[solar--filter-linear] h-3.5 w-3.5" />
-										{t("filter.trigger")}
-										{activeFilterCount > 0 && (
-											<span className="ml-0.5 tabular-nums">{activeFilterCount}</span>
-										)}
-									</Button>
-								</PopoverTrigger>
-								<PopoverContent
-									align="start"
-									className="w-72 max-h-[min(600px,var(--radix-popover-content-available-height))] overflow-y-auto"
-								>
-									<p className="px-1 text-[12px] font-semibold">{t("filter.title")}</p>
-									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-										{t("filter.type")}
-										<select
-											aria-label={t("filter.type")}
-											value={model.typeFilter}
-											onChange={(event) =>
-												model.setTypeFilter(event.target.value as typeof model.typeFilter)
-											}
-											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
+							<div className="flex max-w-full flex-wrap items-center gap-2">
+								<Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+									<PopoverTrigger asChild>
+										<Button
+											variant={activeFilterCount > 0 ? "secondary" : "outline"}
+											size="sm"
+											className="h-9 shrink-0"
 										>
-											<option value="">{t("filter.allTypes")}</option>
-											{(
+											<span className="icon-[solar--filter-linear] h-3.5 w-3.5" />
+											{t("filter.trigger")}
+											{activeFilterCount > 0 && (
+												<span className="ml-0.5 tabular-nums">{activeFilterCount}</span>
+											)}
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent
+										align="start"
+										className="w-72 max-w-[var(--radix-popover-content-available-width)] max-h-[min(600px,var(--radix-popover-content-available-height))] overflow-y-auto"
+									>
+										<p className="px-1 text-[12px] font-semibold">{t("filter.title")}</p>
+										<FilterSelectField
+											label={t("filter.type")}
+											value={model.typeFilter}
+											allLabel={t("filter.allTypes")}
+											options={(
 												model.availableTypes ??
 												Array.from(new Set(model.allItems.map((item) => item.type))).filter(Boolean)
-											).map((type) => (
-												<option key={type} value={type}>
-													{t(`type.${type}`)}
-												</option>
-											))}
-										</select>
-									</label>
-									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-										{t("filter.category")}
-										<select
-											aria-label={t("filter.category")}
-											value={model.category}
-											onChange={(event) => model.setCategory(event.target.value)}
-											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
-										>
-											<option value="">{t("filter.allCategories")}</option>
-											<option value={ABILITY_CATEGORY_INSTALLED}>
-												{t("filter.installed", { count: model.installedCount })}
-											</option>
-											{model.categories.map((group) => (
-												<option key={group.category} value={group.category}>
-													{group.category === ABILITY_CATEGORY_UNCATEGORIZED
-														? t("group.uncategorized")
-														: group.category === ABILITY_CATEGORY_CONNECTORS
-															? t("group.connectors")
-															: group.category === ABILITY_CATEGORY_VETTA_BUILTIN
-																? t("group.vettaBuiltin")
-																: resolveCategoryLabel(
-																		group.category,
-																		group.categoryI18n,
-																		i18n.language,
-																	)}
-												</option>
-											))}
-										</select>
-									</label>
-									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-										{t("filter.review")}
-										<select
-											aria-label={t("filter.review")}
-											value={model.reviewFilter}
-											onChange={(event) =>
-												model.setReviewFilter(event.target.value as typeof model.reviewFilter)
-											}
-											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
-										>
-											<option value="all">{t("filter.allReviewStatuses")}</option>
-											<option value="unreviewed">{t("filter.unreviewed")}</option>
-										</select>
-									</label>
-									<label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-										{t("filter.tag")}
-										<select
-											aria-label={t("filter.tag")}
-											value={model.tagFilter}
-											onChange={(event) => model.setTagFilter(event.target.value)}
-											className="h-8 rounded-md border border-border bg-background px-2 text-[12px] text-foreground"
-										>
-											<option value="">{t("filter.allTags")}</option>
-											{model.availableTags.map((tag) => (
-												<option key={tag.toLocaleLowerCase()} value={tag}>
-													{tag}
-												</option>
-											))}
-										</select>
-									</label>
-									{model.discovery && (
-										<DiscoveryFiltersView
-											title={t("discoveryV2.filtersTitle")}
-											allLabel={t("discoveryV2.all")}
-											fields={(
-												[
-													"runtimeMode",
-													"platforms",
-													"permissionScopes",
-													"authentication",
-													"publisherType",
-												] as const
-											).map((facet) => ({
-												key: facet,
-												label: t(`discoveryV2.${facet}`),
-												value: model.discovery?.filters[facet]?.[0] ?? "",
-												options: Object.keys(model.discovery?.facets[facet] ?? {})
-													.sort()
-													.map((value) => ({
-														value,
-														label: i18n.t(`abilities:discoveryV2.values.${value}`, {
-															defaultValue: value,
-														}),
-													})),
-												onChange: (value) => model.discovery?.setFilter(facet, value),
-											}))}
+											).map((type) => ({ value: type, label: t(`type.${type}`) }))}
+											onValueChange={(value) => model.setTypeFilter(value as typeof model.typeFilter)}
 										/>
-									)}
-									<div className="flex justify-end pt-1">
-										<Button
-											type="button"
-											variant="ghost"
-											size="sm"
-											disabled={activeFilterCount === 0}
-											onClick={() => {
-												model.setTypeFilter("");
-												model.setCategory("");
-												model.setReviewFilter("all");
-												model.setTagFilter("");
-												model.discovery?.clearFilters();
-											}}
-										>
-											{t("filter.clear")}
-										</Button>
-									</div>
-								</PopoverContent>
-							</Popover>
-							<AddAbilityMenu
-								importing={model.importing}
-								onImportSkill={() => {
-									model.setScope("mine");
-									skillFileInputRef.current?.click();
-								}}
-								onImportPlugin={() => {
-									model.setScope("mine");
-									pluginFileInputRef.current?.click();
-								}}
-								onAddMcp={() => {
-									model.setScope("mine");
-									model.startAddManualMcp();
-								}}
-							/>
-						</div>
-						<div className="flex items-center justify-end gap-2">
-							<Button variant="ghost" size="sm" onClick={() => setSourcesDialogOpen(true)}>
-								<span className="icon-[mdi--github] h-3.5 w-3.5" />
-								{t("sources.trigger")}
-							</Button>
-							<Button variant="ghost" size="sm" disabled={model.refreshing} onClick={model.refresh}>
-								<span
-									className={`icon-[solar--refresh-linear] h-3.5 w-3.5 ${model.refreshing ? "animate-spin" : ""}`}
+										<FilterSelectField
+											label={t("filter.category")}
+											value={model.category}
+											allLabel={t("filter.allCategories")}
+											options={[
+												{
+													value: ABILITY_CATEGORY_INSTALLED,
+													label: t("filter.installed", { count: model.installedCount }),
+												},
+												...model.categories.map((group) => ({
+													value: group.category,
+													label:
+														group.category === ABILITY_CATEGORY_UNCATEGORIZED
+															? t("group.uncategorized")
+															: group.category === ABILITY_CATEGORY_CONNECTORS
+																? t("group.connectors")
+																: group.category === ABILITY_CATEGORY_VETTA_BUILTIN
+																	? t("group.vettaBuiltin")
+																	: resolveCategoryLabel(
+																			group.category,
+																			group.categoryI18n,
+																			i18n.language,
+																		),
+												})),
+											]}
+											onValueChange={model.setCategory}
+										/>
+										<FilterSelectField
+											label={t("filter.review")}
+											value={model.reviewFilter}
+											options={[
+												{ value: "all", label: t("filter.allReviewStatuses") },
+												{ value: "unreviewed", label: t("filter.unreviewed") },
+											]}
+											onValueChange={(value) => model.setReviewFilter(value as typeof model.reviewFilter)}
+										/>
+										<FilterSelectField
+											label={t("filter.tag")}
+											value={model.tagFilter}
+											allLabel={t("filter.allTags")}
+											options={model.availableTags.map((tag) => ({ value: tag, label: tag }))}
+											onValueChange={model.setTagFilter}
+										/>
+										{model.discovery && (
+											<DiscoveryFiltersView
+												title={t("discoveryV2.filtersTitle")}
+												allLabel={t("discoveryV2.all")}
+												fields={(
+													[
+														"runtimeMode",
+														"platforms",
+														"permissionScopes",
+														"authentication",
+														"publisherType",
+													] as const
+												).map((facet) => ({
+													key: facet,
+													label: t(`discoveryV2.${facet}`),
+													value: model.discovery?.filters[facet]?.[0] ?? "",
+													options: Object.keys(model.discovery?.facets[facet] ?? {})
+														.sort()
+														.map((value) => ({
+															value,
+															label: i18n.t(`abilities:discoveryV2.values.${value}`, {
+																defaultValue: value,
+															}),
+														})),
+													onChange: (value) => model.discovery?.setFilter(facet, value),
+												}))}
+											/>
+										)}
+										<div className="flex justify-end pt-1">
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												disabled={activeFilterCount === 0}
+												onClick={() => {
+													model.setTypeFilter("");
+													model.setCategory("");
+													model.setReviewFilter("all");
+													model.setTagFilter("");
+													model.discovery?.clearFilters();
+												}}
+											>
+												{t("filter.clear")}
+											</Button>
+										</div>
+									</PopoverContent>
+								</Popover>
+								<AddAbilityMenu
+									importing={model.importing}
+									onImportSkill={() => {
+										model.setScope("mine");
+										skillFileInputRef.current?.click();
+									}}
+									onImportPlugin={() => {
+										model.setScope("mine");
+										pluginFileInputRef.current?.click();
+									}}
+									onAddMcp={() => {
+										model.setScope("mine");
+										model.startAddManualMcp();
+									}}
 								/>
-								{t("actions.refresh")}
-							</Button>
+							</div>
+						</div>
+						<div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5">
 							<div data-tour="capabilities-scope">
 								<SegmentedControl
 									items={[
@@ -341,7 +330,9 @@ export function AbilitiesPageView({
 							</div>
 						</div>
 					</div>
+				</div>
 
+				<div className={`${ABILITIES_PAGE_CONTENT} flex flex-col gap-5 pb-8 pt-3`}>
 					{model.errors.length > 0 && (
 						<div className="flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2 text-[12px] text-muted-foreground/70">
 							<span className="icon-[solar--info-circle-linear] mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -393,7 +384,7 @@ export function AbilitiesPageView({
 													{group.items.length}
 												</span>
 											</div>
-											<div className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3">
+											<div className={ABILITY_CARD_GRID}>
 												{group.items.map((item) => (
 													<AbilityCard
 														key={item.id}
@@ -406,7 +397,7 @@ export function AbilitiesPageView({
 										</section>
 									))
 								) : (
-									<div className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3">
+									<div className={ABILITY_CARD_GRID}>
 										{model.items.map((item) => (
 											<AbilityCard
 												key={item.id}
@@ -477,7 +468,7 @@ export function AbilitiesPageView({
 									</p>
 								))}
 							{model.discovery.items.length > 0 ? (
-								<div className="grid grid-cols-[repeat(auto-fill,minmax(min(300px,100%),1fr))] gap-3">
+								<div className={ABILITY_CARD_GRID}>
 									{model.discovery.items.map((item) => (
 										<AbilityCard
 											key={item.id}

@@ -49,6 +49,7 @@ export const SettingsDocumentSchema = Type.Object(
 					maxRetries: Type.Optional(Type.Number()),
 					baseDelayMs: Type.Optional(Type.Number()),
 					maxDelayMs: Type.Optional(Type.Number()),
+					jitterMs: Type.Optional(Type.Number()),
 				},
 				{ additionalProperties: true },
 			),

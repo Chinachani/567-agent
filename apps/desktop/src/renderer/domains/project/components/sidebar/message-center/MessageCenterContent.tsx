@@ -1,5 +1,6 @@
 import { ResultInboxList } from "./ResultInboxList";
 import { AnimatePresence, motion } from "motion/react";
+import { ClawConversationList } from "./ClawConversationList";
 import { NotificationMessageList } from "./NotificationMessageList";
 import type { MessageCenterTab } from "./types";
 
@@ -25,6 +26,7 @@ export function MessageCenterContent({
 					{(activeTab === "all" || activeTab === "results") && <ResultInboxList onOpen={onClose} />}
 					{activeTab === "all" && <>{notifUnread > 0 && <NotificationMessageList />}</>}
 					{activeTab === "notifications" && <NotificationMessageList />}
+					{activeTab === "claw" && <ClawConversationList onOpen={onClose} />}
 				</motion.div>
 			</AnimatePresence>
 		</div>

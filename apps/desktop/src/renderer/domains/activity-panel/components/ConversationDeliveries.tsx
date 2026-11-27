@@ -1,56 +1,58 @@
 import { useNarrowScreen } from "@shared/hooks/useNarrowScreen";
 import { useRendererMarkdownModel } from "@shared/hooks/useRendererMarkdownModel";
 import {
-	activeSessionAtom,
 	activityPanelOpenAtom,
-	conversationDeliveriesAtom,
-	conversationDeliveriesStateAtom,
+	emptyConversationDeliveryIndex,
 	pendingScrollToEntryAtom,
-	refreshConversationDeliveriesAtom,
 } from "@shared/store/atoms";
 import { showToast } from "@shared/store/toast-atoms";
 import { ConversationDeliveriesView } from "@vetta-org/theme-ui/activity";
 import { MarkdownHostProvider } from "@vetta-org/theme-ui/markdown";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { useActivityWorkspace } from "../registry/context";
+import { useActivityPanelContext } from "../registry/context";
 
 export function ConversationDeliveries() {
 	const { t } = useTranslation("chat");
-	const workspace = useActivityWorkspace();
-	const session = useAtomValue(activeSessionAtom);
-	const all = useAtomValue(conversationDeliveriesAtom);
-	const state = useAtomValue(conversationDeliveriesStateAtom);
-	const retry = useSetAtom(refreshConversationDeliveriesAtom);
-	const items = session && workspace.runtimeIds.includes(session.runtimeId) ? all : [];
+	const { workspace, deliveryIndex = emptyConversationDeliveryIndex } = useActivityPanelContext();
+	const store = useStore();
+	const result = useAtomValue(deliveryIndex.state);
+	const retry = useSetAtom(deliveryIndex.refresh);
+	const { scope } = result;
+	const inScope = scope && (scope.runtimeId === null || workspace.runtimeIds.includes(scope.runtimeId));
+	const items = inScope ? result.data : [];
 	const markdown = useRendererMarkdownModel(workspace.cwd, false, workspace.id);
 	const setTarget = useSetAtom(pendingScrollToEntryAtom);
 	const setPanelOpen = useSetAtom(activityPanelOpenAtom);
 	const narrow = useNarrowScreen();
+	const findCurrentItem = useCallback(
+		(id: string) => store.get(deliveryIndex.state) === result ? items.find((entry) => entry.id === id) : undefined,
+		[deliveryIndex.state, items, result, store],
+	);
 	const open = useCallback(
 		(id: string) => {
-			const item = items.find((entry) => entry.id === id);
+			const item = findCurrentItem(id);
 			if (!item) return;
 			if (item.kind === "url") markdown.onOpenUrl(item.target);
 			else if (item.kind === "image" && /^https?:\/\//i.test(item.target))
 				markdown.host?.openImage?.(item.target, item.label);
 			else markdown.onOpenFile(item.target);
 		},
-		[items, markdown],
+		[findCurrentItem, markdown],
 	);
 	const source = useCallback(
 		(id: string) => {
-			const item = items.find((entry) => entry.id === id);
-			if (!item) return;
-			setTarget({ entryId: item.messageId });
+			const item = findCurrentItem(id);
+			if (!scope || !item) return;
+			setTarget({ entryId: item.messageId, scope: { sessionPath: scope.sessionPath, runtimeId: scope.runtimeId } });
 			if (narrow) setPanelOpen(false);
 		},
-		[items, narrow, setTarget, setPanelOpen],
+		[findCurrentItem, narrow, scope, setTarget, setPanelOpen],
 	);
 	const copy = useCallback(
 		async (id: string) => {
-			const item = items.find((entry) => entry.id === id);
+			const item = findCurrentItem(id);
 			try {
 				if (!item || !markdown.host?.copyText) throw new Error("Delivery copy is unavailable");
 				await markdown.host.copyText(item.target, /^https?:\/\//i.test(item.target) ? "url" : "file");
@@ -59,14 +61,14 @@ export function ConversationDeliveries() {
 				throw error;
 			}
 		},
-		[items, markdown.host, t],
+		[findCurrentItem, markdown.host, t],
 	);
 	return (
 		<MarkdownHostProvider host={markdown.host}>
 			<ConversationDeliveriesView
-				key={session?.runtimeId}
+				key={scope ? JSON.stringify([scope.runtimeId, scope.sessionPath]) : undefined}
 				items={items.map((item) => ({ ...item, evidenceLabel: t(`deliveries.evidence.${item.evidence}`) }))}
-				state={session && workspace.runtimeIds.includes(session.runtimeId) ? state : "ready"}
+				state={inScope ? result.state : "ready"}
 				labels={{
 					title: t("deliveries.title"),
 					description: t("deliveries.description"),

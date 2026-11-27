@@ -1107,6 +1107,7 @@
 		"searchMarketplace": "Search the ability marketplace",
 		"trigger": "Search",
 		"groups": {
+			"recentSessions": "Recent conversations",
 			"projects": "Projects",
 			"sessions": "Sessions",
 			"abilities": "Abilities",

@@ -1,7 +1,7 @@
-import type { SshHostFormInput, SshHostProbe, SshHostSummary } from "@preload/api-types/ssh";
+import type { SshHostFormInput, SshHostProbe, SshHostSummary, SshPrivateKeySelection } from "@preload/api-types/ssh";
 import { confirmDialogAtom } from "@shared/store/atoms";
 import { useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 export interface SshHostFormState {
@@ -49,6 +49,10 @@ export interface SshHostsSettingsLabels {
 	fieldPort: string;
 	fieldIdentityFile: string;
 	fieldIdentityFileHint: string;
+	pickPrivateKey: string;
+	replacePrivateKey: string;
+	discardPrivateKey: string;
+	privateKeyPending: string;
 	authKey: string;
 	authPassword: string;
 	fieldPassword: string;
@@ -73,6 +77,8 @@ export interface SshHostsSettingsModel {
 	editingId: string | "new" | null;
 	form: SshHostFormState;
 	saving: boolean;
+	privateKeySelection: SshPrivateKeySelection | null;
+	pickingPrivateKey: boolean;
 	formError: string | null;
 	/** 正在测试的主机 id。按行记录而不是全局布尔，多台主机可各自独立测试。 */
 	testingId: string | null;
@@ -84,6 +90,8 @@ export interface SshHostsSettingsModel {
 		startEdit: (host: SshHostSummary) => void;
 		cancelEdit: () => void;
 		setForm: (patch: Partial<SshHostFormState>) => void;
+		pickPrivateKey: () => Promise<void>;
+		discardPrivateKey: () => void;
 		submit: () => Promise<void>;
 		test: (host: SshHostSummary) => Promise<void>;
 		remove: (host: SshHostSummary) => void;
@@ -109,6 +117,10 @@ export function useSshHostsSettingsModel(): SshHostsSettingsModel {
 	const [editingId, setEditingId] = useState<string | "new" | null>(null);
 	const [form, setFormState] = useState<SshHostFormState>(EMPTY_FORM);
 	const [saving, setSaving] = useState(false);
+	const [privateKeySelection, setPrivateKeySelection] = useState<SshPrivateKeySelection | null>(null);
+	const [pickingPrivateKey, setPickingPrivateKey] = useState(false);
+	const pickRequest = useRef<AbortController | null>(null);
+	const stagedRef = useRef<string | null>(null);
 	const [formError, setFormError] = useState<string | null>(null);
 	const [testingId, setTestingId] = useState<string | null>(null);
 	const [rowMessage, setRowMessage] = useState<Record<string, SshHostRowMessage>>({});
@@ -132,38 +144,89 @@ export function useSshHostsSettingsModel(): SshHostsSettingsModel {
 		};
 	}, [refresh]);
 
-	const setForm = useCallback((patch: Partial<SshHostFormState>) => {
-		setFormState((previous) => ({ ...previous, ...patch }));
-		// 用户一开始改动就清掉上次的报错，避免旧错误跟着新输入继续显示。
+	useEffect(() => {
+		return () => {
+			pickRequest.current?.abort();
+			if (stagedRef.current) discardSelection(stagedRef.current);
+		};
+	}, []);
+
+	const discardPrivateKey = useCallback(() => {
+		pickRequest.current?.abort();
+		pickRequest.current = null;
+		if (stagedRef.current) discardSelection(stagedRef.current);
+		stagedRef.current = null;
+		setPickingPrivateKey(false);
+		setPrivateKeySelection(null);
 		setFormError(null);
 	}, []);
+
+	const pickPrivateKey = useCallback(async () => {
+		if (pickRequest.current || saving) return;
+		const request = new AbortController();
+		pickRequest.current = request;
+		setPickingPrivateKey(true);
+		setFormError(null);
+		try {
+			const selection = await window.agent567.ssh.pickPrivateKey();
+			if (selection) {
+				if (request.signal.aborted) discardSelection(selection.ref);
+				else {
+					stagedRef.current = selection.ref;
+					setPrivateKeySelection(selection);
+				}
+			}
+		} catch (error) {
+			if (!request.signal.aborted) setFormError(toMessage(error));
+		} finally {
+			if (pickRequest.current === request) {
+				pickRequest.current = null;
+				setPickingPrivateKey(false);
+			}
+		}
+	}, [saving]);
+
+	const setForm = useCallback(
+		(patch: Partial<SshHostFormState>) => {
+			if (saving) return;
+			if (patch.authMethod === "password" || patch.identityFile !== undefined) discardPrivateKey();
+			setFormState((previous) => ({ ...previous, ...patch }));
+			setFormError(null);
+		},
+		[discardPrivateKey, saving],
+	);
 
 	const startAdd = useCallback(() => {
+		discardPrivateKey();
 		setFormState(EMPTY_FORM);
-		setFormError(null);
 		setEditingId("new");
-	}, []);
+	}, [discardPrivateKey]);
 
-	const startEdit = useCallback((host: SshHostSummary) => {
-		setFormState({
-			label: host.label,
-			...splitTarget(host.target),
-			port: host.port === undefined ? "" : String(host.port),
-			identityFile: host.identityFile ?? "",
-			authMethod: host.authMethod ?? "key",
-			password: "",
-		});
-		setFormError(null);
-		setEditingId(host.id);
-	}, []);
+	const startEdit = useCallback(
+		(host: SshHostSummary) => {
+			discardPrivateKey();
+			setFormState({
+				label: host.label,
+				...splitTarget(host.target),
+				port: host.port === undefined ? "" : String(host.port),
+				identityFile: host.identityFile ?? "",
+				authMethod: host.authMethod ?? "key",
+				password: "",
+			});
+			setEditingId(host.id);
+		},
+		[discardPrivateKey],
+	);
 
 	const cancelEdit = useCallback(() => {
+		if (saving) return;
+		discardPrivateKey();
+		setFormState(EMPTY_FORM);
 		setEditingId(null);
-		setFormError(null);
-	}, []);
+	}, [discardPrivateKey, saving]);
 
 	const submit = useCallback(async () => {
-		if (editingId === null) return;
+		if (editingId === null || saving || pickRequest.current) return;
 		const port = form.port.trim();
 		const target = composeTarget(form.username, form.host);
 		const input: SshHostFormInput = {
@@ -172,15 +235,19 @@ export function useSshHostsSettingsModel(): SshHostsSettingsModel {
 			...(port ? { port: Number(port) } : {}),
 			...(form.authMethod === "password"
 				? { authMethod: "password" as const, ...(form.password ? { password: form.password } : {}) }
-				: form.identityFile.trim()
-					? { identityFile: form.identityFile.trim() }
-					: {}),
+				: privateKeySelection
+					? { privateKeyRef: privateKeySelection.ref }
+					: form.identityFile.trim()
+						? { identityFile: form.identityFile.trim() }
+						: {}),
 		};
 		setSaving(true);
 		setFormError(null);
 		try {
 			if (editingId === "new") await window.agent567.ssh.createHost(input);
 			else await window.agent567.ssh.updateHost({ ...input, id: editingId });
+			discardPrivateKey();
+			setFormState(EMPTY_FORM);
 			setEditingId(null);
 			await refresh();
 		} catch (error) {
@@ -189,7 +256,7 @@ export function useSshHostsSettingsModel(): SshHostsSettingsModel {
 		} finally {
 			setSaving(false);
 		}
-	}, [editingId, form, refresh]);
+	}, [discardPrivateKey, editingId, form, privateKeySelection, refresh, saving]);
 
 	const test = useCallback(
 		async (host: SshHostSummary) => {
@@ -287,6 +354,10 @@ export function useSshHostsSettingsModel(): SshHostsSettingsModel {
 			fieldPort: t("sshFieldPort"),
 			fieldIdentityFile: t("sshFieldIdentityFile"),
 			fieldIdentityFileHint: t("sshFieldIdentityFileHint"),
+			pickPrivateKey: t("sshPickPrivateKey"),
+			replacePrivateKey: t("sshReplacePrivateKey"),
+			discardPrivateKey: t("sshDiscardPrivateKey"),
+			privateKeyPending: t("sshPrivateKeyPending"),
 			authKey: t("sshAuthKey"),
 			authPassword: t("sshAuthPassword"),
 			fieldPassword: t("sshFieldPassword"),
@@ -312,13 +383,30 @@ export function useSshHostsSettingsModel(): SshHostsSettingsModel {
 		editingId,
 		form,
 		saving,
+		privateKeySelection,
+		pickingPrivateKey,
 		formError,
 		testingId,
 		rowMessage,
 		importing,
 		labels,
-		actions: { startAdd, startEdit, cancelEdit, setForm, submit, test, remove, importFromConfig },
+		actions: {
+			startAdd,
+			startEdit,
+			cancelEdit,
+			setForm,
+			pickPrivateKey,
+			discardPrivateKey,
+			submit,
+			test,
+			remove,
+			importFromConfig,
+		},
 	};
+}
+
+function discardSelection(ref: string): void {
+	void window.agent567.ssh.discardPrivateKey(ref).catch(() => undefined);
 }
 
 /**

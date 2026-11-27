@@ -193,6 +193,7 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 		return err
 	}
 
+	transport.ReportConnection(ctx, transport.ConnectionOnline)
 	const maxBackoff = 30 * time.Second
 	delay := t.opts.PollInterval
 	for {
@@ -205,12 +206,14 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			transport.ReportConnection(ctx, transport.ConnectionConnecting)
 			delay *= 2
 			if delay > maxBackoff {
 				delay = maxBackoff
 			}
 			continue
 		}
+		transport.ReportConnection(ctx, transport.ConnectionOnline)
 		delay = t.opts.PollInterval
 	}
 }

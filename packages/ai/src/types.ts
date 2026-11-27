@@ -89,6 +89,14 @@ export interface StreamOptions {
 	 * caller intentionally wants transport-local retries.
 	 */
 	maxRetries?: number;
+	/** Milliseconds to model output or completion, including connection setup. Default 120,000. Zero disables it. */
+	firstEventTimeoutMs?: number;
+	/** Milliseconds between model events after output starts. Default 90,000. Zero disables it. */
+	idleEventTimeoutMs?: number;
+	/** Local retries of genuinely empty streams before any output or metered usage. Default one. */
+	emptyResponseRetries?: number;
+	/** Milliseconds to wait between empty-response attempts. Default 250. */
+	emptyResponseBackoffMs?: number;
 	/**
 	 * Optional metadata to include in API requests.
 	 * Providers extract the fields they understand and ignore the rest.

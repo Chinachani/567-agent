@@ -29,12 +29,15 @@ export function useMessageListScrollModel({
 	onInitialTargetHandled,
 }: MessageListScrollModelInput): MessageListScrollModel {
 	const activityPanelResizing = useAtomValue(activityPanelResizingAtom);
+	const renderTarget = initialTargetKey
+		? messages.find((message) => message.renderKey === initialTargetKey)
+		: undefined;
 	const feed = useMessageFeedScrollModel({
 		active: isStreaming,
 		items: messages,
 		resetKey: sessionId,
 		layoutResizing: activityPanelResizing,
-		initialTargetKey,
+		initialTargetKey: renderTarget ? getMessageKey(renderTarget) : initialTargetKey,
 		getItemKey: getMessageKey,
 		onInitialTargetHandled,
 		shouldFollowOnAppend: shouldFollowUserMessage,

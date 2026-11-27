@@ -265,6 +265,15 @@ export function useBrowserConnectionSettingsModel(): BrowserConnectionSettingsMo
 		profile,
 		feedback,
 		error: conflict ? t("browserConnection.conflict") : error ? t(`browserConnection.${error}`) : undefined,
+		connectionBadge: conflict
+			? { tone: "error", label: t("browserConnection.statusConflict") }
+			: loading
+				? { tone: "neutral", label: t("browserConnection.statusLoading") }
+				: saving
+					? { tone: "pending", label: t("browserConnection.statusSaving") }
+					: enabled
+						? { tone: "pending", label: t("browserConnection.statusConfigured") }
+						: { tone: "neutral", label: t("browserConnection.statusNotConfigured") },
 		labels: {
 			target: t("browserConnection.target"),
 			chooseTarget: t("browserConnection.chooseTarget"),

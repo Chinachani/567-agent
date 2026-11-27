@@ -1,12 +1,15 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { Api, Message, Model } from "@567agent/ai";
 import { createCodingAgentRuntimeSessionSelection } from "@567agent/coding-agent/composition";
 import type { CodingAgentRuntimeModelSource } from "@567agent/coding-agent/host-services";
 import type { ConversationScenario } from "@567agent/coding-agent/profile";
 import { CODING_AGENT_SESSION_PROFILE_STATE_READ } from "@567agent/coding-agent/session-extensions";
 import { type HistoryEntry, RuntimeHost, type SessionEvent } from "@567agent/runtime-core";
+import type { TurnObserver } from "@567agent/runtime-core/kernel";
 import { DesktopRuntimeBackendPool } from "@567agent/runtime-desktop";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -14,6 +17,12 @@ import {
 	textResponseEvents,
 	toolCallResponseEvents,
 } from "../../../../cli-host/test/support/openai-responses-test-server.js";
+import {
+	bindTurnFileCheckpoints,
+	desktopTurnFileObserver,
+	TurnFileCheckpoints,
+	unbindTurnFileCheckpoints,
+} from "../conversations/turn-file-checkpoints.js";
 import { createDesktopPromptRuntimeSources } from "./resource-runtime.js";
 
 interface RuntimeFixture {
@@ -263,6 +272,53 @@ describe("Desktop RuntimeHost production contract", () => {
 			"session.lifecycle",
 			"session.extension",
 		]);
+	}, 30_000);
+
+	it("captures files before the real turn executes its first tool and restores them after the runtime completes", async () => {
+		const cwd = await temporaryDirectory("desktop-runtime-checkpoint-workspace-");
+		const sessionDir = await temporaryDirectory("desktop-runtime-checkpoint-sessions-");
+		const agentStateDir = await temporaryDirectory("desktop-runtime-checkpoint-agent-");
+		await rm(join(cwd, ".git"));
+		await promisify(execFile)("git", ["init", "-q"], { cwd });
+		const path = join(cwd, "notes.txt");
+		await writeFile(path, "pre-existing content");
+		const files = new TurnFileCheckpoints(join(agentStateDir, "checkpoints.json"), cwd, () => false);
+		const server = await startOpenAiResponsesTestServer((_request, index) => ({
+			kind: "events",
+			events:
+				index === 0
+					? toolCallResponseEvents("write", { path, content: "turn content" })
+					: textResponseEvents("Done"),
+		}));
+		let checkpointSessionId: string | undefined;
+		try {
+			const model = { ...MODEL, baseUrl: server.baseUrl };
+			const fixture = createRuntimeFixture("runtime", agentStateDir, model, [desktopTurnFileObserver]);
+			fixtures.push(fixture);
+			const { sessionId } = await fixture.runtime.createSession({
+				cwd,
+				sessionDir,
+				model,
+				agent: codingAgentSelection("batch", false),
+				executionMode: "full-access",
+			});
+
+			checkpointSessionId = sessionId;
+			bindTurnFileCheckpoints(sessionId, files);
+			const outcome = await fixture.runtime.prompt(sessionId, { text: "Update notes" });
+			expect(outcome.status).toBe("completed");
+			expect(await readFile(path, "utf8")).toBe("turn content");
+			expect(await files.list()).toEqual([
+				expect.objectContaining({ turnId: outcome.turnId, title: "Update notes", fileCount: 1 }),
+			]);
+			const preview = await files.preview(outcome.turnId!);
+			expect(preview.files).toEqual([{ path: "notes.txt", change: "modified", status: "ready" }]);
+			expect((await files.restore(preview.previewId))[0]?.status).toBe("restored");
+			expect(await readFile(path, "utf8")).toBe("pre-existing content");
+		} finally {
+			if (checkpointSessionId) unbindTurnFileCheckpoints(checkpointSessionId);
+			await server.dispose();
+		}
 	}, 30_000);
 
 	it("preserves history mutations, forks and resumed Provider context", async () => {
@@ -541,9 +597,11 @@ describe("Desktop RuntimeHost production contract", () => {
 		_backend: "runtime",
 		agentStateDir: string,
 		model: Model<Api> = MODEL,
+		turnObservers?: readonly TurnObserver[],
 	): RuntimeFixture {
 		const pool = new DesktopRuntimeBackendPool({
 			compositionDefaults: {
+				turnObservers,
 				modelRegistry: modelRegistry(model),
 				initialModel: model,
 				initialThinkingLevel: "off",

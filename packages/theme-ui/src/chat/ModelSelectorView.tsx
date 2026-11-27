@@ -253,6 +253,7 @@ export function ModelSelectorView({
 	// 用户在第一栏手动点选的栏目；null 表示没点过，跟随当前所选模型的供应商。关菜单即重置。
 	const [tabOverride, setTabOverride] = useState<string | null>(null);
 	const [railExpanded, setRailExpanded] = useState(false);
+	const [openInfoKey, setOpenInfoKey] = useState<string | null>(null);
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const modelListRef = useRef<HTMLDivElement | null>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
@@ -367,6 +368,7 @@ export function ModelSelectorView({
 		setSearchQuery("");
 		setTabOverride(null);
 		setRailExpanded(false);
+		setOpenInfoKey(null);
 	}, [open]);
 
 	useEffect(() => {
@@ -433,6 +435,8 @@ export function ModelSelectorView({
 			multiplierLabel,
 			info,
 			levelLabel,
+			openInfoKey,
+			onInfoOpenChange: setOpenInfoKey,
 			reasoningModelKeys,
 			onSelect: handleModelSelect,
 		}),
@@ -448,6 +452,7 @@ export function ModelSelectorView({
 			multiplierLabel,
 			info,
 			levelLabel,
+			openInfoKey,
 			reasoningModelKeys,
 			handleModelSelect,
 		],
@@ -755,6 +760,8 @@ interface ModelListContext {
 	readonly multiplierLabel?: (option: ModelSelectorOptionView) => string | undefined;
 	readonly info?: ModelSelectorInfoLabels;
 	readonly levelLabel: (value: string) => string;
+	readonly openInfoKey: string | null;
+	readonly onInfoOpenChange: (key: string | null) => void;
 	readonly reasoningModelKeys?: ReadonlySet<string>;
 	readonly onSelect: (model: ModelSelectorOptionView, event: Event) => void;
 }
@@ -795,6 +802,8 @@ function ListEntryView({
 			multiplierLabel={context.multiplierLabel}
 			info={context.info}
 			levelLabel={context.levelLabel}
+			openInfoKey={context.openInfoKey}
+			onInfoOpenChange={context.onInfoOpenChange}
 			providerLabel={entry.providerLabel}
 			cloudOnlyLabel={context.cloudOnlyLabel}
 			hasReasoning={context.reasoningModelKeys?.has(model.key) ?? false}
@@ -1007,6 +1016,8 @@ const ModelRow = memo(function ModelRow({
 	multiplierLabel,
 	info,
 	levelLabel,
+	openInfoKey,
+	onInfoOpenChange,
 	providerLabel,
 	cloudOnlyLabel,
 	hasReasoning,
@@ -1026,6 +1037,8 @@ const ModelRow = memo(function ModelRow({
 	/** 提供后识图/倍率/默认标识收进详情浮层。 */
 	readonly info?: ModelSelectorInfoLabels;
 	readonly levelLabel: (value: string) => string;
+	readonly openInfoKey: string | null;
+	readonly onInfoOpenChange: (key: string | null) => void;
 	readonly providerLabel: string;
 	readonly cloudOnlyLabel: string;
 	readonly hasReasoning: boolean;
@@ -1049,6 +1062,8 @@ const ModelRow = memo(function ModelRow({
 					defaultBadge={isDefault ? defaultBadge : undefined}
 					multiplier={multiplierLabel?.(model)}
 					hasReasoning={hasReasoning}
+					open={openInfoKey === model.key}
+					onOpenChange={(nextOpen) => onInfoOpenChange(nextOpen ? model.key : null)}
 				/>
 			)}
 			{isFavorite !== undefined && favoriteLabels && onToggleFavorite && (
@@ -1123,6 +1138,8 @@ function ModelInfoButton({
 	defaultBadge,
 	multiplier,
 	hasReasoning,
+	open,
+	onOpenChange,
 }: {
 	readonly model: ModelSelectorOptionView;
 	readonly info: ModelSelectorInfoLabels;
@@ -1132,6 +1149,8 @@ function ModelInfoButton({
 	readonly defaultBadge?: string;
 	readonly multiplier?: string;
 	readonly hasReasoning: boolean;
+	readonly open: boolean;
+	readonly onOpenChange: (open: boolean) => void;
 }): JSX.Element {
 	const modalities = model.inputModalities?.length
 		? Array.from(new Set(model.inputModalities))
@@ -1140,7 +1159,7 @@ function ModelInfoButton({
 	const supportsReasoning = hasReasoning || Boolean(model.reasoning) || levels.length > 0;
 
 	return (
-		<Popover>
+		<Popover open={open} onOpenChange={onOpenChange}>
 			<PopoverTrigger asChild>
 				<button
 					type="button"

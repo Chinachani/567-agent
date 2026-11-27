@@ -180,6 +180,8 @@ export interface InstalledPlugin {
 	styleUrls: string[];
 	permissions: PluginPermission[];
 	grantedPermissions: PluginPermission[];
+	/** The persisted record is missing a usable grant list. */
+	permissionReviewRequired?: boolean;
 	/** Normalized host/IP patterns declared in plugin.json `network.allowedHosts`. */
 	allowedNetworkHosts: string[];
 	/** Normalized navigation host patterns declared in plugin.json `browser.allowedHosts`. */

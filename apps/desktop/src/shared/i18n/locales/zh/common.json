@@ -1107,6 +1107,7 @@
 		"searchMarketplace": "在能力市场中搜索",
 		"trigger": "搜索",
 		"groups": {
+			"recentSessions": "最近会话",
 			"projects": "项目",
 			"sessions": "会话",
 			"abilities": "能力",

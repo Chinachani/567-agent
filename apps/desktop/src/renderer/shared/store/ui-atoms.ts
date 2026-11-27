@@ -52,6 +52,7 @@ export const pageHeaderTitleHiddenAtom = atom<boolean>(false);
 
 /** Return to the workspace that opened settings, independently of settings tab history. */
 export const settingsReturnHrefAtom = atom("/");
+export const usageReturnHrefAtom = atom("/");
 
 export type SettingsTab =
 	| "general"

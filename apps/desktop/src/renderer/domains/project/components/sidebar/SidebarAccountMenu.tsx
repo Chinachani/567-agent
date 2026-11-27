@@ -1,10 +1,9 @@
-import { Api567AccountDialog, useApi567 } from "@domains/api567";
+import { Api567AccountDialog, useApi567, useApi567BilledUsage } from "@domains/api567";
 import { Button } from "@shared/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@shared/components/ui/dropdown-menu";
@@ -13,11 +12,10 @@ import { cn } from "@shared/lib/utils";
 import { confirmDialogAtom } from "@shared/store/atoms";
 import { useNavigate } from "@tanstack/react-router";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
+import { SidebarAccountCardView } from "@vetta-org/theme-ui/sidebar";
 import { useSetAtom } from "jotai";
-import { forwardRef, useId, useRef, useState } from "react";
+import { forwardRef, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageCenterDialog } from "./message-center/MessageCenterDialog";
-import { useMessageCenterModel } from "./message-center/useMessageCenterModel";
 import type { SettingsMenuTriggerProps } from "./settings-menu/SettingsMenuTrigger";
 import {
 	useRefreshBillingOnOpen,
@@ -26,6 +24,48 @@ import {
 } from "./settings-menu/useSettingsMenuModel";
 
 type Panel = "account" | null;
+
+function SidebarAccountSummary({
+	status,
+	name,
+	quota,
+}: {
+	status: ReturnType<typeof useApi567>["status"];
+	name: string;
+	quota: string;
+}): JSX.Element {
+	const { t, i18n } = useTranslation("settings");
+	const { snapshot, loading, locked, refresh } = useApi567BilledUsage(status.isLoggedIn);
+	const locale = i18n.resolvedLanguage || undefined;
+	const state = loading ? "loading" : (snapshot?.status ?? "unavailable");
+	const asOf = snapshot?.checkedAt == null
+		? ""
+		: t("usageBill.asOf", { time: new Date(snapshot.checkedAt).toLocaleString(locale) });
+	return (
+		<SidebarAccountCardView
+			avatar={<UserAvatar username={status.loginUsername || name} className="size-8 shrink-0 bg-accent" />}
+			name={name}
+			subtitle={status.isLoggedIn && status.loginUsername !== name ? status.loginUsername : undefined}
+			signedIn={status.isLoggedIn}
+			cardLabel={t("sidebarAccount.summary")}
+			balanceLabel={t("api567Account.quota")}
+			balanceValue={quota}
+			spendLabel={t("usageBill.today")}
+			spendValue={snapshot?.usd == null ? undefined : new Intl.NumberFormat(locale, {
+				style: "currency",
+				currency: "USD",
+				maximumFractionDigits: 6,
+			}).format(snapshot.usd)}
+			spendDetail={snapshot?.quota == null ? undefined : t("usageBill.units", { amount: snapshot.quota.toLocaleString(locale) })}
+			statusText={[t(`usageBill.${state}`), asOf].filter(Boolean).join(" ")}
+			loading={loading}
+			canRefresh={!loading && !locked}
+			refreshLabel={t("usageBill.refresh")}
+			onRefresh={refresh}
+			signedOutHint={t("usageBill.signed-out")}
+		/>
+	);
+}
 
 const SettingsMenuItem = forwardRef<HTMLButtonElement, SettingsMenuTriggerProps>(function SettingsMenuItem(
 	{ model: _model, className, ...props },
@@ -47,7 +87,6 @@ const SettingsMenuItem = forwardRef<HTMLButtonElement, SettingsMenuTriggerProps>
 
 export function SidebarAccountMenu({ className }: { className?: string }): JSX.Element {
 	const { t } = useTranslation("settings");
-	const { t: message } = useTranslation("message");
 	const api = useApi567();
 	const { status, logout, setTopupModalOpen, setModalOpen } = api;
 	const [open, setOpen] = useState(false);
@@ -55,8 +94,6 @@ export function SidebarAccountMenu({ className }: { className?: string }): JSX.E
 	const trigger = useRef<HTMLButtonElement>(null);
 	// Wait for the previous focus scope to close before opening the next one.
 	const pendingAction = useRef<(() => void) | null>(null);
-	const unreadId = useId();
-	const messages = useMessageCenterModel();
 	const navigate = useNavigate();
 	const openSettings = () => void navigate({ to: "/settings/$tab", params: { tab: "general" } });
 	const settings = useSettingsMenuModel(false, (value) => {
@@ -111,7 +148,6 @@ export function SidebarAccountMenu({ className }: { className?: string }): JSX.E
 							className,
 						)}
 						aria-label={t("api567Account.open", { name })}
-						aria-describedby={messages.totalUnread > 0 ? unreadId : undefined}
 					>
 						{status.isLoggedIn ? (
 							<UserAvatar
@@ -136,27 +172,26 @@ export function SidebarAccountMenu({ className }: { className?: string }): JSX.E
 								{balance}
 							</span>
 						</span>
-						<span className="relative shrink-0">
-							<span
-								aria-hidden="true"
-								className="icon-[solar--alt-arrow-down-linear] block h-4 w-4 text-muted-foreground"
-							/>
-							{messages.totalUnread > 0 && (
-								<span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
-							)}
-						</span>
+						<span
+							aria-hidden="true"
+							className="icon-[solar--alt-arrow-down-linear] block h-4 w-4 shrink-0 text-muted-foreground"
+						/>
 					</Button>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent
 					side="top"
 					align="start"
 					onCloseAutoFocus={closeFocus}
-					className="w-64 max-w-[calc(100vw-1rem)]"
+					className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto"
 				>
-					<DropdownMenuLabel className="space-y-1 px-3 pb-2 text-[12px] text-foreground">
-						<span className="block truncate font-medium">{name}</span>
-						<span className="block truncate font-normal text-muted-foreground">{balance}</span>
-					</DropdownMenuLabel>
+					{open && (
+						<SidebarAccountSummary
+							key={JSON.stringify([status.isLoggedIn, status.loginUsername ?? status.username, status.authType, status.serviceRoute])}
+							status={status}
+							name={name}
+							quota={quota}
+						/>
+					)}
 					<DropdownMenuSeparator />
 					{status.isLoggedIn && (
 						<>
@@ -183,16 +218,6 @@ export function SidebarAccountMenu({ className }: { className?: string }): JSX.E
 					</DropdownMenuItem>
 
 					<DropdownMenuSeparator />
-					<DropdownMenuItem onSelect={() => select(() => messages.setOpen(true))}>
-						<span aria-hidden="true" className="icon-[solar--bell-linear] h-4 w-4" />
-						{message("triggerTitle")}
-						{messages.totalUnread > 0 && (
-							<span className="ml-auto rounded bg-accent px-1.5 text-[11px] tabular-nums">
-								{messages.totalUnread}
-							</span>
-						)}
-					</DropdownMenuItem>
-
 					<DropdownMenuItem
 						onSelect={() =>
 							select(() => {
@@ -249,11 +274,6 @@ export function SidebarAccountMenu({ className }: { className?: string }): JSX.E
 					)}
 				</DropdownMenuContent>
 			</DropdownMenu>
-			{messages.totalUnread > 0 && (
-				<span className="sr-only" id={unreadId}>
-					{t("sidebarAccount.unread", { count: messages.totalUnread })}
-				</span>
-			)}
 			<Api567AccountDialog
 				api={api}
 				open={panel === "account"}
@@ -263,17 +283,6 @@ export function SidebarAccountMenu({ className }: { className?: string }): JSX.E
 					pendingAction.current = () => setTopupModalOpen(true);
 					setPanel(null);
 				}}
-			/>
-			<MessageCenterDialog
-				activeTab={messages.activeTab}
-				chatUnread={messages.chatUnread}
-				notifUnread={messages.notifUnread}
-				open={messages.open}
-				pendingCount={messages.pendingCount}
-				onClose={messages.close}
-				onOpenChange={messages.setOpen}
-				onSelectTab={messages.setActiveTab}
-				onCloseAutoFocus={closeFocus}
 			/>
 		</>
 	);

@@ -11,6 +11,7 @@ import org.agent567.android.AppVersion
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
+import io.ktor.client.request.head
 import io.ktor.client.request.request
 import io.ktor.client.request.header
 import io.ktor.client.request.put
@@ -19,7 +20,6 @@ import io.ktor.client.request.preparePost
 import io.ktor.client.request.delete
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
-import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpHeaders
@@ -29,12 +29,16 @@ import io.ktor.http.Url
 import io.ktor.http.URLBuilder
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
-import io.ktor.utils.io.readUTF8Line
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -47,10 +51,16 @@ import org.agent567.android.core.Agent567Config
 import org.agent567.android.core.serviceIdentity
 import org.agent567.android.core.auth.TokenStore
 import org.agent567.android.core.chat.ChatRequestEncoder
-import org.agent567.android.core.chat.OpenAiSseParser
-import org.agent567.android.core.chat.OpenAiSseStreamParser
+import org.agent567.android.core.chat.InferenceApi
+import org.agent567.android.core.chat.ResponsesReplayTarget
+import org.agent567.android.core.chat.ResponsesRequestEncoder
+import org.agent567.android.core.chat.hasSignedReasoningForTarget
+import org.agent567.android.core.chat.isResponsesSignatureRejection
+import org.agent567.android.core.chat.omitSignedReasoningHistory
+import org.agent567.android.core.chat.projectSignedReasoningHistory
 import org.agent567.android.core.error.Agent567Exception
 import org.agent567.android.core.model.AuthSession
+import org.agent567.android.core.model.AssistantReplayState
 import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.core.model.LlmModel
@@ -73,8 +83,6 @@ import org.agent567.android.core.net.toAgent567Exception
 import org.agent567.android.app.normalizeGitHubDownloadPrefix
 
 private const val IMAGE_GENERATION_TIMEOUT_MS = 600_000L
-private const val MAX_NON_STREAM_FALLBACK_CHARS = 1_000_000
-private const val MAX_SSE_LINE_CHARS = 1_000_000
 
 /**
  * 对 567 API / Gateway 的薄封装。
@@ -112,6 +120,7 @@ internal class Agent567Api(
     private val tokenStore: TokenStore,
     private val tokenRefresher: TokenRefresher,
     private val preferences: org.agent567.android.app.AppPreferences? = null,
+    private val chatStreamPolicy: DirectChatStreamPolicy = DirectChatStreamPolicy(),
 ) {
     suspend fun loginWithAccount(account: String, password: String): AuthSession {
         val session = requestAccountSession(account, password)
@@ -871,18 +880,6 @@ internal class Agent567Api(
         return client.get(url).readRawBytes()
     }
 
-    /** Inputs such as vision/OCR say nothing about whether a model can draw. */
-    fun imageModels(allModels: List<String>): List<String> = allModels.distinct().filter { id ->
-        val key = id.substringAfterLast('/').lowercase()
-        val catalog = org.agent567.android.core.model.bundledModelContexts
-        val outputs = (catalog[id] ?: catalog[key])?.capabilities?.output
-        if (!outputs.isNullOrEmpty()) return@filter outputs.any { it.equals("image", ignoreCase = true) }
-        if (listOf("ocr", "vision", "embedding", "video", "caption", "image-to-text").any { it in key }) return@filter false
-        listOf("gpt-image", "dall-e", "dalle", "flux", "sdxl", "stable-diffusion", "imagen", "ideogram", "recraft", "midjourney", "seedream", "nano-banana", "qwen-image", "doubao-seedream").any { name ->
-            key == name || key.startsWith("$name-") || key.startsWith("$name.")
-        } || (key.startsWith("gemini-") && key.split('-').contains("image")) || key.contains("text-to-image")
-    }
-
     fun streamChat(
         model: String,
         messages: List<ChatMessage>,
@@ -890,190 +887,197 @@ internal class Agent567Api(
         groupName: String? = null,
         imageGenModel: String? = null,
     ): Flow<ChatStreamEvent> =
-        flow {
+        channelFlow {
             val inferenceApi = preferences?.getModelInferenceApi(groupName, model, config.serverUrl)
-                ?: org.agent567.android.core.chat.InferenceApi.DefaultChat
-            val wireMessages = ChatRequestEncoder.encodeMessages(messages)
-            val bodyJson = buildJsonObject {
-                put("model", model)
-                put("messages", kotlinx.serialization.json.JsonArray(wireMessages))
-                put("stream", true)
-                put("stream_options", buildJsonObject { put("include_usage", true) })
-                if (temperature != null) {
-                    put("temperature", temperature)
-                }
-                if (!imageGenModel.isNullOrBlank()) {
-                    put("tools", kotlinx.serialization.json.buildJsonArray {
-                        add(buildJsonObject {
-                            put("type", "function")
-                            put("function", buildJsonObject {
-                                put("name", "generate_image")
-                                put("description", "当用户要求画图、绘制图片、或者基于已有图片进行修改（以图生图、改图、垫图、多图融合创作）时调用该工具。系统具备向视觉模型传入多张参考图的能力。")
-                                put("parameters", buildJsonObject {
-                                    put("type", "object")
-                                    put("properties", buildJsonObject {
-                                        put("prompt", buildJsonObject {
-                                            put("type", "string")
-                                            put("description", "画面详细描述词。如果是改图或多图融合，请在提示词中详细说明需要保留什么、替换什么、如何融合各参考图元素以及画风细节。")
+                ?: InferenceApi.DefaultChat
+            val currentServiceIdentity = preferences?.serviceIdentity(config.apiBaseUrl) ?: serviceIdentity(config.apiBaseUrl)
+            val normalizedGroup = groupName?.trim()?.takeIf { it.isNotEmpty() }
+            val replayTarget = if (inferenceApi == InferenceApi.Responses) {
+                ResponsesReplayTarget(
+                    serviceIdentity = currentServiceIdentity,
+                    groupName = normalizedGroup,
+                    modelId = model,
+                    inferenceApi = inferenceApi,
+                )
+            } else null
+            var activeMessages = if (replayTarget != null) {
+                projectSignedReasoningHistory(messages, replayTarget)
+            } else {
+                messages
+            }
+            var sentSignedReasoning = replayTarget != null && hasSignedReasoningForTarget(activeMessages, replayTarget)
+            fun buildRequestBody(currentMessages: List<ChatMessage>): String {
+                val wireMessages = ChatRequestEncoder.encodeMessages(currentMessages)
+                val bodyJson = buildJsonObject {
+                    put("model", model)
+                    put("messages", kotlinx.serialization.json.JsonArray(wireMessages))
+                    put("stream", true)
+                    put("stream_options", buildJsonObject { put("include_usage", true) })
+                    if (temperature != null) {
+                        put("temperature", temperature)
+                    }
+                    if (!imageGenModel.isNullOrBlank()) {
+                        put("tools", kotlinx.serialization.json.buildJsonArray {
+                            add(buildJsonObject {
+                                put("type", "function")
+                                put("function", buildJsonObject {
+                                    put("name", "generate_image")
+                                    put("description", "当用户要求画图、绘制图片、或者基于已有图片进行修改（以图生图、改图、垫图、多图融合创作）时调用该工具。系统具备向视觉模型传入多张参考图的能力。")
+                                    put("parameters", buildJsonObject {
+                                        put("type", "object")
+                                        put("properties", buildJsonObject {
+                                            put("prompt", buildJsonObject {
+                                                put("type", "string")
+                                                put("description", "画面详细描述词。如果是改图或多图融合，请在提示词中详细说明需要保留什么、替换什么、如何融合各参考图元素以及画风细节。")
+                                            })
+                                            put("action", buildJsonObject {
+                                                put("type", "string")
+                                                put("description", "操作模式：'create' 为从零生成全新图片；'edit' 为在已有单张或多张图片的基础上进行修改或融合。")
+                                            })
                                         })
-                                        put("action", buildJsonObject {
-                                            put("type", "string")
-                                            put("description", "操作模式：'create' 为从零生成全新图片；'edit' 为在已有单张或多张图片的基础上进行修改或融合。")
+                                        put("required", kotlinx.serialization.json.buildJsonArray {
+                                            add(kotlinx.serialization.json.JsonPrimitive("prompt"))
                                         })
-                                    })
-                                    put("required", kotlinx.serialization.json.buildJsonArray {
-                                        add(kotlinx.serialization.json.JsonPrimitive("prompt"))
                                     })
                                 })
                             })
                         })
-                    })
-                    put("tool_choice", "auto")
+                        put("tool_choice", "auto")
+                    }
                 }
+                val requestBody = if (inferenceApi == InferenceApi.Responses) {
+                    ResponsesRequestEncoder.encode(bodyJson, currentMessages, replayTarget)
+                } else {
+                    bodyJson
+                }
+                return requestBody.toString()
             }
-            val requestBody = if (inferenceApi == org.agent567.android.core.chat.InferenceApi.Responses)
-                org.agent567.android.core.chat.ResponsesRequestEncoder.encode(bodyJson, messages) else bodyJson
             val url = config.gatewayBaseUrl.trimEnd('/') + inferenceApi.path
-            var emittedError = false
             try {
-                suspend fun emitError(error: Agent567Exception) {
-                    emittedError = true
-                    emit(ChatStreamEvent.Error(error))
-                }
                 val sessionVersion = tokenRefresher.sessionVersion
                 var token = ensureApiKeyForGroup(groupName)
                 var repair = false
-                do {
-                    var retryCredential = false
-                    var responseReceived = false
+                var retried = false
+                var signatureRepaired = false
+                var body = buildRequestBody(activeMessages)
+                while (true) {
+                    if (sessionVersion != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
                     val secHeaders = org.agent567.android.core.net.SecurityHeaders.generate(
                         deviceId = "mobile-${token.hashCode().toUInt().toString(16)}",
                         extraContext = if (!groupName.isNullOrBlank()) mapOf("X-567-Group" to java.net.URLEncoder.encode(groupName, "UTF-8")) else emptyMap()
                     )
-                    withChatConnectionRetry(responseReceived = { responseReceived }) {
-                        bareClient.preparePost(url) {
-                            // Model streams can take longer than ordinary API calls to produce
-                            // the first token or pause between chunks; keep the REST client's
-                            // short timeout from turning those pauses into apparent disconnects.
-                            timeout {
-                                requestTimeoutMillis = 600_000
-                                socketTimeoutMillis = 600_000
-                            }
-                            setBody(requestBody.toString())
-                            contentType(ContentType.Application.Json)
-                            if (!token.isNullOrBlank()) {
-                                header(HttpHeaders.Authorization, "Bearer $token")
-                            }
-                            for ((k, v) in secHeaders) {
-                                header(k, v)
-                            }
-                            header(HttpHeaders.Accept, "text/event-stream")
-                        }.execute { response ->
-                            responseReceived = true
-                            if (response.status.value == 401 && !repair && !tokenStore.accessToken.orEmpty().startsWith("sk-")) {
-                                retryCredential = true
-                                return@execute
-                            }
-                            if (!response.status.isSuccess()) {
-                                val text = response.bodyAsTextSafe()
-                                emitError(parseFailure(response.status.value, text))
-                                return@execute
-                            }
-
-                            val channel = response.bodyAsChannel()
-                            var sawDone = false
-                            var sawFinished = false
-                            var sawAnyEvent = false
-                            val bufferedLines = mutableListOf<String>()
-                            var bufferedChars = 0
-                            val sseParser = OpenAiSseStreamParser()
-                            val responsesParser = if (inferenceApi == org.agent567.android.core.chat.InferenceApi.Responses)
-                                org.agent567.android.core.chat.ResponsesSseStreamParser() else null
-                            var sawSse = false
-
-                            while (!channel.isClosedForRead) {
-                                val line = channel.readUTF8Line(MAX_SSE_LINE_CHARS) ?: break
-                                if (line.length >= MAX_SSE_LINE_CHARS) {
-                                    emitError(Agent567Exception.Protocol("流式响应单行超过安全长度限制"))
-                                    return@execute
+                    val outcome = withDirectChatDeadlines(chatStreamPolicy) { markActivity ->
+                        var receivedHeaders = false
+                        try {
+                            bareClient.preparePost(url) {
+                                timeout {
+                                    requestTimeoutMillis = 600_000
+                                    socketTimeoutMillis = 600_000
                                 }
-                                val trimmed = line.trim()
-                                if (trimmed.startsWith(":") || (trimmed.isEmpty() && responsesParser == null)) continue
-                                if (trimmed.startsWith("data:") || trimmed.startsWith("event:")) sawSse = true
-                                if (!sawAnyEvent && !sawSse && bufferedChars < MAX_NON_STREAM_FALLBACK_CHARS) {
-                                    bufferedLines.add(line.take(MAX_NON_STREAM_FALLBACK_CHARS - bufferedChars))
-                                    bufferedChars += line.length + 1
-                                }
-
-                                val events = responsesParser?.parseLine(line) ?: sseParser.parseLine(line)
-                                for (event in events) {
-                                    sawAnyEvent = true
-                                    if (event is ChatStreamEvent.Done) {
-                                        sawDone = true
+                                setBody(body)
+                                contentType(ContentType.Application.Json)
+                                if (token.isNotBlank()) header(HttpHeaders.Authorization, "Bearer $token")
+                                for ((key, value) in secHeaders) header(key, value)
+                                header(HttpHeaders.Accept, "text/event-stream")
+                            }.execute { response ->
+                                try {
+                                    receivedHeaders = true
+                                    val status = response.status.value
+                                    if (status == 401 && !repair && !tokenStore.accessToken.orEmpty().startsWith("sk-")) {
+                                        return@execute DirectChatOutcome.RepairCredential
                                     }
-                                    if (event is ChatStreamEvent.Finished) sawFinished = true
-                                    if (event is ChatStreamEvent.Error) emittedError = true
-                                    emit(event)
-                                    if (event is ChatStreamEvent.Error) {
-                                        return@execute
-                                    }
-                                }
-                                if (sawAnyEvent) bufferedLines.clear()
-                            }
-
-                            for (event in responsesParser?.finish().orEmpty()) {
-                                sawAnyEvent = true
-                                if (event is ChatStreamEvent.Done) sawDone = true
-                                if (event is ChatStreamEvent.Finished) sawFinished = true
-                                if (event is ChatStreamEvent.Error) emittedError = true
-                                emit(event)
-                                if (event is ChatStreamEvent.Error) return@execute
-                            }
-
-                            // 兜底保障：如果循环读完没有产生任何有效 SSE 事件（例如返回了非流式 JSON）
-                            if (!sawAnyEvent && !sawSse && bufferedChars > MAX_NON_STREAM_FALLBACK_CHARS) {
-                                emitError(Agent567Exception.Protocol("服务器返回内容过大，无法安全解析"))
-                                return@execute
-                            }
-                            if (!sawAnyEvent && !sawSse && bufferedLines.isNotEmpty()) {
-                                val fullText = bufferedLines.joinToString("\n")
-                                val fallbackEvents = responsesParser?.parseNonStreamJson(fullText) ?: OpenAiSseParser.parseNonStreamJson(fullText)
-                                if (fallbackEvents.isNotEmpty()) {
-                                    for (ev in fallbackEvents) {
-                                        if (ev is ChatStreamEvent.Error) emittedError = true
-                                        emit(ev)
-                                        if (ev is ChatStreamEvent.Error) return@execute
-                                        if (ev is ChatStreamEvent.Done) {
-                                            sawDone = true
+                                    if (!response.status.isSuccess()) {
+                                        val error = parseFailure(status, response.bodyAsText())
+                                        val signatureRejected = replayTarget != null &&
+                                            !signatureRepaired &&
+                                            sentSignedReasoning &&
+                                            isResponsesSignatureRejection(error, fromResponsesStreamError = false)
+                                        if (signatureRejected) {
+                                            return@execute DirectChatOutcome.Failure(error, signatureRejection = true)
                                         }
+                                        val retryAfter = chatRetryAfterMs(response.headers[HttpHeaders.RetryAfter])
+                                        val retry = DirectChatRetry.Transient.takeIf {
+                                            !signatureRepaired && canRetryRejectedChatRequest(status, error, retryAfter)
+                                        }
+                                        return@execute DirectChatOutcome.Failure(error, retry, retryAfter)
                                     }
+                                    readDirectChatResponse(response, inferenceApi, markActivity) { send(it) }
+                                } finally {
+                                    // Complete replies and cancelled attempts can both leave a server-side SSE stream open.
+                                    response.coroutineContext.cancel()
                                 }
                             }
-
-                            if (!sawDone) {
-                                if (sawFinished) emit(ChatStreamEvent.Done)
-                                else {
-                                    emitError(Agent567Exception.Protocol("流式响应意外结束，未收到完整响应标记"))
-                                    return@execute
-                                }
+                        } catch (error: Exception) {
+                            if (error is CancellationException) throw error
+                            val retry = DirectChatRetry.Transient.takeIf {
+                                !signatureRepaired && !receivedHeaders && error is io.ktor.client.network.sockets.ConnectTimeoutException
                             }
+                            DirectChatOutcome.Failure(error.toAgent567Exception(), retry)
                         }
                     }
-                    if (retryCredential) {
-                        if (sessionVersion != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
-                        val replacement = groupCredentials.get(groupName, rejectedKey = token)
-                        if (replacement == token) throw Agent567Exception.Api(401, null, "模型授权已失效，暂时无法恢复，请刷新账号资料后重试")
-                        token = replacement
-                        repair = true
+                    when (outcome) {
+                        is DirectChatOutcome.Complete -> {
+                            if (replayTarget != null &&
+                                (outcome.reasoningItems.isNotEmpty() || outcome.toolCalls.isNotEmpty() || signatureRepaired)
+                            ) {
+                                send(
+                                    ChatStreamEvent.ReplayState(
+                                        AssistantReplayState(
+                                            inferenceApi = InferenceApi.Responses.wireValue,
+                                            serviceIdentity = currentServiceIdentity,
+                                            groupName = normalizedGroup,
+                                            modelId = model,
+                                            reasoningItems = outcome.reasoningItems,
+                                            toolCalls = outcome.toolCalls,
+                                            signedReasoningReset = signatureRepaired,
+                                        ),
+                                    ),
+                                )
+                            }
+                            send(ChatStreamEvent.Done)
+                            return@channelFlow
+                        }
+                        DirectChatOutcome.RepairCredential -> {
+                            if (sessionVersion != tokenRefresher.sessionVersion) throw Agent567Exception.Unauthorized()
+                            val replacement = groupCredentials.get(groupName, rejectedKey = token)
+                            if (replacement == token) throw Agent567Exception.Api(401, null, "模型授权已失效，暂时无法恢复，请刷新账号资料后重试")
+                            token = replacement
+                            repair = true
+                        }
+                        is DirectChatOutcome.Failure -> {
+                            if (outcome.signatureRejection &&
+                                replayTarget != null &&
+                                !signatureRepaired &&
+                                sentSignedReasoning
+                            ) {
+                                currentCoroutineContext().ensureActive()
+                                val repairedMessages = omitSignedReasoningHistory(activeMessages, replayTarget)
+                                if (repairedMessages !== activeMessages) {
+                                    activeMessages = repairedMessages
+                                    sentSignedReasoning = false
+                                    signatureRepaired = true
+                                    body = buildRequestBody(activeMessages)
+                                    continue
+                                }
+                            }
+                            val wait = if (signatureRepaired) {
+                                null
+                            } else {
+                                outcome.retry?.takeUnless { retried }?.let { chatStreamPolicy.retryDelay(it, outcome.retryAfterMs) }
+                            }
+                            if (wait == null) {
+                                send(ChatStreamEvent.Error(outcome.error))
+                                return@channelFlow
+                            }
+                            retried = true
+                            send(ChatStreamEvent.State("retrying"))
+                            delay(wait)
+                        }
                     }
-                } while (retryCredential)
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                // An event collector may throw the same typed exception after handling
-                // an Error event. Re-emitting it from this catch violates Flow exception
-                // transparency and hides context-limit actions behind a generic retry.
-                if (emittedError && e is Agent567Exception) throw e
-                emit(ChatStreamEvent.Error(e.toAgent567Exception()))
+                send(ChatStreamEvent.Error(e.toAgent567Exception()))
             }
         }
 
@@ -1114,7 +1118,7 @@ internal class Agent567Api(
                 latestVersion = tagName.ifBlank { "v$current" },
                 currentVersion = "v$current",
                 releaseNotes = body,
-                apkUrl = resolvePublicReleaseApkUrl(apk?.url),
+                apkUrl = resolvePublicReleaseApkUrl(apk?.url, hasUpdate),
                 apkName = apk?.name,
                 apkSize = apk?.size,
                 apkSha256 = apk?.sha256,
@@ -1133,7 +1137,7 @@ internal class Agent567Api(
     }
 
     /** Only rewrite GitHub's public release asset URL; the metadata request above stays anonymous/direct. */
-    private fun resolvePublicReleaseApkUrl(assetUrl: String?): String? {
+    private suspend fun resolvePublicReleaseApkUrl(assetUrl: String?, hasUpdate: Boolean): String? {
         val candidate = assetUrl?.takeIf { it.isNotBlank() } ?: return null
         val parsed = runCatching { Url(candidate) }.getOrNull() ?: return null
         if (parsed.protocol.name != "https" || parsed.host != "github.com" || parsed.user != null || parsed.password != null) {
@@ -1146,12 +1150,48 @@ internal class Agent567Api(
         }
         val source = preferences?.downloadSource ?: org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_GITHUB
         return when (source) {
+            org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_AUTO ->
+                (if (hasUpdate) discoverMoreToolsProxyPrefix(candidate) else null)?.let { "$it$candidate" } ?: candidate
             org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_GH_PROXY -> "https://gh-proxy.com/$candidate"
             org.agent567.android.app.AppPreferences.DOWNLOAD_SOURCE_CUSTOM ->
                 normalizeGitHubDownloadPrefix(preferences?.customPrefix)?.let { "$it$candidate" }
             else -> candidate
         }
     }
+
+    private suspend fun discoverMoreToolsProxyPrefix(assetUrl: String): String? =
+        withTimeoutOrNull(5_000L) {
+            val page = try {
+                val response = bareClient.get("https://www.moretools.app/zh-CN/github-proxy")
+                if (!response.status.isSuccess()) return@withTimeoutOrNull null
+                response.bodyAsText()
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                return@withTimeoutOrNull null
+            }
+            val excludedDomains = listOf("moretools.app", "github.com", "githubusercontent.com", "google.com", "googlesyndication.com")
+            val prefixes = Regex("https://[^\\s\\\"'<>&]+/").findAll(page)
+                .mapNotNull { normalizeGitHubDownloadPrefix(it.value) }
+                .distinct()
+                .filterNot { prefix ->
+                    val host = Url(prefix).host.lowercase()
+                    excludedDomains.any { domain -> host == domain || host.endsWith(".$domain") }
+                }
+            for (prefix in prefixes) {
+                try {
+                    val probe = bareClient.head("$prefix$assetUrl") {
+                        timeout { requestTimeoutMillis = 1_500 }
+                    }
+                    val contentType = probe.headers[HttpHeaders.ContentType]
+                    if (probe.status.isSuccess() && contentType?.startsWith("text/html", ignoreCase = true) != true) {
+                        return@withTimeoutOrNull prefix
+                    }
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                }
+            }
+            null
+        }
 
     private suspend fun postAuth(path: String, body: Any): AuthSession =
         try {

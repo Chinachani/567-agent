@@ -42,7 +42,7 @@ export function ForkOriginBanner({ sourceMessage }: ForkOriginBannerProps): JSX.
 		}
 		const open = openSessionFnRef.current;
 		if (!open) return;
-		const bucketCwd = conversationBucketCwd(activeSession.cwd, defaultConversationCwd);
+		const bucketCwd = activeSession.listCwd ?? conversationBucketCwd(activeSession.cwd, defaultConversationCwd);
 		void open(bucketCwd, parentSessionPath).catch((err) => {
 			console.warn("[ForkOriginBanner] open parent session failed", err);
 			store.set(pendingScrollToEntryAtom, null);

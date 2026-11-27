@@ -1,4 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { execFileSync, spawnSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DesktopConfig } from "../config/desktop-config-store.js";
 import {
 	SshHostAlreadyExistsError,
@@ -6,6 +11,8 @@ import {
 	SshHostRebindError,
 	SshHostService,
 } from "./ssh-host-service.js";
+import { createSshHostStore } from "./ssh-host-store.js";
+import { SshPrivateKeyPicker, SshPrivateKeyStore } from "./ssh-private-key.js";
 
 function createFixture(initial?: Partial<DesktopConfig>) {
 	let config: DesktopConfig = {
@@ -19,6 +26,8 @@ function createFixture(initial?: Partial<DesktopConfig>) {
 	const invalidateConnection = vi.fn();
 	let nextId = 0;
 	const service = new SshHostService({
+		privateKeys: new SshPrivateKeyStore(tmpdir()),
+		forgetPassphrase: vi.fn(),
 		readHosts: async () => structuredClone(config.sshHosts ?? []),
 		writeHosts: async (hosts) => {
 			config = { ...config, sshHosts: structuredClone(hosts) };
@@ -94,6 +103,168 @@ describe("SshHostService", () => {
 		expect(fixture.getConfig().sshHosts).toEqual([]);
 		expect(fixture.invalidateConnection).toHaveBeenCalledWith(host.id);
 	});
+});
+
+describe("managed SSH private keys", () => {
+	let directory: string;
+	const input = { label: "Build host", target: "build-01" };
+	const keys = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+	const pem = Buffer.from(keys.privateKey.export({ type: "sec1", format: "pem" }));
+	const encryptedPem = Buffer.from(
+		keys.privateKey.export({
+			type: "pkcs8",
+			format: "pem",
+			cipher: "aes-256-cbc",
+			passphrase: "fixture only",
+		}),
+	);
+
+	beforeEach(async () => {
+		directory = await mkdtemp(join(tmpdir(), "agent567-ssh-"));
+	});
+	afterEach(async () => {
+		await rm(directory, { force: true, recursive: true });
+	});
+
+	function managedFixture() {
+		const home = join(directory, "app-home");
+		const configPath = join(home, "ssh-hosts.json");
+		const store = createSshHostStore(configPath);
+		const writeHosts = vi.fn(store.write);
+		const forgetPassphrase = vi.fn();
+		const service = new SshHostService({
+			readHosts: store.read,
+			writeHosts,
+			privateKeys: new SshPrivateKeyStore(home),
+			broadcastChanged: vi.fn(),
+			invalidateConnection: vi.fn(),
+			forgetPassphrase,
+			countProjectsOnHost: async () => 0,
+			generateId: () => `host-${writeHosts.mock.calls.length}`,
+		});
+		return { service, picker: new SshPrivateKeyPicker(), home, configPath, store, writeHosts, forgetPassphrase };
+	}
+
+	it("stages a selected file in memory, persists a private copy on save and replaces it only after the host is written", async () => {
+		const { service, picker, home, configPath, store, writeHosts, forgetPassphrase } = managedFixture();
+		const source = join(directory, "my-key");
+		await writeFile(source, pem);
+		const firstSelection = (await picker.pick(async () => source))!;
+		expect(firstSelection).toEqual({ ref: expect.any(String), name: "my-key" });
+		await expect(stat(home)).rejects.toMatchObject({ code: "ENOENT" });
+		await writeFile(source, encryptedPem);
+
+		const host = await picker.save(firstSelection.ref, (bytes) => service.create(input, bytes));
+		const originalCopy = host.identityFile!;
+		expect(dirname(originalCopy)).toBe(join(home, "ssh-private-keys"));
+		expect((await readFile(originalCopy)).equals(pem)).toBe(true);
+		if (process.platform !== "win32") {
+			expect((await stat(dirname(originalCopy))).mode & 0o777).toBe(0o700);
+			expect((await stat(originalCopy)).mode & 0o777).toBe(0o600);
+		}
+		expect(await service.list()).toEqual([host]);
+		expect(await readFile(configPath, "utf8")).not.toMatch(/PRIVATE KEY|my-key/);
+		await expect(picker.save(firstSelection.ref, async () => undefined)).rejects.toMatchObject({
+			reason: "unavailable",
+		});
+
+		const secondSelection = (await picker.pick(async () => source))!;
+		writeHosts.mockRejectedValueOnce(new Error("Host config write failed"));
+		const replaceKey = () => picker.save(secondSelection.ref, (bytes) => service.update(host.id, input, bytes));
+		await expect(replaceKey()).rejects.toThrow("Host config write failed");
+		expect(await readdir(dirname(originalCopy))).toHaveLength(1);
+		expect(await service.get(host.id)).toEqual(host);
+		expect(forgetPassphrase).not.toHaveBeenCalled();
+
+		const updated = await replaceKey();
+		const replacement = updated.identityFile!;
+		expect(replacement).not.toBe(originalCopy);
+		expect((await readFile(replacement)).equals(encryptedPem)).toBe(true);
+		expect(store.readSync()[0]?.identityFile).toBe(replacement);
+		await expect(stat(originalCopy)).rejects.toMatchObject({ code: "ENOENT" });
+		expect(forgetPassphrase).toHaveBeenCalledWith(host.id);
+
+		await service.update(host.id, { ...input, authMethod: "password" });
+		const passwordHost = await service.get(host.id);
+		expect(passwordHost?.authMethod).toBe("password");
+		expect(passwordHost?.identityFile).toBeUndefined();
+		await expect(stat(replacement)).rejects.toMatchObject({ code: "ENOENT" });
+		expect((await readFile(source)).equals(encryptedPem)).toBe(true);
+	});
+
+	it("discards a canceled selection and preserves manually referenced originals and still-shared managed copies", async () => {
+		const { service, picker, home } = managedFixture();
+		const source = join(directory, "original");
+		await writeFile(source, pem);
+		const selection = (await picker.pick(async () => source))!;
+		picker.discard(selection.ref);
+		await expect(picker.save(selection.ref, (bytes) => service.create(input, bytes))).rejects.toMatchObject({
+			reason: "unavailable",
+		});
+		await expect(stat(home)).rejects.toMatchObject({ code: "ENOENT" });
+
+		const manual = await service.create({ ...input, identityFile: source });
+		const imported = (await picker.pick(async () => source))!;
+		const first = await picker.save(imported.ref, (bytes) => service.update(manual.id, input, bytes));
+		const second = await service.create({
+			label: "Other host",
+			target: "build-02",
+			identityFile: first.identityFile,
+		});
+		await service.remove(first.id);
+		expect((await readFile(second.identityFile!)).equals(pem)).toBe(true);
+		await service.remove(second.id);
+		await expect(stat(second.identityFile!)).rejects.toMatchObject({ code: "ENOENT" });
+		expect((await readFile(source)).equals(pem)).toBe(true);
+	});
+
+	it("preserves the last valid selection across canceled and rejected replacements", async () => {
+		const { service, picker, home } = managedFixture();
+		const source = join(directory, "key");
+		await writeFile(source, pem);
+		const selected = (await picker.pick(async () => source))!;
+		expect(await picker.pick(async () => undefined)).toBeNull();
+
+		const badFiles = [
+			["public.pem", keys.publicKey.export({ type: "spki", format: "pem" }), "invalid"],
+			[
+				"fake-openssh",
+				["-----BEGIN", "OPENSSH PRIVATE KEY-----\nZW1wdHk=\n-----END OPENSSH PRIVATE KEY-----\n"].join(" "),
+				"invalid",
+			],
+			["oversized", Buffer.alloc(64 * 1024 + 1), "tooLarge"],
+		] as const;
+		for (const [name, body, reason] of badFiles) {
+			const path = join(directory, name);
+			await writeFile(path, body);
+			await expect(picker.pick(async () => path)).rejects.toMatchObject({ reason });
+		}
+		await expect(picker.pick(async () => directory)).rejects.toMatchObject({ reason: "unreadable" });
+		await expect(stat(home)).rejects.toMatchObject({ code: "ENOENT" });
+		const host = await picker.save(selected.ref, (bytes) => service.create(input, bytes));
+		expect((await readFile(host.identityFile!)).equals(pem)).toBe(true);
+	});
+
+	it.skipIf(spawnSync("ssh-keygen", ["-?"], { stdio: "ignore" }).error !== undefined)(
+		"imports real plain and passphrase-encrypted OpenSSH keys without a passphrase",
+		async () => {
+			const { picker, service } = managedFixture();
+			for (const [format, passphrase] of [
+				["ed25519", ""],
+				["rsa", "fixture only"],
+			]) {
+				const source = join(directory, format);
+				execFileSync("ssh-keygen", ["-q", "-t", format, "-N", passphrase, "-f", source], { stdio: "ignore" });
+				const original = await readFile(source);
+				if (passphrase) await writeFile(source, original.toString("utf8").trimEnd().replaceAll("\n", "\r\n"));
+				const selected = (await picker.pick(async () => source))!;
+				const host = await picker.save(selected.ref, (bytes) =>
+					service.create({ label: format, target: format }, bytes),
+				);
+				expect((await readFile(host.identityFile!)).equals(original)).toBe(true);
+			}
+		},
+	);
 });
 
 describe("从 ssh config 导入", () => {

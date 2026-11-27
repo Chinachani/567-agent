@@ -32,6 +32,7 @@ export function createSessionSettingsView(state: SettingsStatePort): SessionSett
 				maxRetries: retry?.maxRetries ?? 3,
 				baseDelayMs: retry?.baseDelayMs ?? 2000,
 				maxDelayMs: retry?.maxDelayMs ?? 60000,
+				jitterMs: retry?.jitterMs ?? 250,
 			};
 		},
 		getHideThinkingBlock: () => state.read().hideThinkingBlock ?? false,

@@ -35,7 +35,6 @@ export {
 	createLocalCodingToolExecutableResolver,
 	createNodeBackgroundCommandHost,
 	createNodeForegroundCommandHost,
-	killNodeProcessTree,
 	type LocalCodingToolExecutableResolverOptions,
 	type NodeBackgroundCommandHostOptions,
 	type NodeForegroundCommandHostOptions,

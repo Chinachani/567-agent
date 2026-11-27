@@ -73,6 +73,7 @@ export interface ImBridgeSettingsModel {
 	guideTransport: ImTransportSelector | null;
 	status: ImBridgeStatus | null;
 	transportStatus: ImTransportStatus;
+	channelStatuses?: ImBridgeStatus["channelStatuses"];
 	showSecret: boolean;
 	saving: boolean;
 	saveError: string | null;
@@ -608,6 +609,7 @@ export function useImBridgeSettingsModel(): ImBridgeSettingsModel {
 		guideTransport,
 		status,
 		transportStatus: status?.transport ?? "offline",
+		channelStatuses: status?.channelStatuses,
 		showSecret,
 		saving,
 		saveError,

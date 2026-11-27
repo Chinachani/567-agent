@@ -62,6 +62,19 @@ func TestStopIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestLogoutAfterStopDoesNotReconnectClosedStore(t *testing.T) {
+	tr, err := New(Options{StatePath: filepath.Join(t.TempDir(), "wa.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if err := tr.Logout(context.Background()); err == nil {
+		t.Fatal("Logout after Stop unexpectedly succeeded")
+	}
+}
+
 // TestIntegrationPairAndConnect exercises the real WhatsApp servers. Gated:
 //
 //	WHATSAPP_INTEGRATION_TEST=1 go test -run Integration -v -timeout 5m ./internal/transport/whatsapp/

@@ -1,6 +1,11 @@
 import { useTranslation } from "react-i18next";
 import type { ImTransportStatus } from "@preload/api";
-import { ImChannelCardView, type ImChannelCardIcon, type ImStatusBadgeStatus } from "@vetta-org/theme-ui/settings";
+import {
+	ImChannelCardView,
+	type ImChannelCardIcon,
+	type ImChannelCardViewProps,
+	type ImStatusBadgeStatus,
+} from "@vetta-org/theme-ui/settings";
 
 const STATUS_LABEL: Record<ImTransportStatus, string> = {
 	offline: "imbStatusOffline",
@@ -15,8 +20,11 @@ export function ImChannelCard({
 	subtitle,
 	icon,
 	configured,
-	isActive,
-	transportStatus,
+	isActive = false,
+	bridgeEnabled = false,
+	channelStatus,
+	statusPending = false,
+	transportStatus = "offline",
 	configureLabel,
 	onConfigure,
 	onActivate,
@@ -25,14 +33,37 @@ export function ImChannelCard({
 	subtitle: string;
 	icon: ImChannelCardIcon;
 	configured: boolean;
-	isActive: boolean;
-	transportStatus: ImTransportStatus;
+	isActive?: boolean;
+	bridgeEnabled?: boolean;
+	channelStatus?: ImTransportStatus;
+	statusPending?: boolean;
+	transportStatus?: ImTransportStatus;
 	configureLabel: string;
 	onConfigure: () => void;
 	onActivate?: () => void;
 }): JSX.Element {
 	const { t } = useTranslation("settings");
-	const effectiveStatus: ImTransportStatus = isActive ? transportStatus : "offline";
+
+	let displayMode: ImChannelCardViewProps["displayMode"];
+	let effectiveStatus: ImTransportStatus = "offline";
+
+	if (channelStatus !== undefined) {
+		if (channelStatus === "offline" && !configured) {
+			displayMode = "unconfigured";
+		} else if (channelStatus === "offline" && !bridgeEnabled) {
+			displayMode = "configured";
+		} else {
+			displayMode = "status";
+			effectiveStatus = channelStatus;
+		}
+	} else if (isActive) {
+		displayMode = "status";
+		effectiveStatus = transportStatus;
+	} else if (configured) {
+		displayMode = statusPending ? "pending" : "configured";
+	} else {
+		displayMode = "unconfigured";
+	}
 
 	return (
 		<ImChannelCardView
@@ -42,12 +73,14 @@ export function ImChannelCard({
 			configured={configured}
 			isActive={isActive}
 			effectiveStatus={effectiveStatus as ImStatusBadgeStatus}
+			displayMode={displayMode}
 			onConfigure={onConfigure}
 			onActivate={onActivate}
 			labels={{
 				channelActive: t("channelActive"),
 				channelConfigured: t("channelConfigured"),
 				channelNotAssociated: t("channelNotAssociated"),
+				channelPending: t("channelPendingStatus"),
 				activateChannelTitle: t("activateChannelTitle"),
 				configureLabel,
 				statusLabel: t(STATUS_LABEL[effectiveStatus] as "imbStatusOffline"),

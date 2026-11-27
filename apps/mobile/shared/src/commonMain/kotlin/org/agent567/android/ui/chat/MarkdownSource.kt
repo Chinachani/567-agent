@@ -2,6 +2,10 @@ package org.agent567.android.ui.chat
 
 private val visibleConversationTags = setOf("output", "message")
 
+/** Normalize CRLF/CR line endings from remote release notes so CommonMark blocks parse cleanly. */
+internal fun normalizeReleaseNotesMarkdown(raw: String): String =
+    raw.replace("\r\n", "\n").replace('\r', '\n').trim()
+
 /**
  * The desktop conversation can intentionally show protocol wrappers such as `<output>`.
  * CommonMark treats those wrappers as raw HTML and removes them from the rendered text, so

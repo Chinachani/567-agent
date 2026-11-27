@@ -79,6 +79,7 @@ internal fun parseFailure(httpStatus: Int, body: String): Agent567Exception {
     runCatching {
         Agent567Json.decodeFromString(OpenAiErrorBody.serializer(), body)
     }.getOrNull()?.let { openai ->
+        val providerCode = (openai.error?.code as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
         val message =
             openai.error?.message
                 ?: openai.message
@@ -89,6 +90,7 @@ internal fun parseFailure(httpStatus: Int, body: String): Agent567Exception {
                 code = openai.error?.code?.asNumericCode(),
                 message = "当前分组下该模型鉴权失败或无权限，请更换模型或分组重试",
                 rawBody = body,
+                providerCode = providerCode,
             )
         }
         if (httpStatus == 401) {
@@ -99,6 +101,7 @@ internal fun parseFailure(httpStatus: Int, body: String): Agent567Exception {
             code = openai.error?.code?.asNumericCode(),
             message = message,
             rawBody = body,
+            providerCode = providerCode,
         )
     }
 

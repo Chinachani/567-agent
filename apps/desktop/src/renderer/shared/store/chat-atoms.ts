@@ -86,6 +86,8 @@ export interface PendingMessageEdit {
 
 export interface ActiveSession {
 	cwd: string;
+	/** Project that owns the session history when execution uses a separate directory. */
+	listCwd?: string;
 	sessionPath: string;
 	runtimeId: string;
 	/** Parent session jsonl path when this session was forked. */
@@ -123,9 +125,14 @@ export interface PendingSessionOpen {
 	error?: string;
 }
 
-/** After opening a parent session from a fork banner, scroll to this entry. */
+export interface ConversationFeedIdentity {
+	sessionPath: string;
+	runtimeId: string | null;
+}
+
 export interface PendingScrollToEntry {
 	entryId: string;
+	scope?: ConversationFeedIdentity;
 }
 
 export const pendingScrollToEntryAtom = atom<PendingScrollToEntry | null>(null);
@@ -198,6 +205,11 @@ export const inputValueAtom = atom<string>("");
 export const inputSegmentsAtom = atom<InputSegment[]>([]);
 export const attachedImagesAtom = atom<AttachedImage[]>([]);
 export const activeSessionAtom = atom<ActiveSession | null>(null);
+export const chatMessageSessionAtom = atom<ActiveSession | null>(null);
+export const commitActiveChatSessionAtom = atom(null, (_get, set, session: ActiveSession) => {
+	set(chatMessageSessionAtom, session);
+	set(activeSessionAtom, session);
+});
 
 /**
  * 当前会话的 cwd（本地绝对路径或 `ssh://<hostId>/<path>`）。

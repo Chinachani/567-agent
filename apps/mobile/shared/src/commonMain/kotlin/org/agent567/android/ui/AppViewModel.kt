@@ -35,6 +35,7 @@ import org.agent567.android.app.AppContainer
 import org.agent567.android.app.ThemeMode
 import org.agent567.android.data.session.SessionMigrationBackup
 import org.agent567.android.core.model.ChatRole
+import org.agent567.android.core.model.AssistantReplayState
 import org.agent567.android.core.model.ChatMessage
 import org.agent567.android.core.model.ChatStreamEvent
 import org.agent567.android.core.model.LlmModel
@@ -58,6 +59,7 @@ import org.agent567.android.domain.conversation.RemotePromptFileAttachment
 import org.agent567.android.domain.conversation.RemoteDesktopSessionSummary
 import org.agent567.android.domain.conversation.RemoteToolboxAbility
 import org.agent567.android.domain.conversation.RemoteConversationException
+import org.agent567.android.domain.conversation.RemoteTurnNotFoundException
 import org.agent567.android.domain.remote.connection.RemotePairingIdentityChanged
 import org.agent567.android.domain.error.ErrorMapper
 import org.agent567.android.domain.error.UiError
@@ -68,6 +70,7 @@ import org.agent567.android.domain.device.DeviceStatus
 import org.agent567.android.domain.device.SessionListItem
 import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.LocalMessage
+import org.agent567.android.domain.session.PendingRemoteTurn
 import org.agent567.android.domain.session.MessageImage
 import org.agent567.android.domain.session.MessageStatus
 import org.agent567.android.domain.session.PendingQuestion
@@ -445,6 +448,7 @@ class AppViewModel(
     }
 
     private val streamJobs = mutableMapOf<String, Job>()
+    private val remoteRecoveryJobs = mutableMapOf<String, Job>()
     private val pendingSendReservations = mutableSetOf<String>()
     private val retryPreparingSessions = mutableSetOf<String>()
     private val remoteImageFetches = mutableSetOf<String>()
@@ -578,12 +582,18 @@ class AppViewModel(
             var hadOnlineDevice = container.remoteConversationGateway.devices.value.any {
                 it.status == org.agent567.android.domain.device.DeviceStatus.Online
             }
+            var onlineDeviceIds = container.remoteConversationGateway.devices.value
+                .filter { it.status == org.agent567.android.domain.device.DeviceStatus.Online }
+                .mapTo(mutableSetOf()) { it.id }
             container.remoteConversationGateway.devices.collect { devices ->
                 val tracked = mutableSetOf<String>()
-                devices.filter { it.status == org.agent567.android.domain.device.DeviceStatus.Online }.forEach { device ->
+                val onlineDevices = devices.filter { it.status == org.agent567.android.domain.device.DeviceStatus.Online }
+                val currentOnlineDeviceIds = onlineDevices.mapTo(mutableSetOf()) { it.id }
+                val newlyOnlineDeviceIds = currentOnlineDeviceIds - onlineDeviceIds
+                onlineDevices.forEach { device ->
                     device.activeConversation?.let { active ->
                         val local = container.sessionStore.sessions.value.firstOrNull { it.remoteDeviceId == device.id && it.remoteSessionId == active.id }
-                        if (local != null && streamJobs[local.id]?.isActive != true) {
+                        if (local != null && !isSessionBusy(local.id)) {
                             tracked += local.id
                             remoteTaskNotifications.observe(local.id, active.status)
                         }
@@ -598,6 +608,20 @@ class AppViewModel(
                 if (!hadOnlineDevice && hasOnlineDevice && _state.value.sessionFilterIndex == 1) {
                     loadDesktopSessions()
                 }
+                val visibleSessionId = _state.value.currentSessionId
+                if (visibleSessionId != null && newlyOnlineDeviceIds.isNotEmpty() && !isSessionBusy(visibleSessionId)) {
+                    val visibleSession = container.sessionStore.sessions.value.firstOrNull { it.id == visibleSessionId }
+                    val pending = visibleSession?.pendingRemoteTurn
+                    if (
+                        pending != null &&
+                        !pending.confirmedNotReceived &&
+                        pending.deviceId in newlyOnlineDeviceIds &&
+                        (_state.value.route as? AppRoute.Chat)?.sessionId == visibleSessionId
+                    ) {
+                        resumePendingRemoteTurn(visibleSessionId)
+                    }
+                }
+                onlineDeviceIds = currentOnlineDeviceIds
                 hadOnlineDevice = hasOnlineDevice
             }
         }
@@ -764,8 +788,11 @@ class AppViewModel(
     private var groupCatalogClient: org.agent567.android.core.Agent567Client? = null
     private var groupCatalogRevision = -1L
 
-    private fun cachedModels(group: String?) = if (group == null) emptyList() else container.preferences.getCachedGroupModels(group).map { id ->
-        container.client.models.resolveContext(org.agent567.android.core.model.groupCatalogModel(id, group), group)
+    private fun cachedModels(group: String?): List<LlmModel> {
+        if (group == null) return emptyList()
+        val repository = container.client.models
+        val cached = container.preferences.getCachedGroupModels(group).map { id -> org.agent567.android.core.model.groupCatalogModel(id, group) }
+        return repository.conversationModels(cached).map { repository.resolveContext(it, group) }
     }
 
     private fun cachedImageModels(group: String?) = if (group == null) emptyList() else
@@ -817,10 +844,11 @@ class AppViewModel(
                 }
             }
             val imageRead = if (image != null && image != chat) async { catalogOrNull { client.models.refreshGroupModels(image, image in explicitGroups) } } else null
-            val models = chatRead.await()
+            val groupModels = chatRead.await()
             if (!isCurrentAccount(client, revision) || _state.value.active567Group != chat) return@launch
-            if (chat != null && models != null) {
-                container.preferences.setCachedGroupModels(chat, models.map { it.id })
+            if (chat != null && groupModels != null) {
+                container.preferences.setCachedGroupModels(chat, groupModels.map { it.id })
+                val models = client.models.conversationModels(groupModels)
                 val previous = _state.value.selectedModelId ?: container.preferences.lastModelId.takeIf { chatGroupRemoved == null && chat !in explicitGroups }
                 val chosen = resolveModelId(previous, models)
                 container.preferences.lastModelId = chosen
@@ -828,10 +856,10 @@ class AppViewModel(
                 if (removed != null) container.preferences.setCatalogChange(false, removed)
                 _state.update { it.copy(models = models, selectedModelId = chosen, chatSelectionRemoved = removed ?: it.chatSelectionRemoved) }
             }
-            _state.update { it.copy(catalogLoading = false, chatCatalogUnavailable = models == null) }
+            _state.update { it.copy(catalogLoading = false, chatCatalogUnavailable = groupModels == null) }
             // Gateways without named drawing groups can still accept an explicitly configured image model.
             // Only a response for its own group proves that model was removed.
-            val images = when { image == null -> null; image == chat -> models; else -> imageRead?.await() }
+            val images = when { image == null -> null; image == chat -> groupModels; else -> imageRead?.await() }
             if (!isCurrentAccount(client, revision) || _state.value.activeImageGroup != image) return@launch
             if (images != null) {
                 val allIds = images.map { it.id }
@@ -1275,7 +1303,7 @@ class AppViewModel(
                     val restoredRoute = _state.value.route as? AppRoute.Chat
                     if (restoredRoute?.surface == ChatSurface.Desktop && restoredRoute.sessionId != null) {
                         val session = container.sessionStore.getSession(restoredRoute.sessionId)
-                        if (session?.remoteSessionId != null) {
+                        if (session?.remoteSessionId != null && session.pendingRemoteTurn == null && !isSessionBusy(session.id)) {
                             loadDesktopSessionDetail(session.id, session.remoteSessionId)
                         }
                     }
@@ -1470,7 +1498,7 @@ class AppViewModel(
                         session.remoteSessionId != null &&
                         session.remoteSessionId in summaryIds &&
                         drafts[session.id].isNullOrBlank() &&
-                        streamJobs[session.id]?.isActive != true &&
+                        !isSessionBusy(session.id) &&
                         (_state.value.currentSessionId != session.id || (_state.value.pendingImages.isEmpty() && _state.value.pendingFiles.isEmpty())) &&
                         (_state.value.route as? AppRoute.Chat)?.sessionId != session.id
                 }
@@ -1627,8 +1655,11 @@ class AppViewModel(
             attachSession(sessionId, clearPendingImages = clearPending)
             if (surface == ChatSurface.Desktop) {
                 val session = container.sessionStore.sessions.value.firstOrNull { it.id == sessionId }
-                if (session?.remoteSessionId != null) loadDesktopSessionDetail(sessionId, session.remoteSessionId)
-                else refreshDesktopSessionModels(sessionId)
+                if (session?.remoteSessionId != null && session.pendingRemoteTurn == null) {
+                    loadDesktopSessionDetail(sessionId, session.remoteSessionId)
+                } else if (session?.remoteSessionId == null) {
+                    refreshDesktopSessionModels(sessionId)
+                }
             }
         } else {
             detachSessionMessages()
@@ -1672,7 +1703,7 @@ class AppViewModel(
                 val data = if (session.origin == ConversationOrigin.Desktop) {
                     requireDesktopContextDevice(session)
                     session.remoteSessionId?.let { container.remoteConversationGateway.readDesktopWorkbench(sid, it) } ?: throw RemoteConversationException(Str.contextDesktopUnsupported)
-                } else org.agent567.android.domain.chat.localSessionWorkbench(container.sessionStore.getMessages(sid), streamJobs[sid]?.isCompleted == false)
+                } else org.agent567.android.domain.chat.localSessionWorkbench(container.sessionStore.getMessages(sid), isSessionBusy(sid))
                 if (workbenchReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) { it.copy(workbenchSnapshot = data) }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -1858,7 +1889,7 @@ class AppViewModel(
                     }
                 }
                 if (contextReadJob === currentCoroutineContext()[Job]) updateVisibleSession(sid) {
-                    it.copy(contextSnapshot = snapshot.copy(busy = snapshot.busy || streamJobs[sid]?.isCompleted == false || sid in pendingSendReservations), contextBusy = sid in contextOperations)
+                    it.copy(contextSnapshot = snapshot.copy(busy = snapshot.busy || isSessionBusy(sid) || sid in pendingSendReservations), contextBusy = sid in contextOperations)
                 }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -1962,7 +1993,7 @@ class AppViewModel(
     private fun runContextOperation(action: suspend (org.agent567.android.domain.session.ChatSession, String?, Long?, String?) -> Unit) {
         val state = _state.value
         val sid = state.currentSessionId ?: return
-        if (sid in contextOperations || NEW_SESSION_SEND_RESERVATION in pendingSendReservations || sid in pendingSendReservations || streamJobs[sid]?.isCompleted == false || sid in retryPreparingSessions || state.desktopHistoryLoading) return
+        if (sid in contextOperations || NEW_SESSION_SEND_RESERVATION in pendingSendReservations || sid in pendingSendReservations || isSessionBusy(sid) || sid in retryPreparingSessions || state.desktopHistoryLoading) return
         val selected = if ((state.route as? AppRoute.Chat)?.surface == ChatSurface.Desktop) state.desktopModels.firstOrNull { it.id == state.desktopSelectedModelId } else currentModel()
         val job = viewModelScope.launch(org.agent567.android.app.RequestClientContext(container.client), start = CoroutineStart.LAZY) {
             updateVisibleSession(sid) { it.copy(contextBusy = true, contextError = null, contextNotice = null) }
@@ -1987,8 +2018,20 @@ class AppViewModel(
     }
 
     private fun loadDesktopSessionDetail(localSessionId: String, remoteSessionId: String, recoveredMessageId: String? = null) {
+        if (
+            recoveredMessageId == null &&
+            (isSessionBusy(localSessionId) || container.sessionStore.sessions.value.firstOrNull { it.id == localSessionId }?.pendingRemoteTurn != null)
+        ) {
+            return
+        }
         desktopHistoryJob?.cancel()
         desktopHistoryJob = viewModelScope.launch {
+            if (
+                recoveredMessageId == null &&
+                (isSessionBusy(localSessionId) || container.sessionStore.getSession(localSessionId)?.pendingRemoteTurn != null)
+            ) {
+                return@launch
+            }
             _state.update { it.copy(desktopHistoryLoading = true) }
             try {
                 val history = container.remoteConversationGateway.readDesktopSessionHistory(localSessionId, remoteSessionId)
@@ -2165,7 +2208,8 @@ class AppViewModel(
     private suspend fun isEmptyRemoteDraftStillDisposable(sessionId: String): Boolean {
         if (runCatching { container.sessionStore.hasDraft(sessionId) }.getOrDefault(true)) return false
         val current = _state.value
-        return streamJobs[sessionId]?.isActive != true &&
+        return !isSessionBusy(sessionId) &&
+            container.sessionStore.getSession(sessionId)?.pendingRemoteTurn == null &&
             drafts[sessionId].isNullOrBlank() &&
             (current.currentSessionId != sessionId || (current.pendingImages.isEmpty() && current.pendingFiles.isEmpty())) &&
             (current.route as? AppRoute.Chat)?.sessionId != sessionId
@@ -3259,9 +3303,9 @@ class AppViewModel(
         }
     }
 
-    fun sendMessage() = sendMessage(retryPreviousTurn = false)
+    fun sendMessage() = sendMessage(retryPreviousTurn = false, remoteTurnId = null)
 
-    private fun sendMessage(retryPreviousTurn: Boolean) {
+    private fun sendMessage(retryPreviousTurn: Boolean, remoteTurnId: String?) {
         val stateAtSend = _state.value
         if ((stateAtSend.route as? AppRoute.Chat)?.surface == ChatSurface.Cloud) {
             if (stateAtSend.active567Group == null) { setGroupWizardOpen(true); return }
@@ -3275,7 +3319,7 @@ class AppViewModel(
         val images = stateAtSend.pendingImages
         val activeSessionId = stateAtSend.currentSessionId
         if ((text.isEmpty() && images.isEmpty() && documents.isEmpty()) || activeSessionId?.let {
-                streamJobs[it]?.isCompleted == false || it in retryPreparingSessions || it in contextOperations
+                isSessionBusy(it) || it in retryPreparingSessions || it in contextOperations
             } == true
         ) return
         val sendReservation = activeSessionId ?: NEW_SESSION_SEND_RESERVATION
@@ -3432,6 +3476,9 @@ class AppViewModel(
                 }
             }
             val assistantId = newMessageId()
+            val pendingTurnId = if (session.origin == ConversationOrigin.Desktop) {
+                remoteTurnId ?: newRemoteTurnId()
+            } else null
             val assistantMsg =
                 LocalMessage(
                     id = assistantId,
@@ -3443,6 +3490,21 @@ class AppViewModel(
                 )
             container.sessionStore.upsertMessage(userMsg)
             container.sessionStore.upsertMessage(assistantMsg)
+            if (pendingTurnId != null) {
+                container.sessionStore.updateSession(
+                    session.copy(
+                        pendingRemoteTurn = PendingRemoteTurn(
+                            turnId = pendingTurnId,
+                            deviceId = requireNotNull(session.remoteDeviceId),
+                            remoteSessionId = session.remoteSessionId,
+                            assistantMessageId = assistantId,
+                            createdAtEpochMs = assistantMsg.createdAtEpochMs,
+                            retryPreviousTurn = retryPreviousTurn,
+                            confirmedNotReceived = false,
+                        ),
+                    ),
+                )
+            }
             val latestDraft = composerDrafts[sid]
             val consumeDraft = latestDraft == null || (latestDraft.text == text && latestDraft.images.map { it.id } == images.map { it.id } && latestDraft.files.map { it.id } == documents.map { it.id })
             if (consumeDraft) saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft())
@@ -3478,14 +3540,32 @@ class AppViewModel(
                     var responseTruncated = false
                     var generationError: String? = null
                     var recoveryNeedsHistory = false
+                    var remoteSessionSynced = session.remoteSessionId != null
+                    var latestReplayState: AssistantReplayState? = null
+                    val handledLocalImageToolIds = mutableSetOf<String>()
 
                     var terminalPublished = false
 
                     fun makeSnapshot(status: MessageStatus = MessageStatus.Streaming): LocalMessage {
                         val contentStr = assembledBuilder.toString()
+                        val finalStatus = if (generationError != null) MessageStatus.Error else status
+                        val persistedReplayState = if (finalStatus == MessageStatus.Complete) {
+                            latestReplayState?.let { state ->
+                                val remainingToolCalls = if (handledLocalImageToolIds.isEmpty()) {
+                                    state.toolCalls
+                                } else {
+                                    state.toolCalls.filterNot { call ->
+                                        call.id.substringBefore('|') in handledLocalImageToolIds
+                                    }
+                                }
+                                state.copy(toolCalls = remainingToolCalls).takeIf {
+                                    it.reasoningItems.isNotEmpty() || it.toolCalls.isNotEmpty() || it.signedReasoningReset
+                                }
+                            }
+                        } else null
                         return assistantMsg.copy(
                             content = contentStr,
-                            status = if (generationError != null) MessageStatus.Error else status,
+                            status = finalStatus,
                             errorMessage = generationError,
                             processingDurationMs = if (status == MessageStatus.Streaming) null else elapsedSince(assistantMsg.createdAtEpochMs),
                             images = assistantImages,
@@ -3494,6 +3574,7 @@ class AppViewModel(
                             usage = usage,
                             contextPercent = contextPercent,
                             pendingQuestion = pendingQuestion,
+                            replayState = persistedReplayState,
                         )
                     }
 
@@ -3524,6 +3605,7 @@ class AppViewModel(
                                 groupName = stateAtSend.active567Group,
                                 imageGenModel = if (stateAtSend.imageGenEnabled && stateAtSend.activeImageGroup != null) stateAtSend.activeImageModel else null,
                                 retryPreviousTurn = retryPreviousTurn,
+                                remoteTurnId = pendingTurnId,
                                 desktopPromptText = buildString {
                                     append(stateAtSend.draft)
                                     documents.filter { it.readScope.isNotBlank() }.forEach { document -> append("\n\n[Attachment reading scope requested by user] ").append(document.fileName).append(": ").append(document.readScope) }
@@ -3538,6 +3620,11 @@ class AppViewModel(
                             )
                             .collect { event ->
                                 if (terminalPublished) return@collect
+                                if (session.origin == ConversationOrigin.Desktop && !remoteSessionSynced) {
+                                    if (syncResolvedRemoteSessionMetadata(sid, pendingTurnId, fetchTitle = false) != null) {
+                                        remoteSessionSynced = true
+                                    }
+                                }
                                 when (event) {
                                     is ChatStreamEvent.Snapshot -> {
                                         assistantSources = event.sources
@@ -3614,6 +3701,7 @@ class AppViewModel(
                                             )
                                         }
                                         if (isImageGen && event.phase == "call" && session.origin == ConversationOrigin.Cloud) {
+                                            handledLocalImageToolIds.add(event.toolCallId.substringBefore('|'))
                                             var promptArg = event.arguments.orEmpty()
                                             var isEdit = false
                                             try {
@@ -3789,6 +3877,17 @@ class AppViewModel(
                                     }
                                     is ChatStreamEvent.State -> {
                                         when (event.value) {
+                                            "submitted" -> if (event.detailCode == "remote_session_id" && !event.detail.isNullOrBlank()) {
+                                                container.sessionStore.getSession(sid)?.let { current ->
+                                                    val pending = current.pendingRemoteTurn
+                                                    container.sessionStore.updateSession(
+                                                        current.copy(
+                                                            remoteSessionId = event.detail,
+                                                            pendingRemoteTurn = pending?.copy(remoteSessionId = event.detail),
+                                                        ),
+                                                    )
+                                                }
+                                            }
                                             "usage" -> {
                                                 usage = event.usage
                                                 contextPercent = event.contextPercent
@@ -3797,6 +3896,7 @@ class AppViewModel(
                                             "error" -> {
                                                 generationError = event.detail ?: "桌面执行失败"
                                                 pendingQuestion = null
+                                                clearPendingRemoteTurn(sid, pendingTurnId)
                                                 flushAllImmediate(MessageStatus.Error)
                                                 taskNotifications.interrupted(sid)
                                                 setStreamStatus(sid, null)
@@ -3815,6 +3915,7 @@ class AppViewModel(
                                             "aborted" -> {
                                                 taskNotifications.interrupted(sid)
                                                 pendingQuestion = null
+                                                clearPendingRemoteTurn(sid, pendingTurnId)
                                                 flushAllImmediate(MessageStatus.Aborted)
                                                 updateVisibleSession(sid) { it.copy(pendingQuestion = null) }
                                                 setStreamStatus(sid, null)
@@ -3826,8 +3927,12 @@ class AppViewModel(
                                         usage = it
                                         flushAllImmediate()
                                     }
+                                    is ChatStreamEvent.ReplayState -> {
+                                        latestReplayState = event.replayState
+                                    }
                                     ChatStreamEvent.Done -> {
                                         pendingQuestion = null
+                                        clearPendingRemoteTurn(sid, pendingTurnId)
                                         flushAllImmediate(MessageStatus.Complete)
                                         if (generationError != null) taskNotifications.interrupted(sid) else taskNotifications.finished(sid, assistantImages.isNotEmpty())
                                         updateVisibleSession(sid) { it.copy(pendingQuestion = null) }
@@ -3935,6 +4040,7 @@ class AppViewModel(
                         // A provider may close the flow normally without a separate Done event.
                         if (!terminalPublished) {
                             pendingQuestion = null
+                            clearPendingRemoteTurn(sid, pendingTurnId)
                             flushAllImmediate(MessageStatus.Complete)
                         }
                     }
@@ -3946,7 +4052,7 @@ class AppViewModel(
                         val historyMessages = storedHistory.filter {
                             it.id != assistantId &&
                                 it.status != MessageStatus.Error &&
-                                it.hasVisualContent
+                                it.hasReplayableContextContent
                         }
                         val selectedHistory = if (session.origin == ConversationOrigin.Cloud) {
                             mobileContext.selectForPrompt(storedHistory.filterNot { it.id == assistantId }, context, userMsg)
@@ -3955,25 +4061,7 @@ class AppViewModel(
                         val history = if (session.origin == ConversationOrigin.Cloud) mobileContext.referenceMessages(context) + builtHistory else builtHistory
                         collectAssistant(history)
                         if (session.origin == ConversationOrigin.Desktop) {
-                            val remoteId = session.remoteSessionId
-                                ?: container.conversationRouter.resolvedRemoteSessionId(session.id)
-                            if (remoteId != null) {
-                                val syncedTitle = session.remoteDeviceId?.let { deviceId ->
-                                    runCatching {
-                                        container.remoteConversationGateway.listDesktopSessions(deviceId)
-                                            ?.firstOrNull { it.id == remoteId }?.title
-                                    }.getOrNull()
-                                }
-                                val latestSession = container.sessionStore.getSession(sid) ?: session
-                                container.sessionStore.updateSession(
-                                    latestSession.copy(
-                                        remoteSessionId = remoteId,
-                                        title = syncedTitle?.takeIf { it.isNotBlank() }
-                                            ?.takeUnless { latestSession.titleManuallyEdited }
-                                            ?: latestSession.title,
-                                    ),
-                                )
-                            }
+                            syncResolvedRemoteSessionMetadata(sid, pendingTurnId = null, fetchTitle = true)
                         }
                         if (session.origin == ConversationOrigin.Cloud && isFirstUserMessage && titlePrompt.isNotBlank() && titleModelId != null) {
                             viewModelScope.launch {
@@ -3987,6 +4075,9 @@ class AppViewModel(
                             // collectAssistant's scope has already joined both publishers. A later
                             // metadata request must not turn a durable completed reply into a failure.
                             if (terminalPublished) return@withContext
+                            if (session.origin == ConversationOrigin.Desktop) {
+                                syncResolvedRemoteSessionMetadata(sid, pendingTurnId, fetchTitle = false)
+                            }
                             val networkLost = t.isChatNetworkLoss()
                             val stopped = t is CancellationException && !networkLost
                             if (stopped) taskNotifications.stopped(sid) else taskNotifications.interrupted(sid)
@@ -3997,7 +4088,13 @@ class AppViewModel(
                                 makeSnapshot(status).copy(status = status, errorMessage = if (stopped) null else ui.message),
                             )
                             if (!stopped) {
-                                setSessionError(sid, if (networkLost) ChatNetworkLostException() else t)
+                                setSessionError(
+                                    sid,
+                                    if (networkLost) ChatNetworkLostException() else t,
+                                    desktopPendingAction = if (session.origin == ConversationOrigin.Desktop && pendingTurnId != null) {
+                                        UiErrorAction.ResumeRemoteTurn
+                                    } else null,
+                                )
                                 if (documents.isNotEmpty()) {
                                     updateVisibleSession(sid) { current ->
                                         if (current.draft.isBlank() && current.pendingFiles.isEmpty() && current.pendingImages.isEmpty()) {
@@ -4010,7 +4107,7 @@ class AppViewModel(
                     } finally {
                         if (streamJobs[sid] === currentCoroutineContext()[Job]) {
                             streamJobs.remove(sid)
-                            _state.update { it.copy(runningSessionIds = streamJobs.keys.toSet()) }
+                            updateRunningSessions()
                             taskNotifications.stopped(sid)
                             streamStatuses.remove(sid)
                             updateVisibleSession(sid) { it.copy(isStreaming = false, streamingStatus = null) }
@@ -4021,8 +4118,9 @@ class AppViewModel(
                         }
                     }
                 }
+            remoteRecoveryJobs.remove(sid)?.cancel()
             streamJobs[sid] = streamJob
-            _state.update { it.copy(runningSessionIds = streamJobs.keys.toSet()) }
+            updateRunningSessions()
             pendingSendReservations.remove(sendReservation)
             streamJob.start()
         }.invokeOnCompletion { pendingSendReservations.remove(sendReservation) }
@@ -4064,9 +4162,10 @@ class AppViewModel(
     }
 
     private suspend fun buildChatHistory(messages: List<LocalMessage>): List<ChatMessage> {
+        val pairedMessages = pairToolCallTurns(messages)
         val selectedImageData = mutableMapOf<String, String>()
         var totalImageBytes = 0
-        val candidates = messages.flatMap { message -> message.images.map { message.id to it } }.asReversed()
+        val candidates = pairedMessages.flatMap { message -> message.images.map { message.id to it } }.asReversed()
         for ((messageId, image) in candidates) {
             if (selectedImageData.size >= MAX_REQUEST_IMAGE_COUNT || totalImageBytes >= MAX_REQUEST_IMAGE_CONTEXT_BYTES) break
             val bytes = container.sessionStore.readMessageImageBytes(image) ?: continue
@@ -4074,13 +4173,64 @@ class AppViewModel(
             selectedImageData["$messageId:${image.storageKey ?: image.id}"] = encodeImageBytes(bytes)
             totalImageBytes += bytes.size
         }
-        return messages.map { message ->
+        return pairedMessages.map { message ->
             val resolvedImages = message.images.mapNotNull { image ->
                 val encoded = selectedImageData["${message.id}:${image.storageKey ?: image.id}"] ?: return@mapNotNull null
                 image.copy(base64Data = encoded, pendingBytes = null)
             }
             message.copy(images = resolvedImages).toChatMessage()
         }
+    }
+
+    private fun pairToolCallTurns(messages: List<LocalMessage>): List<LocalMessage> {
+        val paired = mutableListOf<LocalMessage>()
+        var index = 0
+        while (index < messages.size) {
+            val current = messages[index]
+            if (current.role == ChatRole.Tool) {
+                index++
+                continue
+            }
+            if (current.role != ChatRole.Assistant) {
+                paired += current
+                index++
+                continue
+            }
+            val replay = current.replayState
+            val toolCalls = replay?.toolCalls.orEmpty()
+            var cursor = index + 1
+            val toolMessages = mutableListOf<LocalMessage>()
+            while (cursor < messages.size && messages[cursor].role == ChatRole.Tool) {
+                toolMessages += messages[cursor]
+                cursor++
+            }
+            if (toolCalls.isEmpty() || toolMessages.isEmpty()) {
+                val strippedReplay = replay?.takeIf { it.reasoningItems.isNotEmpty() || it.signedReasoningReset }
+                    ?.copy(toolCalls = emptyList())
+                paired += if (toolCalls.isEmpty()) current else current.copy(replayState = strippedReplay)
+                index = cursor
+                continue
+            }
+            val outputIds = toolMessages.mapNotNull { msg ->
+                msg.toolCallId?.substringBefore('|')?.takeIf { it.isNotBlank() }
+            }.toSet()
+            val keptToolCalls = toolCalls.filter { call ->
+                call.id.substringBefore('|') in outputIds
+            }
+            val keptCallIds = keptToolCalls.map { it.id.substringBefore('|') }.toMutableSet()
+            val updatedReplay = replay?.copy(toolCalls = keptToolCalls)?.takeIf {
+                it.reasoningItems.isNotEmpty() || it.toolCalls.isNotEmpty() || it.signedReasoningReset
+            }
+            paired += if (keptToolCalls.size == toolCalls.size) current else current.copy(replayState = updatedReplay)
+            for (toolMsg in toolMessages) {
+                val callId = toolMsg.toolCallId?.substringBefore('|')
+                if (callId != null && keptCallIds.remove(callId)) {
+                    paired += toolMsg
+                }
+            }
+            index = cursor
+        }
+        return paired
     }
 
     private suspend fun loadImageBase64WithinBudget(images: List<MessageImage>): List<String> {
@@ -4220,10 +4370,17 @@ class AppViewModel(
 
     fun stopStreaming() {
         val sid = _state.value.currentSessionId ?: return
+        if (remoteRecoveryJobs[sid]?.isActive == true && streamJobs[sid]?.isActive != true) {
+            cancelPendingRemoteTurn()
+            return
+        }
         cancelStream(sid)
         viewModelScope.launch {
             container.sessionStore.getSession(sid)?.let { session ->
                 runCatching { container.conversationRouter.abort(session) }
+                if (session.pendingRemoteTurn != null) {
+                    container.sessionStore.updateSession(session.copy(pendingRemoteTurn = null))
+                }
             }
             val streaming =
                 container.sessionStore.getMessages(sid).lastOrNull {
@@ -4243,6 +4400,32 @@ class AppViewModel(
                     pendingQuestion = state.pendingQuestion?.takeIf { it.sessionId != sid },
                 )
             }
+        }
+    }
+
+    fun cancelPendingRemoteTurn() {
+        val sid = _state.value.currentSessionId ?: return
+        remoteRecoveryJobs.remove(sid)?.cancel()
+        updateRunningSessions()
+        viewModelScope.launch {
+            val session = container.sessionStore.getSession(sid) ?: return@launch
+            val pending = session.pendingRemoteTurn ?: return@launch
+            runCatching {
+                container.remoteConversationGateway.abort(sid, pending.deviceId, pending.remoteSessionId ?: session.remoteSessionId)
+            }
+            container.sessionStore.updateSession(session.copy(pendingRemoteTurn = null))
+            val assistant = container.sessionStore.getMessages(sid).firstOrNull { it.id == pending.assistantMessageId }
+            if (assistant != null && assistant.status != MessageStatus.Complete) {
+                container.sessionStore.upsertMessage(
+                    assistant.copy(
+                        status = MessageStatus.Aborted,
+                        errorMessage = null,
+                        pendingQuestion = null,
+                        processingDurationMs = assistant.processingDurationMs ?: elapsedSince(assistant.createdAtEpochMs),
+                    ),
+                )
+            }
+            updateVisibleSession(sid) { it.copy(isStreaming = false, streamingStatus = null, pendingQuestion = null, chatError = null) }
         }
     }
 
@@ -4301,70 +4484,101 @@ class AppViewModel(
     fun retryLastError(assistantMessageId: String? = null) {
         val retryRoute = _state.value.route
         val sid = _state.value.currentSessionId ?: return
-        if (streamJobs[sid]?.isCompleted == false || sid in pendingSendReservations || sid in contextOperations || !retryPreparingSessions.add(sid)) return
+        if (isSessionBusy(sid) || sid in pendingSendReservations || sid in contextOperations || !retryPreparingSessions.add(sid)) return
         viewModelScope.launch {
             try {
-                if (streamJobs[sid]?.isCompleted == false) return@launch
-                val messages = container.sessionStore.getMessages(sid)
-                val turn = prepareRetryTurn(messages, assistantMessageId) ?: return@launch
-                if (turn.files.isNotEmpty()) {
-                    val current = _state.value
-                    val owner = composerOwner() ?: return@launch
-                    if (current.route != retryRoute || current.currentSessionId != sid) return@launch
-                    if (!current.canRestoreRetry(turn.files)) {
-                        updateVisibleSession(sid) { it.copy(chatError = UiError(Str.retryPickFiles, Str.retryDraftOccupied)) }
-                    } else {
-                        val selection = org.agent567.android.ui.chat.RetryFileSelection(sid, turn.assistantMessageId, turn.files, authRevision, owner)
-                        updateVisibleSession(sid) { it.copy(retryFileSelection = selection, chatError = null) }
-                    }
-                    return@launch
-                }
-                val retryImages = turn.images.map { image ->
-                    if (image.storageKey == null || image.pendingBytes != null || image.base64Data.isNotBlank()) {
-                        image
-                    } else {
-                        val bytes = container.sessionStore.readMessageImageBytes(image)
-                        if (bytes == null) {
-                            updateVisibleSession(sid) {
-                                it.copy(chatError = UiError(
-                                    title = Str.retryMissingImageTitle,
-                                    message = Str.retryMissingImageMessage,
-                                ))
-                            }
-                            return@launch
-                        }
-                        image.copy(storageKey = null, pendingBytes = bytes)
-                    }
-                }
-                if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) return@launch
-                val session = container.sessionStore.getSession(sid) ?: return@launch
-                if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) return@launch
-                val boundary = messages.firstOrNull { it.id == session.context.throughMessageId }
-                if (boundary != null && session.context.throughCreatedAtEpochMs == null) {
-                    container.sessionStore.updateSession(session.copy(context = session.context.copy(throughCreatedAtEpochMs = boundary.createdAtEpochMs)))
-                }
-                if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) return@launch
-                container.sessionStore.replaceMessages(sid, turn.remainingMessages)
-                if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) {
-                    // A navigation during the write cancels preparation; keep the original failed turn.
-                    container.sessionStore.replaceMessages(sid, messages)
-                    return@launch
-                }
-                saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft(turn.draft, retryImages))
-                // 必须同时恢复图片；否则纯图重试会变成 no-op，图文重试会丢图
-                _state.update {
-                    it.copy(
-                        draft = turn.draft,
-                        pendingImages = retryImages,
-                        chatError = null,
-                    )
-                }
-                retryPreparingSessions.remove(sid)
-                sendMessage(retryPreviousTurn = true)
+                executeRetryTurn(sid, retryRoute, assistantMessageId, resendUnconfirmed = false)
             } finally {
                 retryPreparingSessions.remove(sid)
             }
         }
+    }
+
+    fun resendPendingRemoteTurn() {
+        val retryRoute = _state.value.route
+        val sid = _state.value.currentSessionId ?: return
+        remoteRecoveryJobs.remove(sid)?.cancel()
+        updateRunningSessions()
+        if (isSessionBusy(sid) || sid in pendingSendReservations || sid in contextOperations || !retryPreparingSessions.add(sid)) return
+        viewModelScope.launch {
+            try {
+                val assistantId = container.sessionStore.getSession(sid)?.pendingRemoteTurn?.assistantMessageId
+                executeRetryTurn(sid, retryRoute, assistantId, resendUnconfirmed = true)
+            } finally {
+                retryPreparingSessions.remove(sid)
+            }
+        }
+    }
+
+    private suspend fun executeRetryTurn(
+        sid: String,
+        retryRoute: AppRoute,
+        assistantMessageId: String?,
+        resendUnconfirmed: Boolean,
+    ) {
+        if (isSessionBusy(sid)) return
+        val messages = container.sessionStore.getMessages(sid)
+        val turn = prepareRetryTurn(messages, assistantMessageId) ?: return
+        if (turn.files.isNotEmpty()) {
+            val current = _state.value
+            val owner = composerOwner() ?: return
+            if (current.route != retryRoute || current.currentSessionId != sid) return
+            if (!current.canRestoreRetry(turn.files)) {
+                updateVisibleSession(sid) { it.copy(chatError = UiError(Str.retryPickFiles, Str.retryDraftOccupied)) }
+            } else {
+                val selection = org.agent567.android.ui.chat.RetryFileSelection(sid, turn.assistantMessageId, turn.files, authRevision, owner)
+                updateVisibleSession(sid) { it.copy(retryFileSelection = selection, chatError = null) }
+            }
+            return
+        }
+        val retryImages = turn.images.map { image ->
+            if (image.storageKey == null || image.pendingBytes != null || image.base64Data.isNotBlank()) {
+                image
+            } else {
+                val bytes = container.sessionStore.readMessageImageBytes(image)
+                if (bytes == null) {
+                    updateVisibleSession(sid) {
+                        it.copy(chatError = UiError(
+                            title = Str.retryMissingImageTitle,
+                            message = Str.retryMissingImageMessage,
+                        ))
+                    }
+                    return
+                }
+                image.copy(storageKey = null, pendingBytes = bytes)
+            }
+        }
+        if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) return
+        val session = container.sessionStore.getSession(sid) ?: return
+        val targetPending = session.pendingRemoteTurn?.takeIf {
+            assistantMessageId == null || it.assistantMessageId == assistantMessageId
+        }
+        val usePendingTurnIdentity = targetPending != null && (resendUnconfirmed || targetPending.confirmedNotReceived)
+        val retryPreviousTurn = if (usePendingTurnIdentity) targetPending.retryPreviousTurn else true
+        val retryRemoteTurnId = if (usePendingTurnIdentity) targetPending.turnId else null
+        if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) return
+        val boundary = messages.firstOrNull { it.id == session.context.throughMessageId }
+        if (boundary != null && session.context.throughCreatedAtEpochMs == null) {
+            container.sessionStore.updateSession(session.copy(context = session.context.copy(throughCreatedAtEpochMs = boundary.createdAtEpochMs)))
+        }
+        if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) return
+        container.sessionStore.replaceMessages(sid, turn.remainingMessages)
+        if (_state.value.currentSessionId != sid || _state.value.route != retryRoute) {
+            // A navigation during the write cancels preparation; keep the original failed turn.
+            container.sessionStore.replaceMessages(sid, messages)
+            return
+        }
+        saveComposerDraft(sid, org.agent567.android.domain.session.SessionDraft(turn.draft, retryImages))
+        // 必须同时恢复图片；否则纯图重试会变成 no-op，图文重试会丢图
+        _state.update {
+            it.copy(
+                draft = turn.draft,
+                pendingImages = retryImages,
+                chatError = null,
+            )
+        }
+        retryPreparingSessions.remove(sid)
+        sendMessage(retryPreviousTurn = retryPreviousTurn, remoteTurnId = retryRemoteTurnId)
     }
 
     fun handleErrorAction(action: UiErrorAction) {
@@ -4372,6 +4586,14 @@ class AppViewModel(
             UiErrorAction.Retry -> {
                 clearChatError()
                 if (_state.value.route is AppRoute.Chat) retryLastError() else refreshCatalog()
+            }
+            UiErrorAction.ResumeRemoteTurn -> {
+                clearChatError()
+                _state.value.currentSessionId?.let { sid -> resumePendingRemoteTurn(sid, retryOnNotFound = true) }
+            }
+            UiErrorAction.ResendRemoteTurn -> {
+                clearChatError()
+                resendPendingRemoteTurn()
             }
             UiErrorAction.OpenPlan -> {
                 clearChatError()
@@ -4396,7 +4618,7 @@ class AppViewModel(
     private val resultInboxCoordinator by lazy {
         org.agent567.android.domain.followup.ResultInboxCoordinator(viewModelScope, container.resultInbox,
             container.sessionStore, container.remoteConversationGateway,
-            running = { streamJobs.keys.toSet() }, canRefresh = { _state.value.mainAccessGranted && !_state.value.loggingOut })
+            running = { (streamJobs.keys + remoteRecoveryJobs.keys).toSet() }, canRefresh = { _state.value.mainAccessGranted && !_state.value.loggingOut })
     }
     val taskResults get() = resultInboxCoordinator.results
     val taskResultsNotice get() = resultInboxCoordinator.notice
@@ -4441,7 +4663,7 @@ class AppViewModel(
                 chatError = null,
                 draft = draft,
                 contextBusy = sessionId in contextOperations,
-                isStreaming = streamJobs[sessionId]?.isCompleted == false,
+                isStreaming = isSessionBusy(sessionId),
                 streamingStatus = streamStatuses[sessionId],
                 inputPredictions = if (draft.isBlank()) inputPredictionsBySession[sessionId].orEmpty() else emptyList(),
                 inputPredictionLoading = sessionId in inputPredictionLoadingSessions && draft.isBlank(),
@@ -4482,6 +4704,269 @@ class AppViewModel(
                     }
                 }
             }
+        resumePendingRemoteTurn(sessionId)
+    }
+
+    private fun resumePendingRemoteTurn(sessionId: String, retryOnNotFound: Boolean = false) {
+        if (isSessionBusy(sessionId)) return
+        val cached = container.sessionStore.sessions.value.firstOrNull { it.id == sessionId }
+        if (cached != null && (cached.origin != ConversationOrigin.Desktop || cached.pendingRemoteTurn == null)) return
+        if (cached?.pendingRemoteTurn?.confirmedNotReceived == true && !retryOnNotFound) {
+            updateVisibleSession(sessionId) {
+                it.copy(
+                    isStreaming = false,
+                    streamingStatus = null,
+                    chatError = UiError(
+                        Str.remoteTurnUnconfirmedTitle,
+                        Str.remoteTurnNotReceivedMessage,
+                        UiErrorAction.ResendRemoteTurn,
+                    ),
+                )
+            }
+            return
+        }
+        desktopHistoryJob?.cancel()
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            try {
+                val session = container.sessionStore.getSession(sessionId) ?: return@launch
+                val pending = session.pendingRemoteTurn ?: return@launch
+                if (session.origin != ConversationOrigin.Desktop) return@launch
+                if (pending.confirmedNotReceived) {
+                    if (retryOnNotFound) {
+                        resendConfirmedUnreceivedPendingTurn(sessionId, pending.assistantMessageId)
+                    } else {
+                        updateVisibleSession(sessionId) {
+                            it.copy(
+                                isStreaming = false,
+                                streamingStatus = null,
+                                chatError = UiError(
+                                    Str.remoteTurnUnconfirmedTitle,
+                                    Str.remoteTurnNotReceivedMessage,
+                                    UiErrorAction.ResendRemoteTurn,
+                                ),
+                            )
+                        }
+                    }
+                    return@launch
+                }
+                updateVisibleSession(sessionId) { it.copy(isStreaming = true, streamingStatus = "reconnecting", chatError = null) }
+                var assistant = container.sessionStore.getMessages(sessionId)
+                    .firstOrNull { it.id == pending.assistantMessageId }
+                    ?: LocalMessage(
+                        id = pending.assistantMessageId,
+                        sessionId = sessionId,
+                        role = ChatRole.Assistant,
+                        content = "",
+                        status = MessageStatus.Aborted,
+                        createdAtEpochMs = pending.createdAtEpochMs,
+                    )
+                val remoteSessionId = pending.remoteSessionId
+                    ?: session.remoteSessionId
+                    ?: container.conversationRouter.resolvedRemoteSessionId(sessionId)
+                    ?: throw RemoteTurnNotFoundException(Str.remoteTurnNotReceivedMessage)
+                var persistedStreaming = assistant.status == MessageStatus.Streaming
+                var recoveryNeedsHistory = false
+                var terminalStatus: MessageStatus? = null
+                container.remoteConversationGateway
+                    .recoverRemoteTurn(sessionId, pending.deviceId, remoteSessionId, pending.turnId)
+                    .collect { event ->
+                        when (event) {
+                            is ChatStreamEvent.Snapshot -> {
+                                recoveryNeedsHistory = recoveryNeedsHistory || event.truncated
+                                val localQuestion = _state.value.pendingQuestion?.takeIf { it.sessionId == sessionId } ?: assistant.pendingQuestion
+                                val question = event.input
+                                    ?.takeIf { event.state !in setOf("completed", "error", "aborted") && (sessionId to it.requestId) !in answeredQuestionRequests }
+                                    ?.let { input ->
+                                        if (localQuestion?.requestId == input.requestId && localQuestion.questions == input.questions) localQuestion
+                                        else PendingQuestion(sessionId, input.requestId, input.questions)
+                                    }
+                                val contentText = buildString {
+                                    append(event.text.take(MAX_ASSISTANT_MESSAGE_CHARS))
+                                    if (event.truncated) append("\n\n[恢复内容较长，任务结束后将读取完整记录]")
+                                }
+                                assistant = assistant.copy(
+                                    content = contentText,
+                                    status = MessageStatus.Streaming,
+                                    errorMessage = null,
+                                    sources = org.agent567.android.core.model.normalizeChatSources(event.sources),
+                                    toolEvents = event.tools.map { tool ->
+                                        ToolTrace(
+                                            tool.phase,
+                                            tool.toolCallId,
+                                            tool.toolName,
+                                            tool.detail?.boundedForStorage(),
+                                            tool.durationMs,
+                                            tool.arguments?.boundedForStorage(),
+                                            tool.result?.boundedForStorage(),
+                                            tool.phaseLabel,
+                                        )
+                                    },
+                                    usage = event.usage?.usage ?: assistant.usage,
+                                    contextPercent = event.usage?.contextPercent ?: assistant.contextPercent,
+                                    pendingQuestion = question,
+                                )
+                                if (!persistedStreaming) {
+                                    container.sessionStore.upsertMessage(assistant)
+                                    persistedStreaming = true
+                                } else {
+                                    container.sessionStore.upsertStreamingMessage(assistant)
+                                }
+                                if (event.state in setOf("completed", "error", "aborted")) {
+                                    event.tools.flatMap { it.images }.takeIf { it.isNotEmpty() }?.let { refs ->
+                                        fetchDesktopGeneratedImages(sessionId, assistant.id, remoteSessionId, refs)
+                                    }
+                                }
+                                val nextStatus = when (event.state) {
+                                    "completed" -> null
+                                    "running" -> if (assistant.content.isNotEmpty()) "running" else "waiting_response"
+                                    else -> event.state
+                                }
+                                updateVisibleSession(sessionId) {
+                                    it.copy(
+                                        isStreaming = true,
+                                        streamingStatus = nextStatus,
+                                        pendingQuestion = question,
+                                        chatError = null,
+                                    )
+                                }
+                            }
+                            is ChatStreamEvent.State -> when (event.value) {
+                                "reconnecting", "waiting_response", "thinking", "running", "retrying", "compacting", "preparing", "background" -> {
+                                    val mapped = if (event.value == "running" && assistant.content.isEmpty()) "waiting_response" else event.value
+                                    updateVisibleSession(sessionId) { it.copy(isStreaming = true, streamingStatus = mapped) }
+                                }
+                                "error" -> {
+                                    clearPendingRemoteTurn(sessionId, pending.turnId)
+                                    val failureDetail = event.detail ?: "桌面执行失败"
+                                    assistant = assistant.copy(
+                                        status = MessageStatus.Error,
+                                        errorMessage = failureDetail,
+                                        pendingQuestion = null,
+                                        processingDurationMs = elapsedSince(assistant.createdAtEpochMs),
+                                    )
+                                    container.sessionStore.upsertMessage(assistant)
+                                    terminalStatus = MessageStatus.Error
+                                    updateVisibleSession(sessionId) {
+                                        it.copy(
+                                            isStreaming = false,
+                                            streamingStatus = null,
+                                            pendingQuestion = null,
+                                            chatError = UiError(
+                                                title = "桌面执行失败",
+                                                message = event.detail ?: "请在电脑端检查模型配置和运行日志后重试",
+                                                action = UiErrorAction.Retry,
+                                            ),
+                                        )
+                                    }
+                                }
+                                "aborted" -> {
+                                    clearPendingRemoteTurn(sessionId, pending.turnId)
+                                    assistant = assistant.copy(
+                                        status = MessageStatus.Aborted,
+                                        pendingQuestion = null,
+                                        processingDurationMs = elapsedSince(assistant.createdAtEpochMs),
+                                    )
+                                    container.sessionStore.upsertMessage(assistant)
+                                    terminalStatus = MessageStatus.Aborted
+                                    updateVisibleSession(sessionId) {
+                                        it.copy(isStreaming = false, streamingStatus = null, pendingQuestion = null)
+                                    }
+                                }
+                                "completed" -> updateVisibleSession(sessionId) { it.copy(streamingStatus = null) }
+                                else -> Unit
+                            }
+                            ChatStreamEvent.Done -> {
+                                clearPendingRemoteTurn(sessionId, pending.turnId)
+                                val finalStatus = if (terminalStatus == MessageStatus.Error) MessageStatus.Error else MessageStatus.Complete
+                                assistant = assistant.copy(
+                                    status = finalStatus,
+                                    pendingQuestion = null,
+                                    processingDurationMs = assistant.processingDurationMs ?: elapsedSince(assistant.createdAtEpochMs),
+                                )
+                                container.sessionStore.upsertMessage(assistant)
+                                terminalStatus = finalStatus
+                                if (finalStatus == MessageStatus.Complete) {
+                                    taskNotifications.finished(sessionId, assistant.images.isNotEmpty())
+                                    updateVisibleSession(sessionId) {
+                                        it.copy(isStreaming = false, streamingStatus = null, pendingQuestion = null, chatError = null)
+                                    }
+                                }
+                            }
+                            is ChatStreamEvent.Error -> throw event.exception
+                            else -> Unit
+                        }
+                    }
+                val currentPending = container.sessionStore.getSession(sessionId)?.pendingRemoteTurn
+                if (terminalStatus == null && currentPending?.turnId == pending.turnId) {
+                    clearPendingRemoteTurn(sessionId, pending.turnId)
+                    assistant = assistant.copy(
+                        status = MessageStatus.Complete,
+                        pendingQuestion = null,
+                        processingDurationMs = assistant.processingDurationMs ?: elapsedSince(assistant.createdAtEpochMs),
+                    )
+                    container.sessionStore.upsertMessage(assistant)
+                    updateVisibleSession(sessionId) {
+                        it.copy(isStreaming = false, streamingStatus = null, pendingQuestion = null, chatError = null)
+                    }
+                }
+                syncResolvedRemoteSessionMetadata(sessionId, pendingTurnId = null, fetchTitle = true)
+                if (recoveryNeedsHistory && _state.value.currentSessionId == sessionId) {
+                    loadDesktopSessionDetail(sessionId, remoteSessionId, pending.assistantMessageId)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: RemoteTurnNotFoundException) {
+                markPendingRemoteTurnNotReceived(sessionId)
+                if (retryOnNotFound) {
+                    val pendingAssistantId = container.sessionStore.getSession(sessionId)?.pendingRemoteTurn?.assistantMessageId
+                    resendConfirmedUnreceivedPendingTurn(sessionId, pendingAssistantId)
+                    return@launch
+                }
+                updateVisibleSession(sessionId) {
+                    it.copy(
+                        isStreaming = false,
+                        streamingStatus = null,
+                        chatError = UiError(
+                            Str.remoteTurnUnconfirmedTitle,
+                            Str.remoteTurnNotReceivedMessage,
+                            UiErrorAction.ResendRemoteTurn,
+                        ),
+                    )
+                }
+            } catch (error: Throwable) {
+                val detail = error.message?.takeIf { message -> message.isNotBlank() } ?: Str.remoteTurnUnconfirmedMessage
+                updateVisibleSession(sessionId) {
+                    it.copy(
+                        isStreaming = false,
+                        streamingStatus = null,
+                        chatError = UiError(Str.remoteTurnUnconfirmedTitle, detail, UiErrorAction.ResumeRemoteTurn),
+                    )
+                }
+            } finally {
+                if (remoteRecoveryJobs[sessionId] === currentCoroutineContext()[Job]) {
+                    remoteRecoveryJobs.remove(sessionId)
+                    updateRunningSessions()
+                }
+            }
+        }
+        remoteRecoveryJobs[sessionId] = job
+        updateRunningSessions()
+        job.start()
+    }
+
+    private suspend fun resendConfirmedUnreceivedPendingTurn(sessionId: String, assistantMessageId: String?) {
+        if (remoteRecoveryJobs[sessionId] === currentCoroutineContext()[Job]) {
+            remoteRecoveryJobs.remove(sessionId)
+            updateRunningSessions()
+        }
+        val retryRoute = _state.value.route
+        if (sessionId !in pendingSendReservations && sessionId !in contextOperations && retryPreparingSessions.add(sessionId)) {
+            try {
+                executeRetryTurn(sessionId, retryRoute, assistantMessageId, resendUnconfirmed = true)
+            } finally {
+                retryPreparingSessions.remove(sessionId)
+            }
+        }
     }
 
     private fun detachSessionMessages() {
@@ -4494,15 +4979,92 @@ class AppViewModel(
         _state.update { state -> if (state.currentSessionId == sessionId) transform(state) else state }
     }
 
-    private suspend fun setSessionError(sessionId: String, error: Throwable, desktopOnly: Boolean = false) {
+    private suspend fun setSessionError(
+        sessionId: String,
+        error: Throwable,
+        desktopOnly: Boolean = false,
+        desktopPendingAction: UiErrorAction? = null,
+    ) {
         val session = container.sessionStore.getSession(sessionId) ?: return
         if (desktopOnly && session.origin != ConversationOrigin.Desktop) return
         if (error is RemoteConversationException && session.origin != ConversationOrigin.Desktop) return
-        val uiError = ErrorMapper.from(error)
+        val mapped = ErrorMapper.from(error)
+        val uiError = if (desktopPendingAction != null && mapped.action == UiErrorAction.Retry) {
+            mapped.copy(action = desktopPendingAction)
+        } else mapped
         if (session.origin == ConversationOrigin.Cloud) {
             org.agent567.android.core.error.recordChatFailure(org.agent567.android.core.error.ChatFailureStage.Chat, error)
         }
         updateVisibleSession(sessionId) { it.copy(chatError = uiError) }
+    }
+
+    private fun isSessionBusy(sessionId: String): Boolean =
+        streamJobs[sessionId]?.isCompleted == false || remoteRecoveryJobs[sessionId]?.isActive == true
+
+    private fun updateRunningSessions() {
+        _state.update { it.copy(runningSessionIds = (streamJobs.keys + remoteRecoveryJobs.keys).toSet()) }
+    }
+
+    private suspend fun syncResolvedRemoteSessionMetadata(
+        localSessionId: String,
+        pendingTurnId: String?,
+        fetchTitle: Boolean,
+    ): String? {
+        val session = container.sessionStore.getSession(localSessionId) ?: return null
+        if (session.origin != ConversationOrigin.Desktop) return null
+        val remoteId = session.remoteSessionId
+            ?: container.conversationRouter.resolvedRemoteSessionId(localSessionId)
+            ?: return null
+        val pendingUpdated = session.pendingRemoteTurn?.let { current ->
+            if (pendingTurnId != null && current.turnId == pendingTurnId && current.remoteSessionId == null) {
+                current.copy(remoteSessionId = remoteId)
+            } else current
+        }
+        val syncedTitle = if (fetchTitle && !session.titleManuallyEdited) {
+            session.remoteDeviceId?.let { deviceId ->
+                runCatching {
+                    container.remoteConversationGateway.listDesktopSessions(deviceId)
+                        ?.firstOrNull { it.id == remoteId }?.title
+                }.getOrNull()
+            }?.takeIf { it.isNotBlank() }
+        } else null
+        val nextTitle = syncedTitle ?: session.title
+        if (session.remoteSessionId != remoteId || pendingUpdated != session.pendingRemoteTurn || nextTitle != session.title) {
+            container.sessionStore.updateSession(
+                session.copy(
+                    remoteSessionId = remoteId,
+                    pendingRemoteTurn = pendingUpdated,
+                    title = nextTitle,
+                ),
+            )
+        }
+        return remoteId
+    }
+
+    private suspend fun markPendingRemoteTurnNotReceived(sessionId: String) {
+        val session = container.sessionStore.getSession(sessionId) ?: return
+        val pending = session.pendingRemoteTurn ?: return
+        if (!pending.confirmedNotReceived) {
+            container.sessionStore.updateSession(session.copy(pendingRemoteTurn = pending.copy(confirmedNotReceived = true)))
+        }
+        val assistant = container.sessionStore.getMessages(sessionId).firstOrNull { it.id == pending.assistantMessageId }
+        if (assistant != null && assistant.status == MessageStatus.Streaming) {
+            container.sessionStore.upsertMessage(
+                assistant.copy(
+                    status = MessageStatus.Aborted,
+                    pendingQuestion = null,
+                    processingDurationMs = elapsedSince(assistant.createdAtEpochMs),
+                ),
+            )
+        }
+    }
+
+    private suspend fun clearPendingRemoteTurn(sessionId: String, turnId: String?) {
+        if (turnId == null) return
+        val session = container.sessionStore.getSession(sessionId) ?: return
+        if (session.pendingRemoteTurn?.turnId == turnId) {
+            container.sessionStore.updateSession(session.copy(pendingRemoteTurn = null))
+        }
     }
 
     private suspend fun updateVisibleDesktopSession(sessionId: String, transform: (AppUiState) -> AppUiState) {
@@ -4520,6 +5082,8 @@ class AppViewModel(
     private fun cancelStream(sessionId: String) {
         contextOperations.remove(sessionId)?.cancel()
         streamJobs[sessionId]?.cancel()
+        remoteRecoveryJobs.remove(sessionId)?.cancel()
+        updateRunningSessions()
         streamStatuses.remove(sessionId)
         updateVisibleSession(sessionId) { it.copy(isStreaming = false, streamingStatus = null) }
     }
@@ -4528,9 +5092,11 @@ class AppViewModel(
         contextReadJob?.cancel()
         contextOperations.values.toList().forEach(Job::cancel)
         contextOperations.clear()
+        remoteRecoveryJobs.values.toList().forEach(Job::cancel)
+        remoteRecoveryJobs.clear()
         val jobs = streamJobs.values.toList()
         streamJobs.clear()
-        _state.update { it.copy(runningSessionIds = emptySet()) }
+        updateRunningSessions()
         streamStatuses.clear()
         jobs.forEach(Job::cancel)
         _state.update { it.copy(isStreaming = false, streamingStatus = null, contextBusy = false) }
@@ -4580,6 +5146,8 @@ class AppViewModel(
 
     private fun newMessageId(): String =
         "${nowEpochMs().toString(16)}-${Random.nextInt(0, Int.MAX_VALUE).toString(16)}"
+
+    private fun newRemoteTurnId(): String = "mobile_${newMessageId()}"
 }
 
 private fun elapsedSince(startedAtEpochMs: Long): Long = (nowEpochMs() - startedAtEpochMs).coerceAtLeast(0L)

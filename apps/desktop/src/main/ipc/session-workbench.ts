@@ -48,6 +48,23 @@ export function registerSessionWorkbenchIpc(owner: WebContents): () => void {
 		assertNonEmptyString(sessionId, "sessionId");
 		return getDesktopConversationService().readContextWorkspace(sessionId);
 	});
+	ipcMain.handle(SESSION_WORKBENCH_CHANNELS.TURN_FILES, (event, sessionId: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		assertNonEmptyString(sessionId, "sessionId");
+		return getDesktopConversationService().listSessionTurnFiles(sessionId);
+	});
+	ipcMain.handle(SESSION_WORKBENCH_CHANNELS.TURN_FILES_PREVIEW, (event, sessionId: unknown, turnId: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		assertNonEmptyString(sessionId, "sessionId");
+		assertNonEmptyString(turnId, "turnId");
+		return getDesktopConversationService().previewSessionTurnFiles(sessionId, turnId);
+	});
+	ipcMain.handle(SESSION_WORKBENCH_CHANNELS.TURN_FILES_RESTORE, (event, sessionId: unknown, previewId: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		assertNonEmptyString(sessionId, "sessionId");
+		assertNonEmptyString(previewId, "previewId");
+		return getDesktopConversationService().restoreSessionTurnFiles(sessionId, previewId);
+	});
 	ipcMain.handle(SESSION_WORKBENCH_CHANNELS.CONTEXT_SELECTION, (event, sessionId: unknown, selection: unknown) => {
 		assertTrustedMainRenderer(event, owner);
 		assertNonEmptyString(sessionId, "sessionId");

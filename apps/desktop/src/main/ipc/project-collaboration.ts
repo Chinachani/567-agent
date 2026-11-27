@@ -25,6 +25,20 @@ export function registerProjectCollaborationHandlers(owner: WebContents): () => 
 		assertTrustedMainRenderer(event, owner);
 		return service.control(requireCwd(cwd), control);
 	});
+	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.readWorktrees, (event, cwd: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		return service.listWorktrees(requireCwd(cwd));
+	});
+	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.createWorktree, (event, cwd: unknown, startRef: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		if (startRef !== undefined && (typeof startRef !== "string" || startRef.length > 256))
+			throw new Error("Invalid Worktree start ref");
+		return service.createWorktree(requireCwd(cwd), startRef);
+	});
+	ipcMain.handle(PROJECT_COLLABORATION_CHANNELS.removeWorktree, (event, cwd: unknown, path: unknown) => {
+		assertTrustedMainRenderer(event, owner);
+		return service.removeWorktree(requireCwd(cwd), requireCwd(path));
+	});
 
 	serviceChangedUnsubscribe?.();
 	const unsubscribe = service.onChanged(({ cwd }) => {
@@ -37,6 +51,9 @@ export function registerProjectCollaborationHandlers(owner: WebContents): () => 
 		ipcMain.removeHandler(PROJECT_COLLABORATION_CHANNELS.read);
 		ipcMain.removeHandler(PROJECT_COLLABORATION_CHANNELS.update);
 		ipcMain.removeHandler(PROJECT_COLLABORATION_CHANNELS.control);
+		ipcMain.removeHandler(PROJECT_COLLABORATION_CHANNELS.readWorktrees);
+		ipcMain.removeHandler(PROJECT_COLLABORATION_CHANNELS.createWorktree);
+		ipcMain.removeHandler(PROJECT_COLLABORATION_CHANNELS.removeWorktree);
 		if (serviceChangedUnsubscribe === unsubscribe) {
 			unsubscribe();
 			serviceChangedUnsubscribe = undefined;

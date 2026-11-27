@@ -13,6 +13,20 @@ import { i18n, initI18n } from "@shared/i18n";
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
+
+if (!HTMLElement.prototype.hasPointerCapture) HTMLElement.prototype.hasPointerCapture = () => false;
+if (!HTMLElement.prototype.releasePointerCapture) HTMLElement.prototype.releasePointerCapture = () => {};
+if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = () => {};
+
+async function selectFilterOption(
+	user: ReturnType<typeof userEvent.setup>,
+	comboboxName: string,
+	optionName: string | RegExp,
+): Promise<void> {
+	await user.click(screen.getByRole("combobox", { name: comboboxName }));
+	await user.click(await screen.findByRole("option", { name: optionName }));
+}
+
 import { resolveAbilityDetailContent } from "../lib/ability-presentation";
 import { AbilitiesPageView } from "../components/AbilitiesPageView";
 import { BundleMembersSection } from "../components/detail/BundleMembersSection";
@@ -698,21 +712,24 @@ it("refreshes discovery, hides empty filter options, merges aliases and exposes 
 	expect(screen.queryByRole("combobox", { name: "Filter abilities by type" })).toBeNull();
 	await user.click(screen.getByRole("button", { name: "Filter" }));
 	const typeSelect = screen.getByRole("combobox", { name: "Filter abilities by type" });
-	expect(typeSelect.querySelectorAll("option")).toHaveLength(2);
+	await user.click(typeSelect);
+	expect(screen.getAllByRole("option")).toHaveLength(2);
+	await user.keyboard("{Escape}");
 	const categorySelect = screen.getByRole("combobox", { name: "Filter abilities by category" });
-	expect(Array.from(categorySelect.querySelectorAll("option"), (option) => option.value)).toEqual([
-		"",
-		"__installed__",
-		"data-databases",
+	await user.click(categorySelect);
+	expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+		"All categories",
+		"Installed (0)",
+		"Data and databases",
 	]);
-	await user.selectOptions(categorySelect, "__installed__");
+	await user.click(screen.getByRole("option", { name: "Installed (0)" }));
 	expect(screen.queryByRole("button", { name: "View Postgres details" })).toBeNull();
 	expect(screen.queryByRole("button", { name: "View SQLite details" })).toBeNull();
-	await user.selectOptions(categorySelect, "");
+	await selectFilterOption(user, "Filter abilities by category", "All categories");
 	expect(screen.getByRole("button", { name: "View Postgres details" })).toBeTruthy();
 	expect(screen.getByRole("button", { name: "View SQLite details" })).toBeTruthy();
-	await user.selectOptions(typeSelect, "mcp");
-	await user.selectOptions(categorySelect, "data-databases");
+	await selectFilterOption(user, "Filter abilities by type", "MCP");
+	await selectFilterOption(user, "Filter abilities by category", "Data and databases");
 	await user.type(screen.getByRole("textbox", { name: "Search abilities" }), "sqlite");
 	expect(screen.queryByRole("button", { name: "View Postgres details" })).toBeNull();
 	expect(screen.getByText("Unreviewed · Safety unknown")).toBeTruthy();
@@ -886,11 +903,13 @@ it("searches unloaded MCP ranges with progress, filters, paging and retry withou
 	await user.click(screen.getByRole("button", { name: "View details" }));
 	expect(install).not.toHaveBeenCalled();
 	await user.click(screen.getByRole("button", { name: "Filter" }));
-	await user.selectOptions(screen.getByRole("combobox", { name: "Authentication" }), "future-auth");
+	await selectFilterOption(user, "Authentication", "future-auth");
 	await waitFor(() =>
 		expect(requests.at(-1)?.query).toMatchObject({ offset: 0, filters: { authentication: ["future-auth"] } }),
 	);
+	await user.click(screen.getByRole("combobox", { name: "Permission scope" }));
 	expect(screen.getAllByRole("option", { name: "Unknown" }).length).toBeGreaterThan(0);
+	await user.keyboard("{Escape}");
 	view.unmount();
 	expect(cancelled).toHaveBeenCalledWith(requests.at(-1)?.id);
 	expect(listeners.size).toBe(0);

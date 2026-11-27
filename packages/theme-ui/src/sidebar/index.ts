@@ -84,6 +84,8 @@ export type { SettingsMenuTriggerViewProps } from "./SettingsMenuTriggerView";
 export { SettingsMenuTriggerView } from "./SettingsMenuTriggerView";
 export type { ShowMoreSessionsButtonLabels, ShowMoreSessionsButtonProps } from "./ShowMoreSessionsButton";
 export { ShowMoreSessionsButton } from "./ShowMoreSessionsButton";
+export type { SidebarAccountCardViewProps } from "./SidebarAccountCardView";
+export { SidebarAccountCardView } from "./SidebarAccountCardView";
 export type {
 	SidebarFilterSelectOption,
 	SidebarFilterSelectViewProps,

@@ -5,7 +5,7 @@ import {
 	describeResourceBytes,
 	readCommandResourcePolicy,
 } from "./command-resource-policy.js";
-import { killNodeProcessTree } from "./process-tree.js";
+import { type NodeProcessTreeTracker, trackNodeProcessTree } from "./process-tree.js";
 
 // Node 24 reserves a CodeRange counted by Linux RLIMIT_DATA even at low RSS.
 // Keep an allocation ceiling of at least 1 GiB; the sampler still enforces the
@@ -22,7 +22,11 @@ fi
 exec "$@"`;
 
 /** Shared command boundary for foreground, background, SDK and sandbox processes. */
-export function spawnGuardedCommand(executable: string, args: readonly string[], options: SpawnOptions): ChildProcess {
+export function spawnGuardedCommand(
+	executable: string,
+	args: readonly string[],
+	options: SpawnOptions,
+): ChildProcess & { stopTree: NodeProcessTreeTracker["terminate"] } {
 	const policy = readCommandResourcePolicy();
 	const grouped = process.platform !== "win32";
 	const child =
@@ -40,6 +44,7 @@ export function spawnGuardedCommand(executable: string, args: readonly string[],
 					{ ...options, detached: grouped },
 				)
 			: spawn(executable, [...args], { ...options, detached: grouped });
+	const tree = trackNodeProcessTree(child, { detached: grouped });
 	let finished = false;
 	let outputBytes = 0;
 	let allocationFailure = false;
@@ -53,8 +58,7 @@ export function spawnGuardedCommand(executable: string, args: readonly string[],
 	const fail = (error: CommandResourceLimitError): void => {
 		if (finished) return;
 		cleanup();
-		if (child.pid) killNodeProcessTree(child.pid);
-		else child.kill();
+		void tree.terminate({ force: true });
 		// Consumers already own error/cancel finalization. Resource failure must use that same path.
 		child.emit("error", error);
 	};
@@ -96,5 +100,5 @@ export function spawnGuardedCommand(executable: string, args: readonly string[],
 		// Root exit is not stream closure: descendants can still own these pipes.
 	});
 	child.once("close", cleanup);
-	return child;
+	return Object.assign(child, { stopTree: tree.terminate });
 }

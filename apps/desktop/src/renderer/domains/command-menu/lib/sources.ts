@@ -4,7 +4,6 @@ import type { Project, RegisteredWorkspaceView } from "@shared/store/atoms";
 import { sessionDisplayLabel } from "@shared/store/atoms";
 import { getSkillDisplayDescription, getSkillDisplayName, isSkillVisibleOnSurface } from "@vetta-org/capability-sdk";
 import { resolveDesktopSessionOpenTarget } from "@/shared/session-access";
-import type { DesktopSessionSearchResult } from "@/shared/session-search";
 import {
 	filterVisibleSettingsTabs,
 	type RegisteredSettingsSection,
@@ -13,7 +12,7 @@ import {
 	type SettingsTabLabelKey,
 	type SettingsTabVisibilityContext,
 } from "../../settings/registry";
-import type { CommandMenuEntry } from "../types";
+import type { CommandMenuEntry, CommandMenuSession } from "../types";
 
 /**
  * 五个数据源到 Command Menu 条目的适配层，全部是纯函数：入参是已经取好的数据，
@@ -30,7 +29,7 @@ export type CommandMenuSettingsLabelKey = SettingsTabLabelKey | NonNullable<Regi
 const REDIRECTED_SETTINGS_TAB = "mcp";
 
 export interface CommandMenuSourceLabels {
-	readonly sessionTypes: Readonly<Record<DesktopSessionSearchResult["sourceKind"], string>>;
+	readonly sessionTypes: Readonly<Record<CommandMenuSession["sourceKind"], string>>;
 	readonly sessionUnavailable: string;
 	readonly settingsGroupHint: string;
 	readonly abilitySkill: string;
@@ -52,21 +51,24 @@ export function buildProjectEntries(projects: readonly Project[]): CommandMenuEn
 }
 
 export function buildSessionEntries(
-	results: readonly DesktopSessionSearchResult[],
+	results: readonly CommandMenuSession[],
 	labels: CommandMenuSourceLabels,
+	groupKey: "sessions" | "recentSessions" = "sessions",
 ): CommandMenuEntry[] {
 	return results.map((result, index) => {
 		const unavailable = resolveDesktopSessionOpenTarget(result.session.access) === "unavailable";
+		const messageMatch =
+			result.session.access.readHistory && result.match?.field !== "title" ? result.match?.snippet : undefined;
 		return {
 			id: `session:${result.session.path}`,
-			groupKey: "sessions",
+			groupKey,
 			title: sessionDisplayLabel(result.session),
-			subtitle: result.sourceName?.trim() || pathBasename(result.sourceCwd),
+			subtitle: messageMatch || result.sourceName?.trim() || pathBasename(result.sourceCwd),
 			icon: "icon-[solar--chat-line-linear]",
 			badge: labels.sessionTypes[result.sourceKind],
 			disabled: unavailable,
 			disabledReason: unavailable ? labels.sessionUnavailable : undefined,
-			// 后端已按活跃时间倒序推送，保持原序即"越近越靠前"。
+			// 会话源均按活跃时间倒序，保留原序。
 			order: index,
 			action: { kind: "openSession", result },
 		};

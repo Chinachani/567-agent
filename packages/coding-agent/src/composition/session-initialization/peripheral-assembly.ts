@@ -301,6 +301,7 @@ export async function createCodingAgentSessionPeripheralAssembly(
 	];
 	const baseCapabilities: RuntimeCapabilityDefinition = {
 		...options.codingTools.capabilities,
+		observers: [...(options.codingTools.capabilities.observers ?? []), ...(profile.turnObservers ?? [])],
 		salvageTextToolCalls: ["progress", "todo"],
 		features,
 	};

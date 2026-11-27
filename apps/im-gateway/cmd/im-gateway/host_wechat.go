@@ -18,18 +18,18 @@ import (
 // parent to drive the channel's *_bind_start frame.
 var errAwaitingBind = errors.New("im-gateway host: channel selected but not bound yet")
 
-// buildSpec is what transportBuilder consumes. Exactly one channel slot
-// should be non-nil; all nil is an error. See hostChannels (host_channels.go)
-// for the slot → transport mapping.
+// buildSpec is what transportBuilder consumes. Several channel slots may be
+// non-nil. See hostChannels (host_channels.go) for slot mapping.
 type buildSpec struct {
-	Feishu   *hostproto.FeishuConfig
-	Wechat   *hostproto.WechatConfig
-	Telegram *hostproto.TelegramConfig
-	Slack    *hostproto.SlackConfig
-	Discord  *hostproto.DiscordConfig
-	Signal   *hostproto.SignalConfig
-	Whatsapp *hostproto.WhatsappConfig
-	IMessage *hostproto.IMessageConfig
+	ActiveTransport string
+	Feishu          *hostproto.FeishuConfig
+	Wechat          *hostproto.WechatConfig
+	Telegram        *hostproto.TelegramConfig
+	Slack           *hostproto.SlackConfig
+	Discord         *hostproto.DiscordConfig
+	Signal          *hostproto.SignalConfig
+	Whatsapp        *hostproto.WhatsappConfig
+	IMessage        *hostproto.IMessageConfig
 
 	WechatStatePath   string // resolved absolute path; empty → use wechat package default
 	WhatsappStatePath string // resolved absolute path to the whatsmeow session db
@@ -37,7 +37,8 @@ type buildSpec struct {
 	// Log forwards structured lines into the sidecar's NDJSON log stream.
 	// Set by the host runtime after spec construction; transports that
 	// supervise child processes (signal-cli) use it. May be nil in tests.
-	Log func(level, msg string, fields map[string]any)
+	Log                 func(level, msg string, fields map[string]any)
+	ReportChannelStatus func(channel, status string)
 
 	// ConversationCwd is the host runtime's working directory for the
 	// gateway. Transports use it (the directory itself per ADR-0006) as the
@@ -48,6 +49,7 @@ type buildSpec struct {
 // fromInit constructs a buildSpec from an InitFrame.
 func specFromInit(f *hostproto.InitFrame) *buildSpec {
 	s := &buildSpec{
+		ActiveTransport: f.ActiveTransport,
 		Feishu:          f.Feishu,
 		Wechat:          f.Wechat,
 		Telegram:        f.Telegram,
@@ -65,14 +67,15 @@ func specFromInit(f *hostproto.InitFrame) *buildSpec {
 // fromConfigUpdate constructs a buildSpec from a ConfigUpdateFrame.
 func specFromConfigUpdate(f *hostproto.ConfigUpdateFrame) *buildSpec {
 	s := &buildSpec{
-		Feishu:   f.Feishu,
-		Wechat:   f.Wechat,
-		Telegram: f.Telegram,
-		Slack:    f.Slack,
-		Discord:  f.Discord,
-		Signal:   f.Signal,
-		Whatsapp: f.Whatsapp,
-		IMessage: f.IMessage,
+		ActiveTransport: f.ActiveTransport,
+		Feishu:          f.Feishu,
+		Wechat:          f.Wechat,
+		Telegram:        f.Telegram,
+		Slack:           f.Slack,
+		Discord:         f.Discord,
+		Signal:          f.Signal,
+		Whatsapp:        f.Whatsapp,
+		IMessage:        f.IMessage,
 	}
 	s.resolveStatePaths()
 	return s

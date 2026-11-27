@@ -107,8 +107,9 @@ function useCreatedAt(cwd: string) {
 	return createdAt;
 }
 
-export interface ProjectDetailPageModel extends ProjectDetailPageViewProps {
+export interface ProjectDetailPageModel extends Omit<ProjectDetailPageViewProps, "children"> {
 	batchProject: ReturnType<typeof useProjectDetail>["batchProject"];
+	collaboration: ReturnType<typeof useProjectCollaborationModel>;
 	decodedCwd: string;
 	isBatch: boolean;
 	isPersonal: boolean;

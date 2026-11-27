@@ -1,7 +1,8 @@
 import { CurrentScenarioActivityPanel } from "@domains/activity-panel/components/ActivityPanel";
-import { ProjectDetailPageView } from "@vetta-org/theme-ui/project";
+import { ProjectCollaborationView, ProjectDetailPageView } from "@vetta-org/theme-ui/project";
 import { motion } from "motion/react";
 import { BatchQueueStatus } from "./BatchQueueStatus";
+import { ManagedWorktreesDialog } from "./ManagedWorktreesDialog";
 import { useProjectDetailPageModel } from "../hooks/useProjectDetailPageModel";
 import { useActiveSessionRuntimeIds } from "@shared/workspace/active-session-runtime";
 import { createActivityWorkspace } from "@shared/workspace/activity-workspace";
@@ -31,7 +32,6 @@ export function ProjectDetailPage(): JSX.Element {
 				<ProjectDetailPageView
 					activityOpen={model.activityOpen}
 					activeSection={model.activeSection}
-					collaboration={model.collaboration}
 					content={model.content}
 					createdAtLabel={model.createdAtLabel}
 					cwd={model.cwd}
@@ -55,7 +55,10 @@ export function ProjectDetailPage(): JSX.Element {
 					sessionCountLabel={model.sessionCountLabel}
 					taskCountLabel={model.taskCountLabel}
 					textareaRef={model.textareaRef}
-				/>
+				>
+					{!model.isBatch && !model.isPersonal && <ManagedWorktreesDialog key={model.cwd} cwd={model.cwd} />}
+					<ProjectCollaborationView key={model.cwd} {...model.collaboration} />
+				</ProjectDetailPageView>
 				<CurrentScenarioActivityPanel
 					workspace={createActivityWorkspace(model.decodedCwd, model.decodedCwd, activeRuntimeIds)}
 				/>

@@ -95,12 +95,12 @@ it("已发送的成员 mention 与输入框复用同一枚 Token 视觉组件", 
 	);
 
 	expect(screen.getAllByText("@Architect")).toHaveLength(2);
-	expect(screen.getByTitle("Architect · @architect").querySelector("img")?.getAttribute("src")).toBe(
-		"./architect.webp",
-	);
 	const tokens = container.querySelectorAll<HTMLElement>("[data-inline-token='true']");
 	expect(tokens).toHaveLength(2);
 	expect(tokens[1]?.className).toBe(tokens[0]?.className);
+	const sentMention = screen.getByTitle("Architect · @architect");
+	expect(sentMention.querySelector('[aria-hidden="true"]')?.className).toContain("icon-[solar--user-rounded-linear]");
+	expect(sentMention.querySelector("img")).toBeNull();
 	expect(screen.getByText("请").tagName).toBe("STRONG");
 });
 

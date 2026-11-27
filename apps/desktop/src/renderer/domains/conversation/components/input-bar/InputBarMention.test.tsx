@@ -77,7 +77,7 @@ describe("InputBarMention", () => {
 		const user = userEvent.setup();
 		const first = vi.fn();
 		const second = vi.fn();
-		const { container } = render(
+		render(
 			<InputBarMention
 				model={{
 					labels,
@@ -91,7 +91,8 @@ describe("InputBarMention", () => {
 		);
 
 		const trigger = screen.getByRole("button", { name: "2 members" });
-		expect(container.querySelectorAll("img")).toHaveLength(2);
+		expect(trigger.querySelectorAll("[data-agent-avatar]")).toHaveLength(2);
+		expect(trigger.querySelector("img")).toBeNull();
 
 		await user.click(trigger);
 		await user.click(screen.getByRole("button", { name: "Clear all" }));

@@ -275,6 +275,7 @@ func (t *Transport) Start(ctx context.Context, handler transport.MessageHandler)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		transport.ReportConnection(ctx, transport.ConnectionConnecting)
 		if connected {
 			backoff = t.backoffInitial
 		}
@@ -330,6 +331,7 @@ func (t *Transport) consumeEvents(ctx context.Context, handler transport.Message
 		return false, fmt.Errorf("signal events: unexpected status %d", resp.StatusCode)
 	}
 
+	transport.ReportConnection(ctx, transport.ConnectionOnline)
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 64*1024), maxSSELineBytes)
 	var data bytes.Buffer

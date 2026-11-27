@@ -169,6 +169,7 @@ export class ElectronUpdaterEngine implements UpdateEngine {
 		private readonly innoWindowsUpdate?: InnoWindowsUpdateController,
 		private readonly nativeMacUpdateEvents?: NativeMacUpdateEvents,
 		private readonly quitHooks: UpdateEngineQuitHooks = {},
+		private readonly sourceReady?: Promise<void>,
 	) {
 		this.updater.autoDownload = false;
 		this.updater.autoInstallOnAppQuit = !innoWindowsUpdate;
@@ -192,6 +193,7 @@ export class ElectronUpdaterEngine implements UpdateEngine {
 	}
 
 	async checkForUpdates(): Promise<UpdateEngineCheckResult | null> {
+		await this.sourceReady;
 		const result = await this.updater.checkForUpdates();
 		if (!result) return null;
 		const info = mapUpdateInfo(result.updateInfo);

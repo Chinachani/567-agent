@@ -100,3 +100,9 @@ describe("conversation cache usage reporting", () => {
 		expect(Value.Check(ConversationMessageSchema, message)).toBe(true);
 	});
 });
+
+it("reads the signed reasoning reset from a persisted assistant message", () => {
+	const message = { ...assistantUsage(), signedReasoningReset: true };
+	expect(Value.Check(ConversationMessageSchema, JSON.parse(JSON.stringify(message)))).toBe(true);
+	expect(Value.Check(ConversationMessageSchema, { ...message, signedReasoningReset: "true" })).toBe(false);
+});

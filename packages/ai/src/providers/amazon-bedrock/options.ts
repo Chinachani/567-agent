@@ -12,3 +12,8 @@ export interface BedrockOptions extends StreamOptions {
 
 export const supportsAdaptiveThinking = supportsClaudeAdaptiveThinking;
 export const mapThinkingLevelToEffort = mapClaudeThinkingLevelToEffort;
+
+export function isBedrockClaudeModel(modelId: string): boolean {
+	const id = modelId.toLowerCase();
+	return id.includes("anthropic.claude") || id.includes("anthropic/claude");
+}

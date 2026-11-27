@@ -2,6 +2,8 @@ package main
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -120,6 +122,33 @@ func TestBuildHostTransport_FeishuWithoutCredentialsAwaitsBind(t *testing.T) {
 	_, err := buildHostTransport(&buildSpec{Feishu: &hostproto.FeishuConfig{}})
 	if !errors.Is(err, errAwaitingBind) {
 		t.Fatalf("err = %v, want errAwaitingBind", err)
+	}
+}
+
+func TestBuildHostTransport_WhatsappWithoutCredentialsAwaitsBind(t *testing.T) {
+	_, err := buildHostTransport(&buildSpec{
+		Whatsapp:          &hostproto.WhatsappConfig{Enabled: true},
+		WhatsappStatePath: filepath.Join(t.TempDir(), "whatsapp.db"),
+	})
+	if !errors.Is(err, errAwaitingBind) {
+		t.Fatalf("err = %v, want errAwaitingBind", err)
+	}
+}
+
+func TestRemoveSQLiteStateRemovesDatabaseSidecars(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "whatsapp.db")
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if err := os.WriteFile(path+suffix, []byte("state"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := removeSQLiteState(path); err != nil {
+		t.Fatalf("removeSQLiteState: %v", err)
+	}
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if _, err := os.Stat(path + suffix); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("%s still exists or returned wrong error: %v", path+suffix, err)
+		}
 	}
 }
 

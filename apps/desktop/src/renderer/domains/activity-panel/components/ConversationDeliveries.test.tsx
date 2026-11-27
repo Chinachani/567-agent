@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 
 import { initI18n } from "@shared/i18n";
-import { activeSessionAtom, chatMessagesAtom, filePreviewAtom, pendingScrollToEntryAtom } from "@shared/store/atoms";
+import {
+	activeConversationDeliveryIndex,
+	activeSessionAtom,
+	chatMessagesAtom,
+	commitActiveChatSessionAtom,
+	filePreviewAtom,
+	pendingScrollToEntryAtom,
+} from "@shared/store/atoms";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
 import { getDefaultStore } from "jotai";
@@ -11,6 +18,7 @@ import { ConversationDeliveries } from "./ConversationDeliveries";
 
 const store = getDefaultStore();
 const copy = vi.fn(async () => {});
+const session = { runtimeId: "runtime", cwd: "/workspace", sessionPath: "/session.jsonl" };
 beforeEach(async () => {
 	initI18n();
 	copy.mockClear();
@@ -20,7 +28,7 @@ beforeEach(async () => {
 		configurable: true,
 		value: { shell: { openExternal: async () => {} } },
 	});
-	store.set(activeSessionAtom, { runtimeId: "runtime", cwd: "/workspace", sessionPath: "/session.jsonl" });
+	store.set(commitActiveChatSessionAtom, session);
 	store.set(pendingScrollToEntryAtom, null);
 	store.set(chatMessagesAtom, [
 		{
@@ -44,6 +52,7 @@ it("collects an old conversation, opens the existing preview and jumps to its so
 	const view = render(
 		<ActivityPanelContextProvider
 			value={{
+				deliveryIndex: activeConversationDeliveryIndex,
 				workspace: { id: "/workspace", cwd: "/workspace", runtimeIds: ["runtime"] },
 				knowledgeHistory: false,
 			}}
@@ -60,7 +69,10 @@ it("collects an old conversation, opens the existing preview and jumps to its so
 	fireEvent.click(screen.getByRole("button", { name: /^Report/ }));
 	expect(store.get(filePreviewAtom)).toMatchObject({ name: "report.md", path: "/workspace/report.md" });
 	fireEvent.click(screen.getAllByRole("button", { name: "查看来源" })[0]);
-	expect(store.get(pendingScrollToEntryAtom)).toEqual({ entryId: "entry" });
+	expect(store.get(pendingScrollToEntryAtom)).toEqual({
+		entryId: "entry",
+		scope: { runtimeId: session.runtimeId, sessionPath: session.sessionPath },
+	});
 	expect(store.get(chatMessagesAtom)).toHaveLength(1);
 	fireEvent.click(screen.getByRole("button", { name: "复制路径" }));
 	await waitFor(() => expect(copy).toHaveBeenCalledWith("/workspace/report.md"));
@@ -69,6 +81,7 @@ it("collects an old conversation, opens the existing preview and jumps to its so
 	render(
 		<ActivityPanelContextProvider
 			value={{
+				deliveryIndex: activeConversationDeliveryIndex,
 				workspace: { id: "/workspace", cwd: "/workspace", runtimeIds: ["runtime"] },
 				knowledgeHistory: false,
 			}}
@@ -91,6 +104,7 @@ it("acknowledges only a successful clipboard write, then returns to the copy lab
 	render(
 		<ActivityPanelContextProvider
 			value={{
+				deliveryIndex: activeConversationDeliveryIndex,
 				workspace: { id: "/workspace", cwd: "/workspace", runtimeIds: ["runtime"] },
 				knowledgeHistory: false,
 			}}
@@ -132,6 +146,7 @@ it("clears the visible resources when the active runtime no longer belongs to th
 	render(
 		<ActivityPanelContextProvider
 			value={{
+				deliveryIndex: activeConversationDeliveryIndex,
 				workspace: { id: "/workspace", cwd: "/workspace", runtimeIds: ["runtime"] },
 				knowledgeHistory: false,
 			}}
@@ -157,9 +172,10 @@ it("lets a new conversation paint before indexing and never publishes the cancel
 			})),
 		),
 	);
-	const view = render(
+	render(
 		<ActivityPanelContextProvider
 			value={{
+				deliveryIndex: activeConversationDeliveryIndex,
 				workspace: { id: "/workspace", cwd: "/workspace", runtimeIds: ["runtime"] },
 				knowledgeHistory: false,
 			}}
@@ -168,28 +184,31 @@ it("lets a new conversation paint before indexing and never publishes the cancel
 		</ActivityPanelContextProvider>,
 	);
 	expect(screen.getByText("正在从会话历史整理文件与链接…")).toBeTruthy();
+	const nextSession = { ...session, sessionPath: "/new.jsonl" };
+	act(() => store.set(activeSessionAtom, nextSession));
+	expect(screen.getByText(/本会话还没有/)).toBeTruthy();
+	expect(screen.queryByRole("button", { name: /^Old / })).toBeNull();
 	act(() => {
-		store.set(activeSessionAtom, { runtimeId: "new", cwd: "/workspace", sessionPath: "/new.jsonl" });
 		store.set(chatMessagesAtom, [
 			{
 				kind: "agent",
 				role: "assistant",
 				id: "new-reply",
+				entryId: "new-entry",
 				turnId: "new-turn",
 				authorId: "agent",
 				phase: "completed",
 				blocks: [{ type: "text", id: "new-text", text: "[New report](./new.txt)" }],
 			},
 		]);
+		store.set(commitActiveChatSessionAtom, nextSession);
 	});
-	view.rerender(
-		<ActivityPanelContextProvider
-			value={{ workspace: { id: "/workspace", cwd: "/workspace", runtimeIds: ["new"] }, knowledgeHistory: false }}
-		>
-			<ConversationDeliveries />
-		</ActivityPanelContextProvider>,
-	);
 	expect(await screen.findByRole("button", { name: /^New report/ })).toBeTruthy();
 	expect(screen.queryByRole("button", { name: /^Old / })).toBeNull();
 	expect(screen.getByRole("button", { name: "全部 · 1" })).toBeTruthy();
+	fireEvent.click(screen.getByRole("button", { name: "查看来源" }));
+	expect(store.get(pendingScrollToEntryAtom)).toEqual({
+		entryId: "new-entry",
+		scope: { runtimeId: nextSession.runtimeId, sessionPath: nextSession.sessionPath },
+	});
 });

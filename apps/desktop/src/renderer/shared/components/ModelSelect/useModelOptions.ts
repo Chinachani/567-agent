@@ -3,6 +3,7 @@ import { localModelsConfigAtom, remoteProvidersAtom } from "@shared/store/atoms"
 import { modelCatalog } from "@shared/store/model-catalog";
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo } from "react";
+import { modelOutputKind } from "../../../../shared/model-output-kind";
 
 export interface ModelOption {
 	provider: string;
@@ -14,6 +15,8 @@ export interface ModelOption {
 	remote?: boolean;
 	/** Tags from server config */
 	tags?: string[];
+	output?: string[];
+	imageOnly?: boolean;
 	/** Whether this model supports image input */
 	supportsImage?: boolean;
 	/** 输入模态（text / image / …），模型详情里展示 */
@@ -41,13 +44,17 @@ function flattenModels(config: ModelsConfigData, remote?: boolean): ModelOption[
 		if (providerConfig.disabled) continue;
 		for (const model of providerConfig.models ?? []) {
 			const raw = model as Record<string, unknown>;
+			const tags = Array.isArray(raw.tags) ? (raw.tags as string[]) : undefined;
+
 			result.push({
 				provider,
 				modelId: model.id,
 				displayName: model.name || model.id,
 				key: `${provider}/${model.id}`,
 				remote,
-				tags: Array.isArray(raw.tags) ? (raw.tags as string[]) : undefined,
+				tags,
+				output: model.output,
+				imageOnly: modelOutputKind(model.modelId ?? model.id, { output: model.output, tags }) === "image-only",
 				supportsImage: model.input?.includes("image") ?? false,
 				inputModalities: model.input?.length ? [...model.input] : undefined,
 				contextWindow: model.contextWindow,
@@ -67,6 +74,8 @@ export interface UseModelOptionsResult {
 	config: ModelsConfigData | null;
 	/** Merged local + remote options (local wins on duplicate key) */
 	options: ModelOption[];
+	/** Image-output-only keys kept for invalidating previously selected chat models. */
+	imageOnlyKeys: ReadonlySet<string>;
 	/** Options grouped by provider, in insertion order */
 	grouped: Map<string, ModelOption[]>;
 	/** Configured default model key, if any */
@@ -106,10 +115,15 @@ export function useModelOptions(): UseModelOptionsResult {
 		[remoteProviders, config],
 	);
 
-	const options = useMemo(() => {
+	const merged = useMemo(() => {
 		const localKeys = new Set(localModels.map((m) => m.key));
 		return [...localModels, ...remoteModels.filter((m) => !localKeys.has(m.key))];
 	}, [localModels, remoteModels]);
+	const imageOnlyKeys = useMemo(
+		() => new Set(merged.filter((model) => model.imageOnly).map((model) => model.key)),
+		[merged],
+	);
+	const options = useMemo(() => merged.filter((model) => !model.imageOnly), [merged]);
 
 	const grouped = useMemo(() => {
 		const groups = new Map<string, ModelOption[]>();
@@ -145,7 +159,10 @@ export function useModelOptions(): UseModelOptionsResult {
 	// 默认模型属于被停用的服务商时视为没有默认，否则选择器会自动选中一个已不可用的模型。
 	const defaultModel = config?.defaultModel;
 	const defaultKey =
-		defaultModel && config?.providers[defaultModel.split("/", 1)[0] ?? ""]?.disabled ? undefined : defaultModel;
+		defaultModel &&
+		(imageOnlyKeys.has(defaultModel) || config?.providers[defaultModel.split("/", 1)[0] ?? ""]?.disabled)
+			? undefined
+			: defaultModel;
 
-	return { config, options, grouped, defaultKey, iconFor, labelFor };
+	return { config, options, imageOnlyKeys, grouped, defaultKey, iconFor, labelFor };
 }

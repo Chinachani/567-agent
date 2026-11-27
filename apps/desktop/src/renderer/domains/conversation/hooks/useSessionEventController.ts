@@ -50,6 +50,7 @@ import {
 	finalizeMessage,
 	finishAssistantTurn,
 	getActiveAssistantTurnStartedAt,
+	getOpenSessionToken,
 	handleToolEnd,
 	handleToolPhase,
 	handleToolStart,
@@ -155,7 +156,12 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 		pendingThinkingDeltaRef.current = "";
 		pendingDeltaSessionRef.current = null;
 
-		if (owningSession && activeSessionRef.current?.runtimeId !== owningSession) return;
+		if (
+			owningSession &&
+			(activeSessionRef.current?.runtimeId !== owningSession ||
+				getDefaultStore().get(activeSessionAtom)?.runtimeId !== owningSession)
+		)
+			return;
 		if (hasAssistantEvents || textDelta || thinkingDelta) {
 			setChatMessages((previous) => {
 				if (hasAssistantEvents) return conversationProjectionRef.current.flush(previous);
@@ -186,6 +192,7 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 
 	const createSessionEventHandler = useCallback(
 		(sessionId: string) => (event: SessionEvent) => {
+			const openToken = getOpenSessionToken();
 			// Only message-stream events mutate the currently rendered transcript. Other
 			// session events include compaction/context and reconnect/status updates that
 			// must still settle even if the active session atom has not mounted yet.
@@ -303,7 +310,8 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 					void window.agent567.session
 						.getFullHistory(sessionId)
 						.then((history) => {
-							if (activeSessionRef.current?.runtimeId !== sessionId) return;
+							if (openToken !== getOpenSessionToken() || activeSessionRef.current?.runtimeId !== sessionId)
+								return;
 							// 判活：本轮结束时/后若发生过队列派发（立即发送 / 自然出队），这次历史
 							// 回流已「跨到下一轮」——会冲掉下一轮的乐观用户气泡、令 draft 串台，或与
 							// 已抢先落盘的 mapped 重复。跳过，交由下一轮自己的 agent_end 安全重拉。
@@ -584,7 +592,8 @@ export function useSessionEventController({ activeSessionRef }: SessionEventCont
 						void window.agent567.session
 							.getFullHistory(sessionId)
 							.then((history) => {
-								if (activeSessionRef.current?.runtimeId !== sessionId) return;
+								if (openToken !== getOpenSessionToken() || activeSessionRef.current?.runtimeId !== sessionId)
+									return;
 								setChatMessages(
 									reconcileOptimisticUserMessages(
 										sessionId,

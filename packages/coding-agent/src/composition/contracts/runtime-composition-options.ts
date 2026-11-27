@@ -9,7 +9,7 @@ import type {
 	RuntimeObservationRouteOptions,
 	SessionConfig,
 } from "@567agent/runtime-core";
-import type { AgentCoreTurnEngineOptions, ToolPolicy } from "@567agent/runtime-core/kernel";
+import type { AgentCoreTurnEngineOptions, ToolPolicy, TurnObserver } from "@567agent/runtime-core/kernel";
 import type {
 	SessionExtensionDefinition,
 	SessionExtensionFunctionSource,
@@ -239,6 +239,7 @@ export interface CodingAgentRuntimeObservabilityOptions {
 	readonly tracing?: AgentCoreTurnEngineOptions["tracing"];
 }
 export interface CodingAgentRuntimeHostOptions {
+	readonly turnObservers?: readonly TurnObserver[];
 	/** 可选的 Coding Agent 自动重试设置；由通用 Assembly decorator 承载状态机。 */
 	readonly runtimeHostRetrySettings?: CodingAgentRuntimeHostRetrySettings;
 	/** Provider transport 偏好；每次模型调用动态读取。 */

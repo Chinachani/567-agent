@@ -1,10 +1,14 @@
 import type { ConverseStreamCommandInput, ConverseStreamOutput } from "@aws-sdk/client-bedrock-runtime";
 import { describe, expect, it, vi } from "vitest";
 import type { AssistantMessage, Context, LanguageModelStreamEvent, Model, ModelStreamResponse } from "../src/index.js";
+import { streamSimple } from "../src/index.js";
 import { AI_ERROR_CODES, type AIError } from "../src/protocol/index.js";
+import { createAssistantMessage } from "../src/protocol/message-factory.js";
 import { type BedrockCommandSender, createBedrockAdapter } from "../src/providers/amazon-bedrock/adapter.js";
 import { anthropicAdapter } from "../src/providers/anthropic/adapter.js";
 import { streamAnthropic } from "../src/providers/anthropic/stream.js";
+import { AdapterRegistry } from "../src/runtime/adapter-registry.js";
+import { streamModel } from "../src/runtime/stream-model.js";
 import {
 	createControlledSseResponse,
 	createProviderTestTransport,
@@ -25,6 +29,204 @@ const bedrockModel: Model<"bedrock-converse-stream"> = {
 	id: "global.anthropic.claude-sonnet-4-6-v1",
 	reasoning: true,
 };
+
+const rejectedThinking =
+	"messages.1.content.0: Invalid `signature` in `thinking` block. The block is bound to a different conversation.";
+const signedAssistant: AssistantMessage = {
+	...createAssistantMessage(
+		{ api: anthropicModel.api, provider: anthropicModel.provider, model: anthropicModel.id },
+		{ stopReason: "toolUse" },
+	),
+	content: [
+		{ type: "thinking", thinking: "previous reasoning", thinkingSignature: "stale-signature" },
+		{ type: "text", text: "previous answer" },
+		{ type: "toolCall", id: "lookup-1", name: "lookup", arguments: { query: "test" } },
+	],
+};
+const signedHistory: Context = {
+	messages: [
+		...context.messages,
+		signedAssistant,
+		{
+			role: "toolResult",
+			toolCallId: "lookup-1",
+			toolName: "lookup",
+			content: [{ type: "text", text: "lookup result" }],
+			isError: false,
+			timestamp: 3,
+		},
+	],
+};
+
+function thinkingError(message = rejectedThinking, status = 400): Response {
+	return errorResponse(status, { type: "error", error: { type: "invalid_request_error", message } });
+}
+
+describe("Anthropic signed history through the chat stream", () => {
+	it("repairs an explicit rejection and keeps the same repaired prefix in the next tool round", async () => {
+		const transport = createProviderTestTransport([
+			thinkingError(),
+			anthropicSse(anthropicSuccessfulRecords()),
+			anthropicSse(anthropicSuccessfulRecords()),
+		]);
+		const options = { apiKey: "test", fetch: transport.fetch, maxRetries: 0, cacheRetention: "none" as const };
+		const original = structuredClone(signedHistory);
+		const response = streamSimple(anthropicModel, signedHistory, options);
+		const events: string[] = [];
+		for await (const event of response) events.push(event.type);
+		const recovered = await response.result();
+		expect(events.filter((event) => ["start", "done", "error"].includes(event))).toEqual(["start", "done"]);
+		expect(recovered).toMatchObject({ stopReason: "toolUse", signedReasoningReset: true });
+		expect(signedHistory).toEqual(original);
+
+		const next = await streamSimple(
+			anthropicModel,
+			{
+				messages: [
+					...signedHistory.messages,
+					JSON.parse(JSON.stringify(recovered)),
+					{
+						role: "toolResult",
+						toolCallId: "call-1",
+						toolName: "lookup",
+						content: [{ type: "text", text: "new result" }],
+						isError: false,
+						timestamp: 4,
+					},
+				],
+			},
+			options,
+		).result();
+		expect(next.stopReason).toBe("toolUse");
+		expect(next).not.toHaveProperty("signedReasoningReset");
+
+		const [originalWire, repairedWire, nextWire] = transport.requests.map(
+			(request) => JSON.parse(request.body ?? "{}").messages,
+		);
+		expect(originalWire[1].content[0]).toMatchObject({ type: "thinking", signature: "stale-signature" });
+		expect(repairedWire[1].content).toEqual(originalWire[1].content.slice(1));
+		expect(repairedWire[2]).toEqual(originalWire[2]);
+		expect(nextWire.slice(0, repairedWire.length)).toEqual(repairedWire);
+		expect(nextWire[3].content[0]).toMatchObject({ type: "thinking", signature: "signature" });
+	});
+
+	it("reports a second explicit rejection after exactly one repair", async () => {
+		const transport = createProviderTestTransport([
+			thinkingError(),
+			thinkingError("thinking block cannot be modified"),
+		]);
+		const message = await streamSimple(anthropicModel, signedHistory, {
+			apiKey: "test",
+			fetch: transport.fetch,
+			maxRetries: 0,
+		}).result();
+		expect(message.failure).toMatchObject({
+			statusCode: 400,
+			message: "thinking block cannot be modified",
+			retryable: false,
+		});
+		expect(message).not.toHaveProperty("signedReasoningReset");
+		expect(transport.requests).toHaveLength(2);
+	});
+
+	it("cancels the repaired request without recording a reset", async () => {
+		const controller = new AbortController();
+		const transport = createProviderTestTransport([
+			thinkingError(),
+			() => {
+				controller.abort();
+				return emptySseResponse();
+			},
+		]);
+		const message = await streamSimple(anthropicModel, signedHistory, {
+			apiKey: "test",
+			fetch: transport.fetch,
+			maxRetries: 0,
+			signal: controller.signal,
+		}).result();
+		expect(message).toMatchObject({ stopReason: "aborted", failure: { code: AI_ERROR_CODES.ABORTED } });
+		expect(message).not.toHaveProperty("signedReasoningReset");
+		expect(transport.requests).toHaveLength(2);
+	});
+
+	it("reports a transient error on the repaired request without allowing the turn to replay the repair", async () => {
+		const transport = createProviderTestTransport([
+			thinkingError(),
+			errorResponse(503, {
+				type: "error",
+				error: { type: "overloaded_error", message: "Service unavailable" },
+			}),
+		]);
+		const message = await streamSimple(anthropicModel, signedHistory, {
+			apiKey: "test",
+			fetch: transport.fetch,
+			maxRetries: 0,
+		}).result();
+		expect(message.failure).toMatchObject({ statusCode: 503, retryable: false });
+		expect(message).not.toHaveProperty("signedReasoningReset");
+		expect(transport.requests).toHaveLength(2);
+	});
+
+	it.each([
+		["a generic request signature error", anthropicModel, "Invalid request signature", 400],
+		["an unrelated request error", anthropicModel, "`tool_use` ids must be unique", 400],
+		["an authentication failure", anthropicModel, rejectedThinking, 401],
+		["a different model", { ...anthropicModel, id: "another-claude" }, rejectedThinking, 400],
+	] as const)("does not repair %s", async (_label, model, error, status) => {
+		const transport = createProviderTestTransport([thinkingError(error, status)]);
+		const message = await streamSimple(model, signedHistory, {
+			apiKey: "test",
+			fetch: transport.fetch,
+			maxRetries: 0,
+		}).result();
+		expect(message.failure).toMatchObject({ statusCode: status, message: error });
+		expect(transport.requests).toHaveLength(1);
+		const wire = JSON.parse(transport.requests[0].body ?? "{}").messages;
+		if (model.id !== anthropicModel.id) {
+			expect(wire[1].content[0]).toEqual({ type: "text", text: "previous reasoning" });
+			expect(wire[1].content.at(-1).id).toBe(wire[2].content[0].tool_use_id);
+		}
+	});
+
+	it("continues to send a valid same-model signature on the first request", async () => {
+		const transport = createProviderTestTransport([anthropicSse(anthropicSuccessfulRecords())]);
+		const message = await streamSimple(anthropicModel, signedHistory, {
+			apiKey: "test",
+			fetch: transport.fetch,
+			maxRetries: 0,
+		}).result();
+		expect(message.stopReason).toBe("toolUse");
+		expect(message).not.toHaveProperty("signedReasoningReset");
+		expect(transport.requests).toHaveLength(1);
+		expect(transport.requests[0].body).toContain('"signature":"stale-signature"');
+	});
+
+	it("keeps the selected model's own signature when history contains a reset from another model", async () => {
+		const model = { ...anthropicModel, id: "another-claude" };
+		const transport = createProviderTestTransport([anthropicSse(anthropicSuccessfulRecords())]);
+		const result = await streamSimple(
+			model,
+			{
+				messages: [
+					...signedHistory.messages.map((message) =>
+						message === signedAssistant ? { ...signedAssistant, model: model.id } : message,
+					),
+					{
+						...signedAssistant,
+						content: [{ type: "text", text: "recovered on the other model" }],
+						stopReason: "stop",
+						signedReasoningReset: true,
+					},
+					{ role: "user", content: "Continue with the model I selected", timestamp: 4 },
+				],
+			},
+			{ apiKey: "test", fetch: transport.fetch, maxRetries: 0 },
+		).result();
+		expect(result.stopReason).toBe("toolUse");
+		expect(transport.requests).toHaveLength(1);
+		expect(transport.requests[0].body).toContain('"signature":"stale-signature"');
+	});
+});
 
 describe("Anthropic native adapter", () => {
 	it("streams thinking, text, tools, signatures, cache usage, and a native terminal result", async () => {
@@ -200,6 +402,103 @@ describe("Anthropic native adapter", () => {
 });
 
 describe("Amazon Bedrock native adapter", () => {
+	it.each(["AWS request error", "validation event"])(
+		"recovers a Claude signature rejected as a %s",
+		async (source) => {
+			const registry = new AdapterRegistry();
+			const sent: ConverseStreamCommandInput[] = [];
+			registry.register(
+				createBedrockAdapter({
+					send: async (input) => {
+						sent.push(input);
+						if (sent.length === 1) {
+							if (source === "AWS request error") {
+								throw Object.assign(new Error(rejectedThinking), {
+									name: "ValidationException",
+									$metadata: { httpStatusCode: 400 },
+								});
+							}
+							return { stream: wireEvents([{ validationException: { message: rejectedThinking } }]) };
+						}
+						return { stream: wireEvents(bedrockSuccessfulEvents()) };
+					},
+				}),
+			);
+			const history = {
+				messages: signedHistory.messages.map((message) =>
+					message.role === "assistant"
+						? { ...message, api: bedrockModel.api, provider: bedrockModel.provider, model: bedrockModel.id }
+						: message,
+				),
+			};
+			const request = { model: bedrockModel, context: history, options: { cacheRetention: "none" as const } };
+			const { result, events } = await collectNative(await streamModel(request, registry));
+			expect(result).toMatchObject({ stopReason: "toolUse", signedReasoningReset: true });
+			expect(
+				events
+					.filter((event) => event.type === "start" || event.type === "error" || event.type === "done")
+					.map((event) => event.type),
+			).toEqual(["start", "done"]);
+			expect(sent[0].messages?.[1].content?.[0]).toMatchObject({
+				reasoningContent: {
+					reasoningText: { signature: "stale-signature" },
+				},
+			});
+			expect(sent[1].messages?.[1].content).toEqual(sent[0].messages?.[1].content?.slice(1));
+			expect(sent[1].messages?.[2]).toEqual(sent[0].messages?.[2]);
+
+			await collectNative(
+				await streamModel(
+					{
+						...request,
+						context: {
+							messages: [
+								...history.messages,
+								result,
+								{
+									role: "toolResult",
+									toolCallId: "call-1",
+									toolName: "lookup",
+									isError: false,
+									content: [{ type: "text", text: "new tool result" }],
+									timestamp: 4,
+								},
+							],
+						},
+					},
+					registry,
+				),
+			);
+			expect(sent[2].messages?.slice(0, 3)).toEqual(sent[1].messages);
+			expect(sent[2].messages?.[3].content?.[0]).toMatchObject({
+				reasoningContent: {
+					reasoningText: { signature: "signature" },
+				},
+			});
+		},
+	);
+
+	it.each([
+		[bedrockModel.id, "Invalid AWS request signature"],
+		["us.amazon.nova-premier-v1:0", rejectedThinking],
+	])("does not repair a non-replayable signature error for %s", async (id, message) => {
+		const registry = new AdapterRegistry();
+		const send = vi.fn(senderFor([{ validationException: { message } }]));
+		registry.register(createBedrockAdapter({ send }));
+		const model = { ...bedrockModel, id };
+		const response = await streamModel(
+			{
+				model,
+				context: {
+					messages: [{ ...signedAssistant, api: model.api, provider: model.provider, model: model.id }],
+				},
+			},
+			registry,
+		);
+		await expect(response.result).rejects.toMatchObject({ providerCode: "ValidationException", statusCode: 400 });
+		expect(send).toHaveBeenCalledTimes(1);
+	});
+
 	it("streams reasoning, text, tools, usage, and observes request options", async () => {
 		let observedInput: ConverseStreamCommandInput | undefined;
 		let observedSignal: AbortSignal | undefined;

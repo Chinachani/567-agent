@@ -1,6 +1,5 @@
 package org.agent567.android.ui.me
 
-import org.agent567.android.resources.brand_icon
 import org.agent567.android.AppVersion
 import org.agent567.android.ui.chat.RotatingRefreshIcon
 
@@ -84,6 +83,7 @@ import org.agent567.android.ui.components.QuotaMeter
 import org.agent567.android.ui.components.SectionHeader
 import org.agent567.android.ui.components.Agent567ListGroup
 import org.agent567.android.ui.components.Agent567Card
+import org.agent567.android.ui.components.Agent567BrandIcon
 import org.agent567.android.ui.components.Agent567AmberBadge
 import org.agent567.android.ui.components.Agent567MainPageScaffold
 import org.agent567.android.ui.components.Agent567ConfirmDialog
@@ -92,6 +92,7 @@ import org.agent567.android.ui.components.Agent567InfoDialog
 import org.agent567.android.ui.components.groupDisplayName
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.theme.agent567Extra
+import org.agent567.android.ui.updates.ReleaseNotesBody
 
 fun formatUsd(usd: Double): String {
     val cents = (usd * 100.0 + 0.5).toLong()
@@ -1039,8 +1040,7 @@ fun AboutScreen(
                 .padding(start = 24.dp, top = 36.dp, end = 24.dp, bottom = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            androidx.compose.foundation.Image(
-                org.jetbrains.compose.resources.painterResource(org.agent567.android.resources.Res.drawable.brand_icon),
+            Agent567BrandIcon(
                 contentDescription = Str.appName,
                 modifier = Modifier.size(72.dp),
             )
@@ -1093,7 +1093,7 @@ fun AboutScreen(
                         showDownloadSourceDialog = true
                     },
                     showDivider = true,
-                    subtitle = "当前：" + when (downloadSource) { "gh-proxy" -> Str.githubDownloadGhProxy; "custom" -> Str.githubDownloadCustom; else -> Str.githubDownloadDirect },
+                    subtitle = "当前：" + when (downloadSource) { "auto" -> Str.githubDownloadAuto; "gh-proxy" -> Str.githubDownloadGhProxy; "custom" -> Str.githubDownloadCustom; else -> Str.githubDownloadDirect },
                 )
                 ProfileRow(
                     Icons.Default.Info,
@@ -1130,20 +1130,10 @@ fun AboutScreen(
                 Text("${Str.updateNewVersion} ${update.latestVersion}", style = MaterialTheme.typography.titleLarge)
             },
             text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    Text(
-                        if (update.releaseNotes.isNotBlank()) update.releaseNotes else Str.updateHint,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    if (!updateOpenError.isNullOrBlank()) {
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            updateOpenError.orEmpty(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
+                ReleaseNotesBody(
+                    releaseNotes = update.releaseNotes,
+                    errorText = updateOpenError,
+                )
             },
             confirmButton = {
                 androidx.compose.material3.FilledTonalButton(
@@ -1185,6 +1175,7 @@ fun AboutScreen(
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     listOf(
+                        "auto" to Str.githubDownloadAuto,
                         "github" to Str.githubDownloadDirect,
                         "gh-proxy" to Str.githubDownloadGhProxy,
                         "custom" to Str.githubDownloadCustom,

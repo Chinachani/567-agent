@@ -9,7 +9,7 @@ export function useContextWorkspace(sessionId: string | null, open: boolean) {
 	const [error, setError] = useState(false);
 	const [saved, setSaved] = useState(false);
 	const generation = useRef(0);
-	useEffect(() => {
+	const load = useCallback(() => {
 		const version = ++generation.current;
 		setSnapshot(null);
 		setBusy(false);
@@ -27,10 +27,13 @@ export function useContextWorkspace(sessionId: string | null, open: boolean) {
 			.catch(() => {
 				if (generation.current === version) setError(true);
 			});
+	}, [sessionId, open]);
+	useEffect(() => {
+		load();
 		return () => {
 			generation.current++;
 		};
-	}, [sessionId, open]);
+	}, [load]);
 	const dirty =
 		!!snapshot &&
 		(pinned !== snapshot.pinnedText ||
@@ -71,6 +74,7 @@ export function useContextWorkspace(sessionId: string | null, open: boolean) {
 		busy,
 		error,
 		save,
+		refresh: load,
 		setIncluded: (ids: readonly string[], included: boolean) => {
 			const target = new Set(ids);
 			setExcluded((current) =>

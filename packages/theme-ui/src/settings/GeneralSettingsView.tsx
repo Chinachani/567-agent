@@ -28,6 +28,7 @@ export interface GeneralSettingsViewLabels {
 	readonly updateSourceDescription: string;
 	readonly updateSourceOfficial: string;
 	readonly updateSourceAccelerated: string;
+	readonly updateSourceFixedProxy: string;
 	readonly updateSourceCustom: string;
 	readonly updateSourceCustomHint: string;
 	readonly updateSourceCustomPlaceholder: string;
@@ -58,11 +59,11 @@ export interface GeneralSettingsViewProps {
 	readonly updatesDescription: string;
 	readonly updatesAction: ReactNode;
 	readonly updatesDetail: ReactNode;
-	readonly updateSource: "github" | "gh-proxy" | "custom";
+	readonly updateSource: "github" | "gh-proxy" | "auto" | "custom";
 	readonly updateProxyUrl: string;
 	readonly updateProxyUrlValid: boolean;
 	readonly updateSourceSaveState: "idle" | "saving" | "saved" | "error";
-	readonly onUpdateSourceChange: (source: "github" | "gh-proxy" | "custom") => void;
+	readonly onUpdateSourceChange: (source: "github" | "gh-proxy" | "auto" | "custom") => void;
 	readonly onUpdateProxyUrlChange: (url: string) => void;
 	readonly onSaveUpdateProxyUrl: () => void;
 	readonly executionMode: string;
@@ -190,13 +191,16 @@ export function GeneralSettingsView({
 						value={updateSource}
 						aria-label={labels.updateSource}
 						disabled={updateSourceSaveState === "saving"}
-						onValueChange={(value) =>
-							onUpdateSourceChange(value === "gh-proxy" || value === "custom" ? value : "github")
-						}
+						onValueChange={(value) => {
+							if (value === "auto" || value === "github" || value === "gh-proxy" || value === "custom") {
+								onUpdateSourceChange(value);
+							}
+						}}
 						triggerClassName="min-w-[150px]"
 						options={[
 							{ value: "github", label: labels.updateSourceOfficial },
-							{ value: "gh-proxy", label: labels.updateSourceAccelerated },
+							{ value: "auto", label: labels.updateSourceAccelerated },
+							{ value: "gh-proxy", label: labels.updateSourceFixedProxy },
 							{ value: "custom", label: labels.updateSourceCustom },
 						]}
 					/>

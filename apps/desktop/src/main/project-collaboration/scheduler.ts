@@ -1,4 +1,5 @@
 import type { ProjectCollaborationDocument, ProjectCollaborationTask } from "../../shared/project-collaboration.js";
+import { samePath } from "../conversations/session-paths.js";
 import { getAppLogger } from "../logger.js";
 
 import { canRunCollaborationTask } from "./task-state.js";
@@ -10,6 +11,7 @@ export interface CollaborationSchedulerPort {
 		cwd: string,
 		edit: (document: ProjectCollaborationDocument) => ProjectCollaborationDocument,
 	): Promise<ProjectCollaborationDocument>;
+	executionCwd(cwd: string, document: ProjectCollaborationDocument, task: ProjectCollaborationTask): string;
 	isBusy(sessionId: string): boolean;
 	settled(cwd: string): void;
 	execute(cwd: string, task: ProjectCollaborationTask, signal: AbortSignal): Promise<string>;
@@ -23,7 +25,8 @@ export interface CollaborationSchedulerPort {
 class ManualTurnInterruption extends Error {}
 interface RunningTask {
 	readonly cwd: string;
-	readonly task: ProjectCollaborationTask;
+	task: ProjectCollaborationTask;
+	readonly executionCwd: string;
 	readonly abort: AbortController;
 	readonly settled: Promise<void>;
 }
@@ -90,28 +93,38 @@ export class CollaborationScheduler {
 					!this.running.has(item.targetSessionId) &&
 					!this.manual.has(item.targetSessionId) &&
 					!this.port.isBusy(item.targetSessionId) &&
-					(item.access === "read" || !active.some((run) => run.task.access === "write")),
+					(item.access === "read" ||
+						![...this.running.values()].some(
+							(run) =>
+								run.task.access === "write" &&
+								samePath(run.executionCwd, this.port.executionCwd(cwd, document, item)),
+						)),
 			);
 			if (!task) return;
+			const executionCwd = this.port.executionCwd(cwd, document, task);
 			const abort = new AbortController();
 			let release: () => void = () => {};
 			const settled = new Promise<void>((resolve) => {
 				release = resolve;
 			});
-			this.running.set(task.targetSessionId, { cwd, task, abort, settled });
+			const running = { cwd, executionCwd, task, abort, settled };
+			this.running.set(task.targetSessionId, running);
 			try {
 				const next = await this.port.mutate(cwd, (current) => {
+					const currentTask = current.tasks.find((entry) => entry.id === task.id);
 					if (
 						current.config.paused ||
 						!current.config.enabled ||
-						current.tasks.find((entry) => entry.id === task.id)?.status !== "queued"
+						currentTask?.status !== "queued" ||
+						!canRunCollaborationTask(current, currentTask) ||
+						!samePath(this.port.executionCwd(cwd, current, currentTask), executionCwd)
 					)
 						return current;
 					return {
 						...current,
 						tasks: current.tasks.map((entry) =>
 							entry.id === task.id
-								? { ...entry, status: "running", startedAt: entry.startedAt ?? Date.now() }
+								? { ...entry, status: "running", executionCwd, startedAt: entry.startedAt ?? Date.now() }
 								: entry,
 						),
 					};
@@ -122,6 +135,7 @@ export class CollaborationScheduler {
 					release();
 					return;
 				}
+				running.task = admitted;
 				log.info("collaboration task started", {
 					taskId: task.id,
 					rootId: task.rootId,

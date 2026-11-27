@@ -204,22 +204,25 @@ describe("OpenAI-compatible native adapters", () => {
 		});
 
 		await expect(response.result).rejects.toMatchObject({ code: "AI_ABORTED" });
+		expect(transport.requests).toHaveLength(0);
 	});
 
-	it("rejects an empty provider stream as a protocol failure", async () => {
+	it("preserves the empty-stream protocol failure after the recovery attempt", async () => {
 		const fixture = fixtureFor("nvidia-openai-responses");
-		const transport = createProviderTestTransport([emptySseResponse()]);
+		const transport = createProviderTestTransport([emptySseResponse(), emptySseResponse()]);
 		const response = await streamModel({
 			model: model(fixture),
 			context,
-			options: adapterOptions(transport.fetch),
+			options: { ...adapterOptions(transport.fetch), emptyResponseBackoffMs: 0 },
 		});
 
 		await expect(response.result).rejects.toMatchObject({
 			code: "AI_STREAM_PROTOCOL_FAILED",
 			message: "Stream ended without provider events",
-			retryable: true,
+			providerCode: "empty_provider_stream",
+			retryable: false,
 		});
+		expect(transport.requests).toHaveLength(2);
 	});
 
 	it("propagates abort after a provider stream has started", async () => {

@@ -530,6 +530,8 @@ fun RootApp(
                     onSelectImageGroup = vm::setActiveImageGroup,
                     onSelectImageModel = vm::setActiveImageModel,
                     chatError = state.chatError,
+                    pendingRemoteTurn = sessions.firstOrNull { it.id == state.currentSessionId }?.pendingRemoteTurn != null,
+                    onCancelPendingRemoteTurn = vm::cancelPendingRemoteTurn,
                     onDraftChange = vm::onDraftChange,
                     onSend = { taskNotifications.requestPermission(); vm.sendMessage() },
                     onStop = { if (state.contextBusy) vm.cancelChatContextOperation() else vm.stopStreaming() },
@@ -683,7 +685,11 @@ fun RootApp(
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = vm::dismissUpdateNotice,
                     title = { Text("${Str.updateNewVersion} ${appUpdates.result?.latestVersion.orEmpty()}") },
-                    text = { Text(Str.updateHint) },
+                    text = {
+                        org.agent567.android.ui.updates.ReleaseNotesBody(
+                            releaseNotes = appUpdates.result?.releaseNotes.orEmpty(),
+                        )
+                    },
                     confirmButton = { TextButton(onClick = { vm.dismissUpdateNotice(); vm.openAbout() }) { Text(Str.updateOpenRelease) } },
                     dismissButton = { TextButton(onClick = vm::dismissUpdateNotice) { Text(Str.updateLater) } },
                 )

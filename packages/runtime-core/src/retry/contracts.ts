@@ -5,6 +5,8 @@ export interface RuntimeTurnRetrySettings {
 	readonly maxRetries: number;
 	readonly baseDelayMs: number;
 	readonly maxDelayMs?: number;
+	/** Positive jitter prevents concurrent retries from waking together. */
+	readonly jitterMs?: number;
 }
 
 export type RuntimeTurnRetryStopReason =

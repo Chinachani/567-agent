@@ -38,6 +38,11 @@ import type {
 import type { DesktopMcpTask, DesktopMcpTasksChangedEvent } from "../../shared/mcp-task.js";
 import type { DesktopSessionHistoryInfo } from "../../shared/session-access.js";
 import type { DesktopSessionSearchEvent, DesktopSessionSearchRequest } from "../../shared/session-search.js";
+import type {
+	TurnFileRestoreEntry,
+	TurnFileRestorePreview,
+	TurnFilesSummary,
+} from "../../shared/session-workbench-ipc.js";
 
 export type {
 	DesktopMcpAppAttachment,
@@ -136,7 +141,7 @@ export interface DesktopSessionApi {
 		config: DesktopCodingAgentSessionConfig | undefined,
 		kind: DesktopSessionKind,
 		traceContext?: DesktopSessionTraceContext,
-	): Promise<{ sessionId: string; sessionPath: string; cwd?: string; agentProfileId?: string }>;
+	): Promise<{ sessionId: string; sessionPath: string; cwd?: string; listCwd?: string; agentProfileId?: string }>;
 	listProjects(): Promise<ProjectInfo[]>;
 	listSessions(cwd: string): Promise<DesktopSessionHistoryInfo[]>;
 	exportMigrationArchive(
@@ -252,6 +257,9 @@ export interface DesktopSessionApi {
 	getState(sessionId: string): Promise<DesktopSessionStateSnapshot>;
 	getMessages(sessionId: string): Promise<Message[]>;
 	readWorkbench(sessionId: string): Promise<SessionWorkbenchSnapshot>;
+	listTurnFiles(sessionId: string): Promise<readonly TurnFilesSummary[]>;
+	previewTurnFiles(sessionId: string, turnId: string): Promise<TurnFileRestorePreview>;
+	restoreTurnFiles(sessionId: string, previewId: string): Promise<readonly TurnFileRestoreEntry[]>;
 	readWorkbenchDetail(
 		sessionId: string,
 		kind: "attachment" | "task" | "change",

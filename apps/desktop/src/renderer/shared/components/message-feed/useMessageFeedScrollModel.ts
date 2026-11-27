@@ -303,11 +303,13 @@ export function useMessageFeedScrollModel<T>({
 
 	useEffect(() => {
 		if (!initialTargetKey || !getItemKey || items.length === 0) return;
+		const targetScope = stateKeyRef.current;
 		const index = items.findIndex((item) => getItemKey(item) === initialTargetKey);
 		onInitialTargetHandled?.();
 		if (index < 0) {
 			shouldFollowBottomRef.current = true;
 			requestAnimationFrame(() => {
+				if (stateKeyRef.current !== targetScope) return;
 				virtuosoRef.current?.scrollToIndex({ index: "LAST", align: "end", behavior: "auto" });
 			});
 			return;
@@ -315,6 +317,7 @@ export function useMessageFeedScrollModel<T>({
 		shouldFollowBottomRef.current = false;
 		skipNextLerpRef.current = true;
 		requestAnimationFrame(() => {
+			if (stateKeyRef.current !== targetScope) return;
 			virtuosoRef.current?.scrollToIndex({ index, align: "center", behavior: "smooth" });
 		});
 	}, [getItemKey, initialTargetKey, items, onInitialTargetHandled]);

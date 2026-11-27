@@ -30,6 +30,25 @@ export interface BrowserConsolePorts {
 	openExternal: (url: string) => void;
 }
 
+function ChevronIcon(): JSX.Element {
+	return (
+		<svg
+			width="14"
+			height="14"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			className="browser-chevron"
+			aria-hidden="true"
+		>
+			<path d="m6 9 6 6 6-6" />
+		</svg>
+	);
+}
+
 function Hero({ onOpenRepo }: { onOpenRepo: () => void }): JSX.Element {
 	const { t } = useTranslation();
 	return (
@@ -75,8 +94,11 @@ export function BrowserConsole({ ports }: { ports: BrowserConsolePorts }): JSX.E
 				/>
 
 				<details data-browser-extension="" className="browser-card p-4">
-					<summary className="cursor-pointer text-sm font-medium">{t("extension.title")}</summary>
-					<div className="flex flex-col gap-3 pt-3">
+					<summary className="browser-summary text-[13px] font-medium">
+						<span>{t("extension.title")}</span>
+						<ChevronIcon />
+					</summary>
+					<div className="mt-3 flex flex-col gap-3 border-t border-border/60 pt-3">
 						<p className="text-sm leading-relaxed">{t("extension.description")}</p>
 						<p className="text-xs leading-relaxed text-muted-foreground">{t("extension.setup")}</p>
 						<p className="text-xs leading-relaxed text-muted-foreground">{t("extension.target")}</p>
@@ -101,16 +123,19 @@ export function BrowserConsole({ ports }: { ports: BrowserConsolePorts }): JSX.E
 
 				<PromptsSection />
 
-				<details className="browser-card p-4">
-					<summary className="cursor-pointer text-sm font-medium">{t("guide.detailsTitle")}</summary>
-					<div className="flex flex-col gap-6 pt-4">
+				<details className="browser-card px-4 py-3">
+					<summary className="browser-summary text-[13px] font-medium">
+						<span>{t("guide.detailsTitle")}</span>
+						<ChevronIcon />
+					</summary>
+					<div className="mt-3 flex flex-col gap-5 border-t border-border/60 pt-4">
 						<CapabilitiesSection />
 						<ComparisonSection />
 						<CliSection />
 					</div>
 				</details>
 
-				<footer className="flex flex-col gap-2 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
+				<footer className="flex flex-col gap-1.5 border-t border-border/70 pt-4 text-xs leading-relaxed text-muted-foreground">
 					<p>{t("guide.newSession")}</p>
 					<p>
 						{t("footer.credit")}{" "}

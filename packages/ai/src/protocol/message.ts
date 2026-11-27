@@ -38,6 +38,8 @@ export interface AssistantMessage {
 	model: string;
 	usage: Usage;
 	stopReason: StopReason;
+	/** Older signed reasoning from this model was omitted when this reply was generated. */
+	signedReasoningReset?: true;
 	errorMessage?: string;
 	/** Safe provider diagnostics retained when a terminal error is projected to a message. */
 	failure?: AIErrorDetails;

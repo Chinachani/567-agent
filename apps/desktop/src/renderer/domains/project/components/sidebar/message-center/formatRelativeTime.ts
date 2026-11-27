@@ -1,8 +1,8 @@
 import type { TFunction } from "i18next";
 
 /** 消息中心相对时间；文案走 message ns，须由调用方传入当前语言的 t。 */
-export function formatRelativeTime(dateStr: string, t: TFunction<"message">): string {
-	const diff = Date.now() - new Date(dateStr).getTime();
+export function formatRelativeTime(date: string | number, t: TFunction<"message">): string {
+	const diff = Date.now() - new Date(date).getTime();
 	const minutes = Math.floor(diff / 60000);
 	if (minutes < 1) return t("time.justNow");
 	if (minutes < 60) return t("time.minutesAgo", { n: minutes });

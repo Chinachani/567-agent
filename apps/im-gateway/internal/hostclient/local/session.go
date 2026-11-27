@@ -62,7 +62,7 @@ type session struct {
 
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
-	stderr *bytes.Buffer // captured for error reporting on early exit
+	stderr *lockedBuffer // captured for error reporting on early exit
 
 	// pending request correlation
 	pendingMu sync.Mutex
@@ -81,6 +81,25 @@ type session struct {
 	closeErr  error
 
 	closeTimeout time.Duration
+}
+
+// lockedBuffer is written by exec.Cmd's stderr copier while startup errors
+// may read the captured tail from the handshake goroutine.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 // Compile-time check that *session satisfies the public interface.

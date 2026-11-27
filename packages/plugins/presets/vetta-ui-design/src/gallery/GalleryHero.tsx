@@ -1,5 +1,4 @@
 import { useTranslation } from "@vetta-org/plugin-sdk";
-import { useCatalogState } from "../design-systems/index";
 import { SHARE_EXTENSION } from "../export/share-format";
 import { HeroArtwork } from "./HeroArtwork";
 
@@ -9,8 +8,7 @@ import { HeroArtwork } from "./HeroArtwork";
  * 首页不再往宿主页头塞控件；创建、导入和刷新仍放在 Hero，搜索与分类筛选固定在内容顶部。
  * 「全部设计」列表页复用同一条固定工具栏，宿主页头只保留返回和窗口拖拽区。
  *
- * 不做成卡片：Hero 是页面本身的顶部，加了圆角描边就变成「页面里的一个控件」。
- * 层次全部由光晕、点阵与底部发丝线承担。
+ * 光晕和点阵在首屏内渐隐，衔接下方工具条。
  */
 export interface GalleryHeroProps {
 	/** 一张卡 = 一个项目。 */
@@ -38,21 +36,11 @@ export function GalleryHero({
 	onBrowseStyles,
 }: GalleryHeroProps) {
 	const { t } = useTranslation();
-	const { systems } = useCatalogState();
-
-	const stats = [
-		...(empty
-			? []
-			: [
-					t("gallery.hero.stat.projects", { count: projectCount }),
-					t("gallery.hero.stat.designs", { count: designCount }),
-				]),
-		...(systems.length > 0 ? [t("gallery.hero.stat.styles", { count: systems.length })] : []),
-	];
+	const stats = empty ? [] : [t("gallery.hero.stat.projects", { count: projectCount }), t("gallery.hero.stat.designs", { count: designCount })];
 
 	return (
-		// -mx-5 让光晕与发丝线通版铺到内容区两侧，Hero 因此是「页面顶部」而不是页面里的一块卡片
-		<section className="vetd-hero relative isolate -mx-5 mb-7 overflow-hidden px-5 pb-6 pt-6">
+		// 光晕通版，正文与工具条、卡片沿用同一组内边距。
+		<section className="relative isolate -mx-5 overflow-hidden px-5 pb-4 pt-6">
 			<div className="vetd-hero-glow pointer-events-none absolute inset-0 -z-10" aria-hidden />
 			<div className="vetd-hero-dots pointer-events-none absolute inset-0 -z-10" aria-hidden />
 			{/* 插画在窄屏直接不渲染：挤到文字上会两边都难看。整幅收在 Hero 内，

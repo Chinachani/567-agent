@@ -1,7 +1,9 @@
 import type {
+	ManagedWorktreeActionResult,
 	ProjectCollaborationControl,
 	ProjectCollaborationPatch,
 	ProjectCollaborationSnapshot,
+	ProjectCollaborationWorktreesState,
 } from "../../shared/project-collaboration.js";
 
 // ─── Project import / export ───
@@ -81,6 +83,9 @@ export interface DesktopProjectApi {
 	readCollaboration(cwd: string): Promise<ProjectCollaborationSnapshot>;
 	updateCollaboration(cwd: string, patch: ProjectCollaborationPatch): Promise<ProjectCollaborationSnapshot>;
 	controlCollaboration(cwd: string, control: ProjectCollaborationControl): Promise<ProjectCollaborationSnapshot>;
+	readWorktrees(cwd: string): Promise<ProjectCollaborationWorktreesState>;
+	createWorktree(cwd: string, startRef?: string): Promise<ManagedWorktreeActionResult>;
+	removeWorktree(cwd: string, path: string): Promise<ManagedWorktreeActionResult>;
 	onCollaborationChanged(handler: (event: { cwd: string }) => void): () => void;
 	/** Export a project to a zip via native save dialog. */
 	export(projectDir: string): Promise<ProjectExportSuccess | ProjectExportError>;

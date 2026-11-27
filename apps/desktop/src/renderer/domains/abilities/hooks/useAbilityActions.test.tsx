@@ -209,15 +209,26 @@ describe("useAbilityActions managed MCP wiring", () => {
 		expect(result.current.permissionPromptSlug).toBeNull();
 	});
 
-	it("keeps first-time plugin setup separate and does not reload a fresh install", async () => {
-		const item = githubPluginAbility(false);
-		window.agent567.plugins.listAll = vi.fn(async () => [{ id: "demo-plugin", enabled: false } as InstalledPlugin]);
+	it("prompts with the installed manifest when a marketplace entry has stale permissions and commands", async () => {
+		const item: PluginAbility = { ...githubPluginAbility(false), permissions: ["network.fetch"], commands: ["old.run"] };
+		window.agent567.plugins.listAll = vi.fn(async () => [
+			{
+				id: "demo-plugin",
+				enabled: false,
+				permissions: ["storage.read"],
+				declaredCommands: ["demo.run"],
+			} as InstalledPlugin,
+		]);
 		const { result } = renderHook(() => useAbilityActions({ mcp: mcpModel(), refresh: vi.fn() }));
 
 		act(() => result.current.install(item));
 
 		await waitFor(() => expect(result.current.permissionPromptSlug).toBe("demo-plugin"));
-		expect(result.current.pendingPluginSetup?.plugin?.id).toBe("demo-plugin");
+		expect(result.current.pendingPluginSetup).toMatchObject({
+			plugin: { id: "demo-plugin" },
+			permissions: ["storage.read"],
+			commands: ["demo.run"],
+		});
 		expect(window.agent567.plugins.reload).not.toHaveBeenCalled();
 		expect(showToast).not.toHaveBeenCalled();
 	});

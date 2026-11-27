@@ -32,12 +32,15 @@ import {
 	type RegisteredTurnCard,
 	syncHardIsolationContributionModes,
 } from "@shared/store/atoms";
+import { showToast } from "@shared/store/toast-atoms";
 import type { PluginsChangedEvent } from "@preload/api";
 import { getDefaultStore, useSetAtom } from "jotai";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { PluginGlobalSlotContribution } from "@vetta-org/plugin-sdk";
 import { markPluginHostLoading, markPluginHostReady } from "../runtime/plugin-events";
 import { disposePlugins } from "../runtime/plugin-disposal";
+import { resolvePluginDisplayText } from "../runtime/plugin-host-apis";
+import { pluginPermissionRecovery } from "../runtime/plugin-permissions";
 import { installPluginHostBridge } from "../runtime/plugin-host-bridge";
 import { installPluginHostShim } from "../runtime/plugin-host-shim";
 import { PluginI18nBoundary } from "../runtime/plugin-i18n";
@@ -127,14 +130,19 @@ export function PluginGlobalSlotHost(): JSX.Element | null {
 						previousPlugins,
 						pendingPluginIds instanceof Set ? pendingPluginIds : undefined,
 						(plugin) => loadPlugin(plugin, forceUpdate),
-						(plugin, error) =>
+						(plugin, error) => {
 							logPluginRuntimeWarn("snapshot candidate rejected", {
 								pluginId: plugin.id,
 								pluginVersion: plugin.activeVersion,
 								pluginSource: plugin.source,
 								stage: "load-snapshot",
 								reason: error instanceof Error ? error.name : "unknown",
-							}),
+							});
+							const message = pluginPermissionRecovery(error);
+							if (message && !unmountedRef.current) {
+								showToast({ variant: "error", title: resolvePluginDisplayText(plugin, plugin.name), message });
+							}
+						},
 						{
 							beforeLoad: () => waitForCommittedPaint(),
 							onProgress:

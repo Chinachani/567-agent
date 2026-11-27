@@ -70,11 +70,16 @@ export async function resolveDesktopSessionConfig(
 	config: DesktopCodingAgentSessionConfig | undefined,
 	kind: DesktopSessionKind,
 	source: DesktopConversationSource,
+	existingCwd?: { cwd: string | undefined },
 ): Promise<ResolvedDesktopSessionConfig> {
 	const requestedCwd = config?.cwd ?? process.cwd();
 	allowProjectRoot(requestedCwd);
 	const injectedSessionDir = config?.sessionDir ?? resolveSessionDirForCwd(requestedCwd);
-	const cwdFromExistingHeader = config?.sessionPath ? await readSessionCwdFromHeader(config.sessionPath) : undefined;
+	const cwdFromExistingHeader = existingCwd
+		? existingCwd.cwd
+		: config?.sessionPath
+			? await readSessionCwdFromHeader(config.sessionPath)
+			: undefined;
 	const effectiveCwd = cwdFromExistingHeader ?? (await ensureConversationSubCwd(requestedCwd)) ?? requestedCwd;
 	await ensureSessionWorkingCwd(effectiveCwd);
 	if (!samePath(effectiveCwd, requestedCwd)) {

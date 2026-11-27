@@ -96,7 +96,8 @@ try {
 	const match = output.match(/WORKSPACE_LAYOUT_RESULT (\{[^\n]+\})/);
 	assert.ok(match, output);
 	const result = JSON.parse(match[1]);
-	assert.equal(result.rows.length, (pageFilter?.length ?? 18) * 6);
+	const includesAbilities = !pageFilter || pageFilter.includes("abilities");
+	assert.equal(result.rows.length, (pageFilter?.length ?? 18) * 6 + (includesAbilities ? 6 : 0));
 	for (const row of result.rows) {
 		assert.ok(row.title, JSON.stringify(row));
 		assert.ok(row.controls > 0, JSON.stringify(row));
@@ -212,8 +213,16 @@ function runProbe({ root, artifacts, pageFilter }) {
 				}, state);
 			const rows = [];
 			const started = Date.now();
+			const windowSizes = [
+				{ width: 380, zoom: 1 },
+				{ width: 800, zoom: 1 },
+				{ width: 1100, zoom: 1, shell: true },
+				{ width: 1440, zoom: 1, shell: true, abilitiesOnly: true },
+				{ width: 1440, zoom: 1.5, shell: true, abilitiesOnly: true },
+				{ width: 380, zoom: 1.5, abilitiesOnly: true },
+			];
 			for (const mode of ["dark", "light"])
-				for (const width of [380, 800, 1100])
+				for (const { width, zoom, shell = false, abilitiesOnly } of windowSizes)
 					for (const page of [
 						"home",
 						"chat",
@@ -226,8 +235,9 @@ function runProbe({ root, artifacts, pageFilter }) {
 						"knowledge",
                         "taskQueue", "taskQueueCollapsed", "updates", "taskRunning", "taskWaiting", "taskFailed", "taskStopped", "taskComplete", "deliveries",
                     ]) {
-                        if (pageFilter && !pageFilter.includes(page)) continue;
-						pageContext = `${page}, ${mode}, ${width}px`;
+                        if ((pageFilter && !pageFilter.includes(page)) || (abilitiesOnly && page !== "abilities")) continue;
+						pageContext = `${page}, ${mode}, ${width}px at ${zoom * 100}%`;
+						win.webContents.setZoomFactor(zoom);
 						win.setContentSize(width, 780);
 						// Resizes apply asynchronously; wait until the content size settles so the page
 						// measures the requested width instead of the previous one.
@@ -252,8 +262,8 @@ function runProbe({ root, artifacts, pageFilter }) {
 							}, 4000);
 						});
 						await call((mode) => window.applyWorkspaceTheme(mode), mode);
-						await render({ page, shell: width === 1100 });
-						console.log(`WORKSPACE_LAYOUT_PROBE mode=${mode} width=${width} page=${page}`);
+						await render({ page, shell });
+						console.log(`WORKSPACE_LAYOUT_PROBE mode=${mode} width=${width} zoom=${zoom} page=${page}`);
 						const row = await call((page) => {
 							const body = document.querySelector('[data-workspace-page="' + page + '"]'),
 								bounds = body.getBoundingClientRect();
@@ -284,7 +294,7 @@ function runProbe({ root, artifacts, pageFilter }) {
                                 const a = add?.getBoundingClientRect();
                                 // Hit-testing an off-screen add button is meaningless; elementFromPoint returns null there.
                                 const addVisible = a && a.top >= 0 && a.bottom <= innerHeight;
-                                return { height: r.height, contentFits: card.scrollHeight <= card.clientHeight + 1, paddingOpensDetails: target === button || button.contains(target), addClickable: !add || !addVisible || add.contains(document.elementFromPoint(a.x + a.width/2, a.y + a.height/2)) };
+                                return { top: r.top, height: r.height, contentFits: card.scrollHeight <= card.clientHeight + 1, paddingOpensDetails: target === button || button.contains(target), addClickable: !add || !addVisible || add.contains(document.elementFromPoint(a.x + a.width/2, a.y + a.height/2)) };
                             }) : [];
                             if (abilityCards.some(card => card.height !== 144 || !card.contentFits || !card.paddingOpensDetails || !card.addClickable)) throw Error("Ability card layout or hit area failed: " + JSON.stringify(abilityCards));
                             const taskStatus = page.startsWith("task") ? body.querySelector("output") : null;
@@ -318,15 +328,24 @@ function runProbe({ root, artifacts, pageFilter }) {
 								title: body.querySelector("h1")?.textContent,
 								controls: controls.length,
                                 abilityCards,
+								abilityColumns: abilityCards.filter((card) => Math.abs(card.top - abilityCards[0].top) <= 1).length,
+								abilitySearchWidth: body.querySelector('input[aria-label="搜索能力"]')?.getBoundingClientRect().width,
 							};
 						}, page);
-						rows.push({ mode, width, page, ...row });
+						if (page === "abilities") {
+							const expectedColumns = width === 380 ? 1 : width === 1440 && zoom === 1 ? 3 : 2;
+							if (row.abilityColumns !== expectedColumns || (row.abilitySearchWidth ?? 0) < 140) {
+								throw Error(`Expected ${expectedColumns} ability columns and usable search. Measured ${row.abilityColumns} columns, search ${row.abilitySearchWidth}px.`);
+							}
+						}
+						rows.push({ mode, width, zoom, page, ...row });
 						if (artifacts)
 							await fs.writeFile(
-								path.join(artifacts, page + "-" + mode + "-" + width + ".png"),
+								path.join(artifacts, `${page}-${mode}-${width}${zoom === 1 ? "" : `-${zoom * 100}pct`}.png`),
 								(await win.capturePage()).toPNG(),
 							);
 					}
+			win.webContents.setZoomFactor(1);
 			win.setContentSize(800, 780);
 			pageContext = "workspace actions, 800px";
 			await win.loadFile(path.join(root, "out/index.html"));

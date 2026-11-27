@@ -4,6 +4,7 @@ import { getDefaultAdapterRegistry } from "../src/runtime/default-adapter-regist
 import { LanguageModelStream } from "../src/runtime/language-model-adapter.js";
 import { stream, streamSimple } from "../src/stream.js";
 import type { Api, AssistantMessage, Model } from "../src/types.js";
+import { AssistantMessageEventStream } from "../src/utils/event-stream.js";
 
 const testModel: Model<Api> = {
 	id: "test-model",
@@ -127,6 +128,25 @@ describe("public stream native preference", () => {
 		} finally {
 			unregisterApiProviders("native-simple-preference-test");
 			registry.register(original, { replace: true, sourceId: "built-in" });
+		}
+	});
+
+	it("keeps legacy providers that end with a result instead of emitting a terminal event", async () => {
+		const legacyModel: Model<"legacy-result-test"> = { ...testModel, api: "legacy-result-test", compat: undefined };
+		const open = () => {
+			const source = new AssistantMessageEventStream();
+			source.end({ ...message(), api: legacyModel.api });
+			return source;
+		};
+		registerApiProvider({ api: legacyModel.api, stream: open, streamSimple: open }, legacyModel.api);
+		try {
+			const response = streamSimple(legacyModel, { messages: [] });
+			expect(await response.result()).toMatchObject({
+				stopReason: "stop",
+				content: [{ type: "text", text: "native" }],
+			});
+		} finally {
+			unregisterApiProviders(legacyModel.api);
 		}
 	});
 });

@@ -2,6 +2,9 @@ package org.agent567.android.data.session
 
 import com.russhwolf.settings.MapSettings
 import com.russhwolf.settings.set
+import org.agent567.android.core.chat.InferenceApi
+import org.agent567.android.core.model.AssistantReplayState
+import org.agent567.android.core.model.ChatToolCall
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -16,6 +19,7 @@ import org.agent567.android.domain.session.MessageImageFileStore
 import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.MessageStatus
 import org.agent567.android.domain.session.PendingQuestion
+import org.agent567.android.domain.session.PendingRemoteTurn
 import org.agent567.android.domain.session.SessionStore
 import org.agent567.android.domain.session.ToolTrace
 import kotlin.test.Test
@@ -62,11 +66,14 @@ class SettingsSessionStoreTest {
                     remoteSessionCreatedOnMobile = true,
                 )
 
+            val pendingTurn = PendingRemoteTurn("turn-1", "desktop-1", "remote-session-1", "assistant-1", 3)
+            firstStore.updateSession(remote.copy(pendingRemoteTurn = pendingTurn))
             val restored = SettingsSessionStore(settings).getSession(remote.id)
             assertEquals(ConversationOrigin.Desktop, restored?.origin)
             assertEquals("desktop-1", restored?.remoteDeviceId)
             assertEquals("remote-session-1", restored?.remoteSessionId)
             assertEquals(true, restored?.remoteSessionCreatedOnMobile)
+            assertEquals(pendingTurn, restored?.pendingRemoteTurn)
 
             settings["vetta.session.index"] =
                 """{"items":[{"id":"legacy","title":"Legacy","createdAtEpochMs":1,"updatedAtEpochMs":2}]}"""
@@ -282,6 +289,78 @@ class SettingsSessionStoreTest {
         reopened.saveDraft(session.id, "account-b", org.agent567.android.domain.session.SessionDraft("late write"))
         assertEquals("", reopened.getDraft(session.id, "account-b").text)
     }
+
+    @Test
+    fun replayStateAndLegacyMessagesRoundtripThroughStoreAndMigration() =
+        runBlocking {
+            val settings = MapSettings()
+            val store = SettingsSessionStore(settings)
+            val session = store.createSession(title = "Replay")
+            val replay = AssistantReplayState(
+                inferenceApi = InferenceApi.Responses.wireValue,
+                serviceIdentity = "https://api.567.wiki",
+                groupName = "vip",
+                modelId = "gpt-5",
+                reasoningItems = listOf("""{"type":"reasoning","id":"rs_1","encrypted_content":"enc_1"}"""),
+                toolCalls = listOf(ChatToolCall("call_1|fc_1", "lookup", """{"k":1}""")),
+                signedReasoningReset = true,
+            )
+            store.upsertMessage(
+                LocalMessage(
+                    id = "a1",
+                    sessionId = session.id,
+                    role = ChatRole.Assistant,
+                    content = "answer",
+                    status = MessageStatus.Complete,
+                    createdAtEpochMs = 10,
+                    replayState = replay,
+                ),
+            )
+            store.upsertMessage(
+                LocalMessage(
+                    id = "t1",
+                    sessionId = session.id,
+                    role = ChatRole.Tool,
+                    content = "result",
+                    status = MessageStatus.Complete,
+                    createdAtEpochMs = 11,
+                    toolCallId = "call_1|fc_1",
+                ),
+            )
+            store.upsertMessage(
+                LocalMessage(
+                    id = "a_aborted",
+                    sessionId = session.id,
+                    role = ChatRole.Assistant,
+                    content = "partial",
+                    status = MessageStatus.Aborted,
+                    createdAtEpochMs = 12,
+                    replayState = replay,
+                ),
+            )
+
+            val reloaded = SettingsSessionStore(settings)
+            val loaded = reloaded.getMessages(session.id)
+            assertEquals(replay, loaded[0].replayState)
+            assertEquals("call_1|fc_1", loaded[1].toolCallId)
+            assertEquals(null, loaded[2].replayState)
+
+            val exported = reloaded.exportMigrationData(1024 * 1024)
+            val importedStore = SettingsSessionStore(MapSettings())
+            assertEquals(1, importedStore.importMigrationData(exported))
+            val migrated = importedStore.getMessages(session.id)
+            assertEquals(replay, migrated[0].replayState)
+            assertEquals("call_1|fc_1", migrated[1].toolCallId)
+
+            // Legacy record without replayState or toolCallId remains compatible.
+            settings["agent567.session.messages.v2.${session.id}.item.legacy"] =
+                """{"id":"legacy","sessionId":"${session.id}","role":"assistant","content":"old","status":"Complete","createdAtEpochMs":5}"""
+            settings["agent567.session.messages.v2.${session.id}.index"] = """{"ids":["legacy","a1","t1"]}"""
+            val withLegacy = SettingsSessionStore(settings).getMessages(session.id)
+            assertEquals("old", withLegacy.first().content)
+            assertEquals(null, withLegacy.first().replayState)
+            assertEquals(replay, withLegacy[1].replayState)
+        }
 
     private class InMemoryMessageImageFileStore : MessageImageFileStore {
         private val files = mutableMapOf<String, ByteArray>()

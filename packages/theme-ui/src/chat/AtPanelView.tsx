@@ -2,6 +2,7 @@ import { Button } from "@vetta-org/ui";
 import { AnimatePresence, motion } from "motion/react";
 import type { JSX, RefObject } from "react";
 import { usePanelViewportHeight } from "./usePanelViewportHeight";
+import { AgentAvatarView } from "./AgentAvatarView";
 import { FadingScrollArea } from "./FadingScrollArea";
 import { ThemeSurface } from "../appearance/ThemeSurface";
 
@@ -231,7 +232,7 @@ function AtPanelEntry({
 					/>
 				)}
 				{entry.avatar ? (
-					<img src={entry.avatar} alt="" className="h-5 w-5 shrink-0 rounded-full object-cover" />
+					<AgentAvatarView name={entry.name} size="sm" />
 				) : (
 					<span aria-hidden="true" className={`${entry.icon} h-4 w-4 shrink-0 text-muted-foreground`} />
 				)}

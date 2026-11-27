@@ -10,6 +10,7 @@ import {
 import { createModelCallMetadataFromMessage } from "../../runtime/model-call-result.js";
 import { createGoogleAssistantMessage } from "../google-stream/adapter.js";
 import { GeminiEventReducer } from "../google-stream/events.js";
+import { throwGoogleProviderErrorEvent } from "../google-stream/provider-error-event.js";
 import { resolveProviderMaxRetries } from "../retry-policy.js";
 import type { GoogleGeminiCliOptions } from "./options.js";
 import { cloudCodeAssistResponseChunkSchema } from "./protocol.js";
@@ -89,6 +90,7 @@ async function produceGoogleGeminiCliStream(
 			let receivedProviderEvent = false;
 			for await (const rawChunk of parseGoogleCloudCodeResponse(response, options?.signal)) {
 				receivedProviderEvent = true;
+				throwGoogleProviderErrorEvent(rawChunk);
 				if (!started) {
 					stream.push({ type: "start", partial: output });
 					started = true;

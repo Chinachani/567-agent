@@ -120,8 +120,11 @@ export function useUsageLogData() {
 				map.set(row.sessionId, row.sessionName || row.sessionId);
 			}
 		}
+		if (selectedSessionId !== "all" && !map.has(selectedSessionId)) {
+			map.set(selectedSessionId, t("usageLog.currentSession"));
+		}
 		return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-	}, [rows]);
+	}, [rows, selectedSessionId, t]);
 
 	// 可选分组列表（真实从 rows 提取，缺失的明确归为未分组）
 	const availableGroups = useMemo<{ key: string; name: string }[]>(() => {
@@ -134,12 +137,13 @@ export function useUsageLogData() {
 				hasUnassigned = true;
 			}
 		}
+		if (selectedGroup !== "all" && selectedGroup !== UNASSIGNED_GROUP_KEY) groups.add(selectedGroup);
 		const list = Array.from(groups).map((g) => ({ key: g, name: g }));
-		if (hasUnassigned) {
+		if (hasUnassigned || selectedGroup === UNASSIGNED_GROUP_KEY) {
 			list.push({ key: UNASSIGNED_GROUP_KEY, name: UNASSIGNED_GROUP_KEY });
 		}
 		return list;
-	}, [rows]);
+	}, [rows, selectedGroup]);
 
 	// 可选模型列表
 	const availableModels = useMemo<string[]>(() => {
@@ -147,8 +151,9 @@ export function useUsageLogData() {
 		for (const row of rows) {
 			if (row.model?.trim()) set.add(row.model.trim());
 		}
+		if (selectedModel !== "all") set.add(selectedModel);
 		return Array.from(set);
-	}, [rows]);
+	}, [rows, selectedModel]);
 
 	// 统一筛选逻辑：会话、分组、模型、时间、状态、搜索关键字
 	const [dayStart, setDayStart] = useState(() => new Date().setHours(0, 0, 0, 0));

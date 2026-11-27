@@ -1,5 +1,10 @@
 package org.agent567.android.core.chat
 
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import org.agent567.android.core.api.ChatCompletionChunkDto
 import org.agent567.android.core.api.ChatUsageDto
 import org.agent567.android.core.api.toDomain
@@ -38,6 +43,7 @@ object OpenAiSseParser {
     }
 
     internal fun parseChunk(chunk: ChatCompletionChunkDto): ChatStreamEvent? {
+        responseError(chunk.error)?.let { return it }
         val choice = chunk.choices.firstOrNull()
         val sources = providerSources(choice?.delta?.annotations ?: choice?.message?.annotations, nested = true)
         val deltaText = choice?.delta?.content
@@ -96,6 +102,7 @@ object OpenAiSseParser {
             val usageEvents = root["usage"]?.let { value ->
                 runCatching { Agent567Json.decodeFromJsonElement(ChatUsageDto.serializer(), value).toDomain() }.getOrNull()
             }?.let { listOf(ChatStreamEvent.State(value = "usage", usage = it)) }.orEmpty()
+            responseError(root["error"])?.let { return usageEvents + it }
             val choices = root["choices"] as? kotlinx.serialization.json.JsonArray
             val firstChoice = choices?.firstOrNull() as? kotlinx.serialization.json.JsonObject
             val message = firstChoice?.get("message") as? kotlinx.serialization.json.JsonObject
@@ -164,12 +171,19 @@ object OpenAiSseParser {
             if (textToEmit.isNotEmpty()) {
                 listOf(ChatStreamEvent.Delta(textToEmit, providerSources(message?.get("annotations") ?: delta?.get("annotations"), nested = true))) + usageEvents + ChatStreamEvent.Done
             } else {
-                emptyList()
+                if (choices == null) usageEvents else usageEvents + ChatStreamEvent.Done
             }
         } catch (_: Exception) {
             emptyList()
         }
     }
+}
+
+private fun responseError(value: JsonElement?): ChatStreamEvent.Error? {
+    if (value == null || value is JsonNull) return null
+    val message = ((value as? JsonObject)?.get("message") as? JsonPrimitive)?.contentOrNull
+        ?: (value as? JsonPrimitive)?.contentOrNull
+    return ChatStreamEvent.Error(Agent567Exception.Protocol(message?.take(500) ?: "模型返回了流式错误"))
 }
 
 /** Stateful parser for one HTTP stream. Tool calls are emitted only after the
@@ -183,6 +197,8 @@ class OpenAiSseStreamParser {
     )
     private val pending = linkedMapOf<Int, PendingToolCall>()
     private var totalToolArgumentChars = 0
+    internal var toolActivityCount = 0L
+        private set
 
     fun parseLine(line: String): List<ChatStreamEvent> {
         val trimmed = line.trim()
@@ -198,8 +214,13 @@ class OpenAiSseStreamParser {
         }.getOrElse { cause ->
             return listOf(ChatStreamEvent.Error(Agent567Exception.Protocol("无法解析 SSE chunk", cause)))
         }
+        responseError(chunk.error)?.let { error ->
+            val usage = chunk.usage?.let { listOf(ChatStreamEvent.State(value = "usage", usage = it.toDomain())) }.orEmpty()
+            return usage + error
+        }
         val choice = chunk.choices.firstOrNull()
         val toolCalls = choice?.delta?.toolCalls.orEmpty()
+        if (toolCalls.isNotEmpty()) toolActivityCount += 1
         for (part in toolCalls) {
             if (!pending.containsKey(part.index) && pending.size >= MAX_TOOL_CALLS) {
                 clearTools()
@@ -227,11 +248,12 @@ class OpenAiSseStreamParser {
             }
         }
         chunk.usage?.let { output += ChatStreamEvent.State(value = "usage", usage = it.toDomain()) }
-        if (choice?.finishReason != null) {
+        val finishReason = choice?.finishReason?.takeIf(String::isNotBlank)
+        if (finishReason != null) {
             val tools = flushTools()
             output += tools
             if (tools.any { it is ChatStreamEvent.Error }) return output
-            output += ChatStreamEvent.Finished(choice.finishReason, chunk.usage?.toDomain())
+            output += ChatStreamEvent.Finished(finishReason, chunk.usage?.toDomain())
         }
         return output
     }

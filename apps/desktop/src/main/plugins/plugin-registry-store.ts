@@ -17,6 +17,7 @@ export class PluginRegistryStore {
 		try {
 			const registry = JSON.parse(readFileSync(this.path, "utf-8")) as PluginRegistry;
 			for (const plugin of Object.values(registry)) {
+				const grantsWerePersisted = Array.isArray(plugin.grantedPermissions);
 				plugin.cliProviders ??= [];
 				plugin.serviceProviders ??= [];
 				plugin.allowedNetworkHosts ??= [];
@@ -31,7 +32,10 @@ export class PluginRegistryStore {
 				plugin.trustLevel = plugin.source === "remote" || plugin.source === "npm" ? "community" : "local";
 				if (plugin.source !== "npm") plugin.distribution = undefined;
 				plugin.permissions = effectivePluginPermissions(plugin.permissions ?? []);
-				plugin.grantedPermissions = effectivePluginPermissions(plugin.grantedPermissions ?? []);
+				plugin.grantedPermissions = grantsWerePersisted
+					? effectivePluginPermissions(plugin.grantedPermissions)
+					: [];
+				if (!grantsWerePersisted) plugin.permissionReviewRequired = true;
 				plugin.declaredCommands = effectivePluginCommands(plugin.declaredCommands ?? []);
 				plugin.grantedCommandNames = effectivePluginCommands(plugin.grantedCommandNames ?? []);
 				plugin.rootPath = join(this.pluginsBaseDir, plugin.id, "versions", plugin.activeVersion);

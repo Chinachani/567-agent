@@ -5570,6 +5570,30 @@
               {
                 "const": "wechat",
                 "type": "string"
+              },
+              {
+                "const": "telegram",
+                "type": "string"
+              },
+              {
+                "const": "slack",
+                "type": "string"
+              },
+              {
+                "const": "discord",
+                "type": "string"
+              },
+              {
+                "const": "signal",
+                "type": "string"
+              },
+              {
+                "const": "whatsapp",
+                "type": "string"
+              },
+              {
+                "const": "imessage",
+                "type": "string"
               }
             ]
           },
@@ -5644,6 +5668,204 @@
                     "type": "string"
                   }
                 ]
+              },
+              "channelStatuses": {
+                "additionalProperties": false,
+                "type": "object",
+                "properties": {
+                  "feishu": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "wechat": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "telegram": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "slack": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "discord": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "signal": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "whatsapp": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "imessage": {
+                    "anyOf": [
+                      {
+                        "const": "offline",
+                        "type": "string"
+                      },
+                      {
+                        "const": "connecting",
+                        "type": "string"
+                      },
+                      {
+                        "const": "online",
+                        "type": "string"
+                      },
+                      {
+                        "const": "error",
+                        "type": "string"
+                      },
+                      {
+                        "const": "awaiting_bind",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
               },
               "lastError": {
                 "type": "string"
@@ -5786,6 +6008,204 @@
               }
             ]
           },
+          "channelStatuses": {
+            "additionalProperties": false,
+            "type": "object",
+            "properties": {
+              "feishu": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "wechat": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "telegram": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "slack": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "discord": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "signal": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "whatsapp": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "imessage": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          },
           "lastError": {
             "type": "string"
           },
@@ -5852,6 +6272,204 @@
                 "type": "string"
               }
             ]
+          },
+          "channelStatuses": {
+            "additionalProperties": false,
+            "type": "object",
+            "properties": {
+              "feishu": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "wechat": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "telegram": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "slack": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "discord": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "signal": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "whatsapp": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "imessage": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
           },
           "lastError": {
             "type": "string"
@@ -5952,6 +6570,204 @@
                 "type": "string"
               }
             ]
+          },
+          "channelStatuses": {
+            "additionalProperties": false,
+            "type": "object",
+            "properties": {
+              "feishu": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "wechat": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "telegram": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "slack": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "discord": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "signal": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "whatsapp": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              },
+              "imessage": {
+                "anyOf": [
+                  {
+                    "const": "offline",
+                    "type": "string"
+                  },
+                  {
+                    "const": "connecting",
+                    "type": "string"
+                  },
+                  {
+                    "const": "online",
+                    "type": "string"
+                  },
+                  {
+                    "const": "error",
+                    "type": "string"
+                  },
+                  {
+                    "const": "awaiting_bind",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
           },
           "lastError": {
             "type": "string"

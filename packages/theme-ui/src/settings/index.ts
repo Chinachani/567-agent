@@ -41,7 +41,7 @@ export {
 	AchievementPromotionConfetti,
 	AchievementTitle,
 } from "./achievements";
-export type { BrowserConnectionSettingsModel } from "./BrowserConnectionSettingsView";
+export type { BrowserConnectionBadgeTone, BrowserConnectionSettingsModel } from "./BrowserConnectionSettingsView";
 export { BrowserConnectionSettingsView } from "./BrowserConnectionSettingsView";
 export type {
 	BuiltinMcpSecretFieldView,

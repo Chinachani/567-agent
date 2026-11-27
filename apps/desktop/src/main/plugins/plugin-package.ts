@@ -184,6 +184,9 @@ export function createInstalledPluginFromManifest(input: {
 		...projected,
 		activeVersion: manifest.version,
 		grantedPermissions,
+		...(previous?.permissionReviewRequired && options?.grantedPermissions === undefined
+			? { permissionReviewRequired: true }
+			: {}),
 		grantedCommandNames,
 		enabled: options?.enable === true ? true : (previous?.enabled ?? false),
 		required: false,

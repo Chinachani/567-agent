@@ -98,9 +98,7 @@ export class MemberTokenNode extends DecoratorNode<JSX.Element> {
 		return (
 			<TokenChip
 				iconNode={
-					this.__avatar ? (
-						<img src={this.__avatar} alt="" draggable={false} className="h-3 w-3 rounded-full object-cover" />
-					) : undefined
+					<span aria-hidden="true" className="icon-[solar--user-rounded-linear] h-3 w-3 text-foreground" />
 				}
 				label={`@${this.__label || this.__handle}`}
 				title={this.__meta ? `${this.__label || this.__handle} · ${this.__meta}` : this.__handle}

@@ -7,6 +7,7 @@ import { atomicWriteJSONAsync } from "@567agent/toolkit/atomic-write";
 import { createVersionedJsonConfigStore } from "@567agent/toolkit/config-store";
 import { z } from "zod";
 import type { DesktopTaskResult, ResultInboxSnapshot, TaskResult } from "../../shared/result-inbox.js";
+import { resolveDesktopSessionOpenTarget } from "../../shared/session-access.js";
 import { getDesktopConversationService } from "../conversations/desktop-conversation-service.js";
 import { resolveDesktopRuntimeSessionRoots } from "../conversations/session-catalog-roots.js";
 import { peekSharedRuntime } from "../runtime.js";
@@ -55,6 +56,8 @@ async function readInbox(): Promise<ResultInboxSnapshot> {
 	let bytesRead = 0;
 	const deadline = Date.now() + 15_000;
 	for (const session of selected) {
+		const openTarget = resolveDesktopSessionOpenTarget(session.access);
+		if (openTarget === "unavailable" || !session.access.readHistory) continue;
 		// Legacy JSONL has no reliable terminal journal. Never infer success from modifiedAt.
 		if (!session.path.endsWith(".conversation.jsonl")) continue;
 		try {
@@ -100,6 +103,7 @@ async function readInbox(): Promise<ResultInboxSnapshot> {
 					cwd: session.cwd,
 					title: (session.name?.trim() || session.firstMessage || "").slice(0, 300),
 					read: reads[key] === fingerprint(current),
+					openTarget,
 				});
 			}
 		} catch {

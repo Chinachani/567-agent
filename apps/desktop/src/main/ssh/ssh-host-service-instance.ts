@@ -2,11 +2,15 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { getAgent567HomePath } from "@567agent/action-rpc";
 import { parseProjectLocation, parseSshConfigAliases } from "@567agent/ssh-transport";
 import { readDesktopConfig } from "../config/desktop-config-store.js";
+import { getDesktopCredentialVault } from "../credentials/desktop-credential-vault.js";
 import { broadcastSshHostsChanged } from "./ssh-events.js";
 import { SshHostService } from "./ssh-host-service.js";
 import { sshHostStore } from "./ssh-host-store.js";
+import { SshPrivateKeyStore } from "./ssh-private-key.js";
+import { sshCredentialRef } from "./ssh-prompt-service.js";
 import { getSshConnectionManager } from "./ssh-runtime.js";
 
 let service: SshHostService | undefined;
@@ -16,8 +20,16 @@ export function getSshHostService(): SshHostService {
 	service ??= new SshHostService({
 		readHosts: sshHostStore.read,
 		writeHosts: sshHostStore.write,
+		privateKeys: new SshPrivateKeyStore(getAgent567HomePath()),
 		broadcastChanged: broadcastSshHostsChanged,
 		invalidateConnection: (hostId) => getSshConnectionManager().invalidate(hostId),
+		forgetPassphrase: (hostId) => {
+			try {
+				getDesktopCredentialVault().remove(sshCredentialRef(hostId, "passphrase"));
+			} catch {
+				return;
+			}
+		},
 		countProjectsOnHost: async (hostId) => {
 			const config = await readDesktopConfig();
 			return [...config.projects, ...config.archivedProjects].filter((entry) => {

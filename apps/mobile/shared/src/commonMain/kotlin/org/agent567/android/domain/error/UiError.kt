@@ -10,6 +10,8 @@ import org.agent567.android.domain.remote.protocol.RemoteErrorCode
 enum class UiErrorAction {
     None,
     Retry,
+    ResumeRemoteTurn,
+    ResendRemoteTurn,
     OpenPlan,
     ReLogin,
     OpenSettings,

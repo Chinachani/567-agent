@@ -5,6 +5,7 @@ export class EmptyProviderStreamError extends AIStreamProtocolError {
 		super("Stream ended without provider events", {
 			cause,
 			retryable: true,
+			providerCode: "empty_provider_stream",
 			metadata: { reason: "empty_provider_stream" },
 		});
 		this.name = "EmptyProviderStreamError";

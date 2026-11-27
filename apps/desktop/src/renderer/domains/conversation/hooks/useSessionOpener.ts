@@ -16,9 +16,11 @@ import {
 	activeToolNamesAtom,
 	adoptExistingSessionInputDraft,
 	batchProjectsAtom,
+	chatMessageSessionAtom,
 	chatMessagesAtom,
 	claimExistingSessionInputDraft,
 	claimNewSessionInputDraft,
+	commitActiveChatSessionAtom,
 	conversationBucketCwd,
 	currentScenarioAtom,
 	defaultConversationCwdAtom,
@@ -101,6 +103,7 @@ function sameActiveSession(left: ActiveSession | null, right: ActiveSession): bo
 	return (
 		left !== null &&
 		left.cwd === right.cwd &&
+		left.listCwd === right.listCwd &&
 		left.sessionPath === right.sessionPath &&
 		left.runtimeId === right.runtimeId &&
 		left.parentSessionPath === right.parentSessionPath &&
@@ -191,7 +194,12 @@ export function useSessionOpener(): SessionOpenerController {
 			setPendingSessionOpen(null);
 			setPendingSessionCreation(null);
 			const commitActiveSession = (session: ActiveSession): void => {
-				if (!sameActiveSession(activeSessionRef.current, session)) setActiveSession(session);
+				if (
+					!sameActiveSession(currentStore.get(activeSessionAtom), session) ||
+					!currentStore.get(chatMessageSessionAtom)
+				) {
+					currentStore.set(commitActiveChatSessionAtom, session);
+				}
 				activeSessionRef.current = session;
 			};
 			const shouldNavigate = options?.navigate !== false;
@@ -202,6 +210,7 @@ export function useSessionOpener(): SessionOpenerController {
 			// In the staged new-session flow, detach the old event target immediately so late
 			// tool and delta events cannot land in the new conversation's message list.
 			setChatStreamOwner(null);
+			currentStore.set(chatMessageSessionAtom, null);
 			if (navigateBeforeCreate) {
 				activeSessionRef.current = null;
 				setActiveSession(null);
@@ -454,6 +463,7 @@ export function useSessionOpener(): SessionOpenerController {
 			// navigate:false：设置页 AI 协助等场景只后台建会话，留在当前路由，由侧栏高亮 + 飞球引导。
 			const earlySessionInfo = {
 				cwd: effectiveCwd,
+				...(createResult.listCwd ? { listCwd: createResult.listCwd } : {}),
 				sessionPath: canonicalSessionPath,
 				runtimeId: sessionId,
 				...(createResult.agentProfileId ? { agentProfileId: createResult.agentProfileId } : {}),
@@ -495,7 +505,10 @@ export function useSessionOpener(): SessionOpenerController {
 				markSessionSwitch("session-subscribe-start");
 				let unsubscribeFn: () => void;
 				try {
-					unsubscribeFn = await window.agent567.session.subscribe(sessionId, createSessionEventHandler(sessionId));
+					const handleEvent = createSessionEventHandler(sessionId);
+					unsubscribeFn = await window.agent567.session.subscribe(sessionId, (event) => {
+						if (myOpenToken === getOpenSessionToken()) handleEvent(event);
+					});
 				} catch (error) {
 					failSessionHydration("subscribe", error);
 					return false;
@@ -513,7 +526,7 @@ export function useSessionOpener(): SessionOpenerController {
 				setCurrentUnsubscribe(unsubscribeFn);
 				subscribed = true;
 				perfSendMark("open-session-ready", interactionId);
-				if (cachedKey) setLastActiveSession({ cwd, sessionPath: cachedKey });
+				if (cachedKey) setLastActiveSession({ cwd: createResult.listCwd ?? cwd, sessionPath: cachedKey });
 				// 只派发首条 Prompt，绝不等它跑完：session.prompt 的 IPC 要到整轮 turn
 				// 结束（或用户暂停）才 resolve。一旦 await，下面的 getState 回填
 				// （scenario / activeToolNames / 上下文用量 / 工作模式）和本次过渡的收尾
@@ -640,12 +653,10 @@ export function useSessionOpener(): SessionOpenerController {
 			// 未变化则复用早期 identity，不制造第二次全局订阅更新。
 			{
 				const sessionInfo: ActiveSession = {
-					cwd: effectiveCwd,
+					...earlySessionInfo,
 					sessionPath: cachedKey,
-					runtimeId: sessionId,
 					parentSessionPath,
 					parentEntryId,
-					...(createResult.agentProfileId ? { agentProfileId: createResult.agentProfileId } : {}),
 				};
 				commitActiveSession(sessionInfo);
 			}
@@ -741,7 +752,8 @@ export function useSessionOpener(): SessionOpenerController {
 			// 必须归一到 bucket 再 list，否则 fork/打开已有会话后侧栏不出现该条。这里不再
 			// 阻塞 openSession：新会话的首条 prompt 只依赖上面的订阅与运行时状态，侧边栏
 			// 对账可以在发送之后异步完成。
-			const bucketCwd = conversationBucketCwd(effectiveCwd, defaultConversationCwdRef.current);
+			const bucketCwd =
+				createResult.listCwd ?? conversationBucketCwd(effectiveCwd, defaultConversationCwdRef.current);
 			const firstUser = getDefaultStore()
 				.get(chatMessagesAtom)
 				.find((message) => message.kind === "user");

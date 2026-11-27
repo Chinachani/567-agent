@@ -428,7 +428,7 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 				// 但侧边栏 sessionsMap / 默认列表都挂在项目根 bucket 上。乐观行必须落到根
 				// bucket，否则既不在「会话」列表显示，auto-title 的 applyLocalRename(root,…)
 				// 也会因 bucket 不匹配而落空，导致改名要等下一次磁盘刷新才生效。
-				const bucketCwd = conversationBucketCwd(session.cwd, targetDefaultConversationCwd);
+				const bucketCwd = session.listCwd ?? conversationBucketCwd(session.cwd, targetDefaultConversationCwd);
 				ensureLocalSession(bucketCwd, {
 					id: session.runtimeId,
 					path: sp,
@@ -660,7 +660,9 @@ export function useSessionMessageSender({ bumpSuggestionToken }: SessionMessageS
 			}
 			// ADR-0007：归一回项目根 bucket，否则「对话」session 刷的是没用的子目录桶，
 			// 侧边栏默认列表（挂在根 bucket）拿不到这一轮的对账更新。
-			void loadSessions(conversationBucketCwd(session.cwd, defaultConversationCwdRef.current)).catch((err) => {
+			void loadSessions(
+				session.listCwd ?? conversationBucketCwd(session.cwd, defaultConversationCwdRef.current),
+			).catch((err) => {
 				console.warn("[useSessionManager.sendMessage] background session list refresh failed", err);
 			});
 			return sendResult;

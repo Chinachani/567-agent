@@ -1,10 +1,22 @@
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it, vi } from "vitest";
-import type { AssistantMessage, Context, LanguageModelStreamEvent, Model, ModelStreamResponse } from "../src/index.js";
-import { AI_ERROR_CODES, type AIError } from "../src/protocol/index.js";
+import {
+	type Api,
+	type AssistantMessage,
+	type Context,
+	type LanguageModelStreamEvent,
+	type Model,
+	type ModelStreamResponse,
+	streamSimple,
+} from "../src/index.js";
+import { AI_ERROR_CODES, type AIError, createAssistantMessage } from "../src/protocol/index.js";
 import { createGoogleAdapter, type GoogleContentSender } from "../src/providers/google.js";
 import { googleGeminiCliAdapter } from "../src/providers/google-gemini-cli.js";
+import { SKIP_THOUGHT_SIGNATURE_VALIDATOR } from "../src/providers/google-shared.js";
 import { createGoogleVertexAdapter, type GoogleVertexContentSender } from "../src/providers/google-vertex.js";
+import { AdapterRegistry } from "../src/runtime/adapter-registry.js";
+import { streamModel } from "../src/runtime/stream-model.js";
+import { createProviderTestTransport, errorResponse } from "../src/testing/provider-test-transport.js";
 
 const context: Context = {
 	systemPrompt: "Be concise.",
@@ -16,6 +28,231 @@ const googleModel = createModel("google-generative-ai", "google");
 const vertexModel = createModel("google-vertex", "google-vertex");
 const cliModel = createModel("google-gemini-cli", "google-gemini-cli");
 const cliApiKey = JSON.stringify({ token: "test-token", projectId: "test-project" });
+
+const signedGemini = { ...googleModel, id: "gemini-3-pro-preview" };
+const staleSignature = "c3RhbGU=";
+const freshSignature = "ZnJlc2g=";
+const invalidThoughtSignature = "Unable to validate the thought signature in the request.";
+
+function geminiRequestError(message: string) {
+	return { error: { code: 400, status: "INVALID_ARGUMENT", message } };
+}
+
+function geminiToolHistory(model: Model<Api>, signature = staleSignature): Context {
+	const assistant = createAssistantMessage({ ...model, model: model.id }, { stopReason: "toolUse" });
+	assistant.content = [
+		{ type: "thinking", thinking: "old reasoning", thinkingSignature: signature },
+		{ type: "text", text: "previous answer", textSignature: signature },
+		{ type: "toolCall", id: "first", name: "lookup", arguments: { query: "one" }, thoughtSignature: signature },
+		{ type: "toolCall", id: "second", name: "lookup", arguments: { query: "two" } },
+	];
+	return {
+		...context,
+		messages: [
+			...context.messages,
+			assistant,
+			...["first", "second"].map((toolCallId) => ({
+				role: "toolResult" as const,
+				toolCallId,
+				toolName: "lookup",
+				isError: false,
+				timestamp: 3,
+				content: [{ type: "text" as const, text: `result for ${toolCallId}` }],
+			})),
+		],
+	};
+}
+
+function geminiReply() {
+	return [
+		{ candidates: [{ content: { role: "model", parts: [{ text: "answer", thoughtSignature: freshSignature }] } }] },
+		{ candidates: [{ finishReason: "STOP" }], usageMetadata: { totalTokenCount: 3 } },
+	];
+}
+
+describe("Gemini signed history through the registered chat stream", () => {
+	it("recovers an explicit Developer API HTTP 400 through the default chat entry point", async () => {
+		const rejection = "Invalid value at 'contents[1].parts[0].thought_signature'.";
+		const transport = createProviderTestTransport([
+			errorResponse(400, geminiRequestError(rejection)),
+			sseResponse(geminiReply()),
+		]);
+		vi.stubGlobal("fetch", transport.fetch);
+		try {
+			const result = await streamSimple(signedGemini, geminiToolHistory(signedGemini), {
+				apiKey: "test-key",
+			}).result();
+			expect(result).toMatchObject({ stopReason: "stop", signedReasoningReset: true });
+			expect(transport.requests).toHaveLength(2);
+			expect(transport.requests[0].body).toContain(staleSignature);
+			expect(transport.requests[1].body).not.toContain(staleSignature);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it.each([
+		{ create: createGoogleAdapter, model: signedGemini },
+		{ create: createGoogleVertexAdapter, model: { ...vertexModel, id: signedGemini.id } },
+	])("repairs and reuses the repaired prefix for $model.api", async ({ create, model }) => {
+		const registry = new AdapterRegistry();
+		const sent: Parameters<GoogleContentSender>[0][] = [];
+		const send = async (params: Parameters<GoogleContentSender>[0]) => {
+			sent.push(params);
+			if (sent.length === 1)
+				throw Object.assign(new Error(JSON.stringify(geminiRequestError(invalidThoughtSignature))), {
+					status: 400,
+				});
+			return chunks(geminiReply());
+		};
+		registry.register(create({ send }));
+		const history = geminiToolHistory(model);
+		const original = structuredClone(history.messages);
+		const { events, result } = await collectNative(await streamModel({ model, context: history }, registry));
+		expect(result).toMatchObject({ stopReason: "stop", signedReasoningReset: true });
+		expect(
+			events.filter((event) => ["start", "error", "done"].includes(event.type)).map((event) => event.type),
+		).toEqual(["start", "done"]);
+		expect(history.messages).toEqual(original);
+		const [first, repaired] = sent.map(({ contents }) => contents);
+		if (!Array.isArray(first) || !Array.isArray(repaired)) throw new Error("Expected Gemini message arrays");
+		expect(first).toMatchObject([
+			{},
+			{
+				parts: [
+					{ thoughtSignature: staleSignature },
+					{ thoughtSignature: staleSignature },
+					{ thoughtSignature: staleSignature },
+					{},
+				],
+			},
+			{},
+		]);
+		expect(repaired).toMatchObject([
+			{},
+			{
+				parts: [
+					{ text: "previous answer" },
+					{
+						functionCall: { name: "lookup", args: { query: "one" } },
+						thoughtSignature: SKIP_THOUGHT_SIGNATURE_VALIDATOR,
+					},
+					{ functionCall: { name: "lookup", args: { query: "two" } } },
+				],
+			},
+			{},
+		]);
+		expect(JSON.stringify(repaired)).not.toContain(staleSignature);
+		expect(repaired[2]).toEqual(first[2]);
+
+		await collectNative(
+			await streamModel(
+				{
+					model,
+					context: {
+						...history,
+						messages: [
+							...history.messages,
+							JSON.parse(JSON.stringify(result)),
+							{ role: "user", content: "follow up", timestamp: 4 },
+						],
+					},
+				},
+				registry,
+			),
+		);
+		const followup = sent[2].contents;
+		if (!Array.isArray(followup)) throw new Error("Expected Gemini follow-up messages");
+		expect(followup.slice(0, 3)).toEqual(repaired);
+		expect(followup[3]).toMatchObject({ parts: [{ text: "answer", thoughtSignature: freshSignature }] });
+	});
+
+	it.each(["HTTP 400", "SSE error"])("recovers a Code Assist %s", async (source) => {
+		const model = { ...cliModel, id: signedGemini.id };
+		const rejection = geminiRequestError(invalidThoughtSignature);
+		const transport = createProviderTestTransport([
+			source === "HTTP 400" ? errorResponse(400, rejection) : sseResponse([rejection]),
+			sseResponse(geminiReply().map((response) => ({ response }))),
+		]);
+		const result = await (
+			await streamModel({
+				model,
+				context: geminiToolHistory(model),
+				options: { apiKey: cliApiKey, fetch: transport.fetch },
+			})
+		).result;
+		expect(result).toMatchObject({ signedReasoningReset: true });
+		expect(transport.requests).toHaveLength(2);
+		expect(transport.requests[0].body).toContain(staleSignature);
+		expect(transport.requests[1].body).not.toContain(staleSignature);
+	});
+
+	it.each([
+		{ label: "an unsigned history already using the sentinel", signature: "", error: invalidThoughtSignature },
+		{
+			label: "a missing signature",
+			signature: staleSignature,
+			error: "Function call is missing a thought_signature.",
+		},
+		{ label: "a generic invalid argument", signature: staleSignature, error: "Invalid thinkingBudget" },
+	])("surfaces $label without resending", async ({ signature, error }) => {
+		const registry = new AdapterRegistry();
+		const send = vi.fn(async () => {
+			throw Object.assign(new Error(JSON.stringify(geminiRequestError(error))), { status: 400 });
+		});
+		registry.register(createGoogleAdapter({ send }));
+		const response = await streamModel(
+			{ model: signedGemini, context: geminiToolHistory(signedGemini, signature) },
+			registry,
+		);
+		await expect(response.result).rejects.toMatchObject({ statusCode: 400, message: error });
+		expect(send).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not reuse or repair a signature after the user switches Gemini models", async () => {
+		const registry = new AdapterRegistry();
+		const send = vi.fn<GoogleContentSender>(async () => chunks(geminiReply()));
+		registry.register(createGoogleAdapter({ send }));
+		const model = { ...signedGemini, id: "gemini-3-flash-preview" };
+		const result = await (await streamModel({ model, context: geminiToolHistory(signedGemini) }, registry)).result;
+		expect(result).not.toHaveProperty("signedReasoningReset");
+		expect(send).toHaveBeenCalledTimes(1);
+		const payload = send.mock.calls[0][0].contents;
+		expect(JSON.stringify(payload)).not.toContain(staleSignature);
+		expect(payload).toMatchObject([
+			{},
+			{
+				parts: [
+					{ text: "old reasoning" },
+					{ text: "previous answer" },
+					{ functionCall: { name: "lookup" }, thoughtSignature: SKIP_THOUGHT_SIGNATURE_VALIDATOR },
+					{ functionCall: { name: "lookup" } },
+				],
+			},
+			{},
+		]);
+	});
+
+	it("preserves reported usage when a Gemini stream rejects a signature after the request was metered", async () => {
+		const registry = new AdapterRegistry();
+		const send = vi.fn<GoogleContentSender>(async () =>
+			chunks([
+				{ usageMetadata: { promptTokenCount: 4, totalTokenCount: 4 } },
+				geminiRequestError(invalidThoughtSignature),
+			]),
+		);
+		registry.register(createGoogleAdapter({ send }));
+		const reply = await streamModel({ model: signedGemini, context: geminiToolHistory(signedGemini) }, registry);
+		const events: LanguageModelStreamEvent[] = [];
+		await expect(
+			(async () => {
+				for await (const event of reply.events) events.push(event);
+			})(),
+		).rejects.toMatchObject({ statusCode: 400 });
+		expect(events.at(-1)).toMatchObject({ type: "error", error: { usage: { input: 4 } } });
+		expect(send).toHaveBeenCalledTimes(1);
+	});
+});
 
 describe("Google Generative AI native adapter", () => {
 	it("uses the normalized provider message in the terminal error event", async () => {

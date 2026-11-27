@@ -151,16 +151,10 @@ export interface SidecarHooks {
 	onFeishuUnbound?: (event: FeishuUnboundEvent) => void;
 }
 
-/**
- * SidecarConfig describes one transport selection. Exactly one of the
- * channel slots should be populated; the others should be undefined.
- *
- * The sidecar has its own preference order when several are present, but
- * the parent should never rely on that — pick one based on the user's
- * `transport` setting in im-config.json.
- */
+/** All configured channel slots and the channel selected for pairing. */
 export interface SidecarConfig {
 	binaryPath: string;
+	activeTransport?: string;
 	feishu?: FeishuConfig;
 	wechat?: WechatConfig;
 	telegram?: TelegramConfig;
@@ -336,6 +330,7 @@ export class SidecarManager {
 		// child.stdin reference.
 		this.writeFrame({
 			type: FRAME_INIT,
+			activeTransport: cfg.activeTransport,
 			feishu: cfg.feishu,
 			wechat: cfg.wechat,
 			telegram: cfg.telegram,
@@ -501,7 +496,7 @@ export class SidecarManager {
 		if (child.stdout) {
 			const rl: Interface = createInterface({ input: child.stdout });
 			rl.on("line", (line) => {
-				this.handleEventLine(line);
+				if (this.getActiveChild() === child) this.handleEventLine(line, child);
 			});
 		}
 		if (child.stderr) {
@@ -520,7 +515,7 @@ export class SidecarManager {
 		}
 	}
 
-	private handleEventLine(line: string): void {
+	private handleEventLine(line: string, child: ChildProcess): void {
 		let event: OutboundEvent | null;
 		try {
 			event = decodeEvent(line);
@@ -540,7 +535,7 @@ export class SidecarManager {
 				this.handleReady(event);
 				break;
 			case EVENT_STATUS:
-				this.hooks.onStatus?.(event);
+				if (this.getCurrentChild() === child) this.hooks.onStatus?.(event);
 				break;
 			case EVENT_LOG:
 				this.hooks.onLog?.(event);

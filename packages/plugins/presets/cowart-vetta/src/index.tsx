@@ -1,6 +1,7 @@
 import { definePlugin } from "@vetta-org/plugin-sdk";
 import { lazy, Suspense } from "react";
 import { setPluginContext } from "./pluginContext";
+import { restoreSessionCanvas } from "./restore-session-canvas";
 import "./style.css";
 
 const LazyCanvasPanel = lazy(async () => ({ default: (await import("./CanvasPanel")).CanvasPanel }));
@@ -66,7 +67,6 @@ export default definePlugin({
 			component: CanvasPanel,
 			scope_use: ["project", "conversation"],
 		});
-
 		ctx.agent.registerTool<{ projectDir?: string }>({
 			id: OPEN_TOOL_ID,
 			name: OPEN_TOOL_ID,
@@ -94,5 +94,6 @@ export default definePlugin({
 				};
 			},
 		});
+		return restoreSessionCanvas(ctx, TAB_ID);
 	},
 });

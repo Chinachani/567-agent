@@ -15,7 +15,7 @@ import (
 // layers MUST NOT read it.
 type InboundMessage struct {
 	Platform    string       // "feishu", "mock", ...
-	ChatID      string       // platform-native, opaque to upper layers
+	ChatID      string       // opaque to upper layers; scoped by an aggregate transport
 	UserID      string       // platform-native (e.g. open_id for feishu)
 	MessageID   string       // platform-native
 	ReplyToID   string       // empty if not a reply

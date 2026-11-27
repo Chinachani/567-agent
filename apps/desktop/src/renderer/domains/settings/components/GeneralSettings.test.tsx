@@ -106,6 +106,9 @@ it("saves a download source from the real selector and keeps the custom address 
 	await screen.findByRole("switch", { name: "自动检查更新" });
 	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.title") }));
 	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.accelerated") }));
+	await waitFor(() => expect(window.agent567.config.set).toHaveBeenCalledWith({ updateSource: "auto" }));
+	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.title") }));
+	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.fixedProxy") }));
 	await waitFor(() => expect(window.agent567.config.set).toHaveBeenCalledWith({ updateSource: "gh-proxy" }));
 	expect(await screen.findByRole("status")).toBeTruthy();
 	await user.click(screen.getByRole("button", { name: i18n.t("settings:updateSource.title") }));

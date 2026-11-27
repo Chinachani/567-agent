@@ -24,7 +24,7 @@ export function AbilitiesBanner(): JSX.Element {
 				<div className="mt-3 border-t border-border/60 pt-3">
 					<h2 className="text-[13px] font-semibold text-foreground">{t("banner.title")}</h2>
 					<p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{t("banner.description")}</p>
-					<div className="mt-3 grid gap-3 sm:grid-cols-2">
+					<div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3">
 						<div className="border-l border-border/70 pl-3 py-1">
 							<p className="text-[12px] font-medium text-foreground">{t("banner.catalogTitle")}</p>
 							<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t("banner.catalogHint")}</p>

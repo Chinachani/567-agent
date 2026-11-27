@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginServiceProviderManifest, PluginServiceRuntimeKind } from "@vetta-org/plugin-sdk";
+import type { Mock } from "vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { InstalledPlugin } from "../../preload/api-types/plugins.js";
 import { PluginServiceProviderService } from "./plugin-service-provider-service.js";
@@ -78,13 +79,20 @@ async function fixture() {
 	const resolveRuntime = vi.fn(async () => paths());
 	const installRuntime = vi.fn(async () => paths());
 	const children: ChildProcess[] = [];
+	const trackers: { terminate: Mock }[] = [];
 	const spawnProcess = vi.fn(() => {
 		const child = new ChildProcess();
 		children.push(child);
 		return child;
 	});
-	const killProcess = vi.fn((child: ChildProcess) => {
-		child.emit("exit", 0, null);
+	const spawnProcessTree = vi.fn((child: ChildProcess) => {
+		const tracker = {
+			terminate: vi.fn(async () => {
+				child.emit("exit", 0, null);
+			}),
+		};
+		trackers.push(tracker);
+		return tracker;
 	});
 	const fetchClient = vi.fn(async (_url: string, _init?: RequestInit) => new Response("{}", { status: 200 }));
 	let port = 19000;
@@ -94,7 +102,7 @@ async function fixture() {
 		fetchClient,
 		spawnProcess,
 		resolveHostNodeExecutable: () => "C:/vetta/node.exe",
-		killProcess,
+		spawnProcessTree,
 		allocatePort: async () => ++port,
 		broadcast: vi.fn(),
 	});
@@ -107,8 +115,9 @@ async function fixture() {
 		installRuntime,
 		spawnProcess,
 		children,
+		spawnProcessTree,
 		fetchClient,
-		killProcess,
+		trackers,
 	};
 }
 
@@ -154,7 +163,7 @@ describe("PluginServiceProviderService", () => {
 	it("ignores late exits from a disabled process after re-enabling", async () => {
 		const f = await fixture();
 		await f.service.start(f.plugin.id, "bridge");
-		f.killProcess.mockImplementation(() => undefined);
+		f.trackers[0]?.terminate.mockImplementation(async () => undefined);
 		f.service.disablePlugin(f.plugin.id);
 		await f.service.start(f.plugin.id, "bridge");
 		f.children[0]?.emit("exit", 0, null);

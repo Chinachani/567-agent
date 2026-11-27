@@ -1,23 +1,21 @@
 export interface LinkedAbortSignal {
-	readonly signal: AbortSignal | undefined;
+	readonly signal: AbortSignal;
+	abort(reason?: unknown): void;
 	dispose(): void;
 }
 
 export function createLinkedAbortSignal(parent: AbortSignal | undefined): LinkedAbortSignal {
-	if (!parent) {
-		return { signal: undefined, dispose: () => undefined };
-	}
-
 	const controller = new AbortController();
-	const abort = () => controller.abort(parent.reason);
-	if (parent.aborted) {
-		abort();
+	const abortFromParent = () => controller.abort(parent?.reason);
+	if (parent?.aborted) {
+		abortFromParent();
 	} else {
-		parent.addEventListener("abort", abort, { once: true });
+		parent?.addEventListener("abort", abortFromParent, { once: true });
 	}
 
 	return {
 		signal: controller.signal,
-		dispose: () => parent.removeEventListener("abort", abort),
+		abort: (reason) => controller.abort(reason),
+		dispose: () => parent?.removeEventListener("abort", abortFromParent),
 	};
 }

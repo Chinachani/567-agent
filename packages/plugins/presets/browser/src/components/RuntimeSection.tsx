@@ -29,16 +29,26 @@ function statusKey(status: RuntimeStatus): string {
 	}
 }
 
-function dotStyle(status: RuntimeStatus): { background: string } {
-	if (status.phase === "ready") return { background: "#22c55e" };
-	if (status.phase === "error") return { background: "var(--destructive, #ef4444)" };
-	if (status.phase === "outdated") return { background: "#f59e0b" };
-	if (status.phase.startsWith("installing-") || status.phase === "checking") return { background: "#f59e0b" };
-	return { background: "var(--muted-foreground)" };
+function badgeClasses(status: RuntimeStatus): { pill: string; dot: string } {
+	if (status.phase === "ready") {
+		return { pill: "bg-emerald-500/15 text-emerald-400", dot: "bg-emerald-500" };
+	}
+	if (status.phase === "error") {
+		return { pill: "bg-destructive/15 text-destructive", dot: "bg-destructive" };
+	}
+	if (
+		status.phase === "outdated" ||
+		status.phase === "browser-missing" ||
+		status.phase.startsWith("installing-") ||
+		status.phase === "checking"
+	) {
+		return { pill: "bg-amber-500/15 text-amber-400", dot: "bg-amber-500" };
+	}
+	return { pill: "bg-accent/60 text-muted-foreground", dot: "bg-muted-foreground" };
 }
 
 /**
- * 运行时状态与安装向导——整页唯一真正的功能区。
+ * 次级运行时状态与安装向导。
  *
  * 安装分两步且第二步**不自动执行**：`agent-browser install` 会下载几百 MB 的
  * Chrome for Testing，而多数用户机器上已经有 Chrome 可以直接复用。第一步的输出里
@@ -54,6 +64,7 @@ export function RuntimeSection({
 	const busy = status.phase.startsWith("installing-") || status.phase === "checking";
 	const showBrowserStep = status.phase === "browser-missing";
 	const pulsing = status.phase.startsWith("installing-") || status.phase === "checking";
+	const badge = badgeClasses(status);
 
 	const hint = ((): string | null => {
 		if (status.phase === "missing" || status.phase === "error") return t("console.installHint");
@@ -69,18 +80,24 @@ export function RuntimeSection({
 	})();
 
 	return (
-		<section className="flex flex-col gap-2.5">
-			<span className="browser-section-label">{t("runtime.sectionLabel")}</span>
-			<div className="browser-card flex flex-col gap-3 p-4">
-				<div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+		<section className="flex flex-col" data-browser-runtime="">
+			<h2 className="browser-section-title mb-1">{t("runtime.sectionLabel")}</h2>
+			<p className="mb-3 text-xs leading-relaxed text-muted-foreground">{t("runtime.subtitle")}</p>
+			<div className="browser-card flex flex-col gap-2.5 px-4 py-3">
+				<div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
 					<span
-						className={`browser-dot${pulsing ? " browser-pulse" : ""}`}
-						style={dotStyle(status)}
-						aria-hidden="true"
-					/>
-					<h2 className="text-sm font-medium">{t(statusKey(status))}</h2>
+						className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.pill}`}
+					>
+						<span
+							className={`browser-dot ${badge.dot}${pulsing ? " browser-pulse" : ""}`}
+							aria-hidden="true"
+						/>
+						<span>{t(statusKey(status))}</span>
+					</span>
 					{status.version ? (
-						<code className="text-xs text-muted-foreground">agent-browser {status.version}</code>
+						<code className="rounded bg-muted/60 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+							agent-browser {status.version}
+						</code>
 					) : null}
 
 					<div className="ms-auto flex flex-wrap items-center gap-2">
@@ -111,7 +128,7 @@ export function RuntimeSection({
 				</div>
 
 				{hint ? <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
-				{status.message ? <p className="text-xs" style={{ color: "var(--destructive, #ef4444)" }}>{status.message}</p> : null}
+				{status.message ? <p className="text-xs text-destructive">{status.message}</p> : null}
 				{status.phase.startsWith("installing-") || status.phase === "error" ? (
 					<pre className="browser-output" aria-label={t("console.status.installing")}>
 						{status.recentOutput}

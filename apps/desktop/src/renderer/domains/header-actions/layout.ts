@@ -15,7 +15,12 @@ export const MAX_TOP_ACTIONS = 7;
  * 默认外的动作（含「从外部应用打开」这类插件动作）都进收纳；某个默认动作此刻不可用时自然缺席。
  * 用户一旦调整过，就以他存下来的布局为准，不再看这份默认。
  */
-export const DEFAULT_TOP_ACTIONS: readonly string[] = ["builtin:terminal", "builtin:bottom-panel", "builtin:export"];
+export const DEFAULT_TOP_ACTIONS: readonly string[] = [
+	"builtin:terminal",
+	"builtin:bottom-panel",
+	"builtin:usage-log",
+	"builtin:export",
+];
 
 export interface HeaderLayout {
 	readonly top: readonly string[];

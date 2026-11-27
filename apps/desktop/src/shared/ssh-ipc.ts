@@ -8,6 +8,8 @@ import type { SshConnectionStatus } from "@567agent/ssh-transport";
  * 没有广播就只能停在旧状态上。
  */
 export const SSH_CHANNELS = {
+	PICK_PRIVATE_KEY: "vetta:ssh:pick-private-key",
+	DISCARD_PRIVATE_KEY: "vetta:ssh:discard-private-key",
 	/** main → renderer：无载荷，通知「主机列表已变，去重读」。 */
 	HOSTS_CHANGED: "vetta:ssh:hosts-changed",
 	/** main → renderer：单台主机的连接状态变化。 */
@@ -15,6 +17,11 @@ export const SSH_CHANNELS = {
 	/** main → renderer：无载荷，通知「端口转发清单已变，去重读」。 */
 	PORT_FORWARDS_CHANGED: "vetta:ssh:port-forwards-changed",
 } as const;
+
+export interface SshPrivateKeySelection {
+	readonly ref: string;
+	readonly name: string;
+}
 
 export interface SshHostStatusEvent {
 	readonly hostId: string;

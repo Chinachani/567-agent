@@ -28,8 +28,8 @@ export function CapabilitiesSection(): JSX.Element {
 			<span className="browser-section-label">{t("guide.capabilities.label")}</span>
 			<div className="browser-grid">
 				{CAPABILITIES.map((capability) => (
-					<article key={capability.key} className="browser-card flex flex-col gap-1.5 p-4">
-						<h3 className="text-sm font-medium">{t(capability.titleKey)}</h3>
+					<article key={capability.key} className="flex flex-col gap-1">
+						<h3 className="text-[13px] font-medium text-foreground">{t(capability.titleKey)}</h3>
 						<p className="text-xs leading-relaxed text-muted-foreground">{t(capability.bodyKey)}</p>
 					</article>
 				))}
@@ -48,7 +48,18 @@ export function ComparisonSection(): JSX.Element {
 	);
 }
 
-const PROMPT_KEYS = ["guide.prompt.read", "guide.prompt.signin", "guide.prompt.form", "guide.prompt.compare"] as const;
+interface PromptExample {
+	readonly key: string;
+	readonly titleKey: string;
+	readonly promptKey: string;
+}
+
+const PROMPT_EXAMPLES: readonly PromptExample[] = [
+	{ key: "read", titleKey: "guide.prompt.read.title", promptKey: "guide.prompt.read" },
+	{ key: "signin", titleKey: "guide.prompt.signin.title", promptKey: "guide.prompt.signin" },
+	{ key: "form", titleKey: "guide.prompt.form.title", promptKey: "guide.prompt.form" },
+	{ key: "compare", titleKey: "guide.prompt.compare.title", promptKey: "guide.prompt.compare" },
+];
 
 /** 复制成功的提示保留 1.6s；用 ref 存 timer 以便卸载时清掉，避免对已卸载组件 setState。 */
 const COPIED_FEEDBACK_MS = 1_600;
@@ -78,20 +89,29 @@ export function PromptsSection(): JSX.Element {
 	}, []);
 
 	return (
-		<section className="flex flex-col gap-2.5">
-			<div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-				<span className="browser-section-label">{t("guide.prompts.label")}</span>
-				<span className="text-xs text-muted-foreground">{t("guide.prompts.hint")}</span>
-			</div>
-			<div className="flex flex-col gap-2">
-				{PROMPT_KEYS.map((key) => {
-					const text = t(key);
+		<section className="flex flex-col" data-browser-prompts="">
+			<h2 className="browser-section-title mb-1">{t("guide.prompts.label")}</h2>
+			<p className="mb-3 text-xs leading-relaxed text-muted-foreground">{t("guide.prompts.hint")}</p>
+			<div className="browser-prompt-grid">
+				{PROMPT_EXAMPLES.map((example) => {
+					const text = t(example.promptKey);
+					const copied = copiedKey === example.key;
 					return (
-						<button key={key} type="button" className="browser-prompt" onClick={() => copy(key, text)}>
-							<span className="min-w-0 flex-1 text-sm">{text}</span>
-							<span className="browser-prompt-action">
-								{copiedKey === key ? t("guide.copied") : t("guide.copy")}
+						<button
+							key={example.key}
+							type="button"
+							className="browser-prompt"
+							onClick={() => copy(example.key, text)}
+						>
+							<span className="flex items-center justify-between gap-2">
+								<span className="text-xs font-medium text-foreground">{t(example.titleKey)}</span>
+								<span
+									className={`browser-prompt-action${copied ? " text-emerald-400 font-medium" : ""}`}
+								>
+									{copied ? t("guide.copied") : t("guide.copy")}
+								</span>
 							</span>
+							<span className="text-xs leading-relaxed text-muted-foreground">{text}</span>
 						</button>
 					);
 				})}
@@ -112,21 +132,15 @@ export function CliSection(): JSX.Element {
 	return (
 		<section className="flex flex-col gap-2.5">
 			<span className="browser-section-label">{t("guide.cli.label")}</span>
-			<div className="browser-card flex flex-col gap-2.5 p-4">
-				<ul className="flex flex-col gap-2">
-					{CLI_KEYS.map((key) => (
-						<li key={key} className="flex items-start gap-2.5 text-xs leading-relaxed">
-							<span
-								className="browser-dot mt-1.5"
-								style={{ background: "color-mix(in oklab, var(--primary) 70%, transparent)" }}
-								aria-hidden="true"
-							/>
-							<span className="min-w-0 flex-1">{t(key)}</span>
-						</li>
-					))}
-				</ul>
-				<p className="text-xs text-muted-foreground">{t("guide.cli.hint")}</p>
-			</div>
+			<ul className="flex flex-col gap-2">
+				{CLI_KEYS.map((key) => (
+					<li key={key} className="flex items-start gap-2.5 text-xs leading-relaxed text-foreground">
+						<span className="browser-dot mt-1.5 bg-primary/70" aria-hidden="true" />
+						<span className="min-w-0 flex-1">{t(key)}</span>
+					</li>
+				))}
+			</ul>
+			<p className="text-xs leading-relaxed text-muted-foreground">{t("guide.cli.hint")}</p>
 		</section>
 	);
 }

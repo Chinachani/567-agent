@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import type { Api567BilledSnapshot } from "@/shared/local-usage-log";
+import type { ImBridgeStatus } from "@preload/api-types/im";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { initI18n } from "@shared/i18n";
@@ -8,6 +10,9 @@ import { notificationUnreadAtom, confirmDialogAtom } from "@shared/store/atoms";
 import { afterEach, beforeEach, beforeAll, expect, it, vi } from "vitest";
 
 const navigate = vi.hoisted(() => vi.fn());
+const getBilledUsage = vi.fn<() => Promise<Api567BilledSnapshot>>();
+const idleBridge: ImBridgeStatus = { transport: "online", activeSessions: 0, consecutiveStartFailures: 0 };
+let publishImStatus: ((status: ImBridgeStatus) => void) | undefined;
 const state = vi.hoisted(() => ({
 	groupsLoadState: { loading: false, error: false, loaded: true, request: 0 },
 	availableGroups: {} as Record<string, { ratio: number; desc: string }>,
@@ -31,6 +36,7 @@ vi.mock("../hooks/useApi567", () => ({ useApi567: () => state }));
 vi.mock("./ServiceRouteSettings", () => ({ ServiceRouteSettings: () => null }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
 import { SidebarAccountMenu } from "@domains/project/components/sidebar/SidebarAccountMenu";
+import { MessageCenter } from "@domains/project/components/sidebar/message-center/MessageCenter";
 async function openDetails(user: ReturnType<typeof userEvent.setup>) {
 	await user.click(screen.getByRole("button", { name: "打开 Nickname 的账号菜单" }));
 	await user.click(await screen.findByRole("menuitem", { name: "账号与模型分组" }));
@@ -42,13 +48,20 @@ beforeEach(() => {
 	state.groupsLoadState = { loading: false, error: false, loaded: true, request: 0 };
 	vi.clearAllMocks();
 	state.status.isLoggedIn = true;
+	state.status.loginUsername = "夜雨寄北";
+	getBilledUsage.mockReset().mockResolvedValue({ status: "unavailable" });
+	publishImStatus = undefined;
 	getDefaultStore().set(notificationUnreadAtom, 0);
 	Object.defineProperty(window, "agent567", {
 		configurable: true,
 		value: {
+			api567: { getBilledUsage },
 			im: {
-				subscribeStatus: async () => () => {},
-				getStatus: async () => ({ transport: "online" }),
+				subscribeStatus: async (listener: (status: ImBridgeStatus) => void) => {
+					publishImStatus = listener;
+					return () => { publishImStatus = undefined; };
+				},
+				getStatus: async () => idleBridge,
 				onSessionChanged: () => () => {},
 			},
 			config: { get: async () => ({ projects: [] }), onProjectsChanged: () => () => {} },
@@ -72,6 +85,49 @@ it("shows the account username initial while retaining the display name", () => 
 	render(<SidebarAccountMenu />);
 	expect(screen.getByRole("button", { name: "打开 Nickname 的账号菜单" }).textContent).toContain("夜");
 	expect(screen.queryByText("N")).toBeNull();
+});
+
+it("reads today's spend on open and refreshes it without closing the account menu", async () => {
+	const user = userEvent.setup();
+	getBilledUsage
+		.mockResolvedValueOnce({ status: "ready", usd: 1.23, quota: 615000, checkedAt: Date.now() })
+		.mockResolvedValueOnce({ status: "ready", usd: 2.34, quota: 1170000, checkedAt: Date.now() });
+	render(<SidebarAccountMenu />);
+	expect(getBilledUsage).not.toHaveBeenCalled();
+	await user.click(screen.getByRole("button", { name: "打开 Nickname 的账号菜单" }));
+	expect(screen.getByRole("region", { name: "账户概览" }).textContent).toContain("今日消费");
+	await screen.findByText(/1\.23/);
+	await user.click(screen.getByRole("menuitem", { name: "更新费用" }));
+	await screen.findByText(/2\.34/);
+	expect(screen.getByRole("menu")).toBeTruthy();
+});
+
+it("ignores a late spend response after switching accounts in the open menu", async () => {
+	const user = userEvent.setup();
+	let resolveOld!: (snapshot: Api567BilledSnapshot) => void;
+	getBilledUsage
+		.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }))
+		.mockResolvedValueOnce({ status: "ready", usd: 2.34, quota: 1170000 });
+	const view = render(<SidebarAccountMenu />);
+	await user.click(screen.getByRole("button", { name: "打开 Nickname 的账号菜单" }));
+	await waitFor(() => expect(getBilledUsage).toHaveBeenCalled());
+	state.status.loginUsername = "另一个账户";
+	view.rerender(<SidebarAccountMenu />);
+	await screen.findByText(/2\.34/);
+	await act(async () => resolveOld({ status: "ready", usd: 123.45, quota: 61725000 }));
+	expect(screen.queryByText(/123\.45/)).toBeNull();
+	expect(screen.getByText(/2\.34/)).toBeTruthy();
+});
+
+it("shows Claw as connected when at least one channel is online", async () => {
+	const user = userEvent.setup();
+	render(<SidebarAccountMenu />);
+	await user.click(screen.getByRole("button", { name: "打开 Nickname 的账号菜单" }));
+	expect(await screen.findByRole("menuitem", { name: "Claw 已连接" })).toBeTruthy();
+	act(() => publishImStatus?.({ ...idleBridge, channelStatuses: { telegram: "error", wechat: "connecting" } }));
+	expect(screen.getByRole("menuitem", { name: "Claw 未连接" })).toBeTruthy();
+	act(() => publishImStatus?.({ ...idleBridge, channelStatuses: { telegram: "error", wechat: "online" } }));
+	expect(screen.getByRole("menuitem", { name: "Claw 已连接" })).toBeTruthy();
 });
 
 it("opens account details from the complete summary without changing the shown balance", async () => {
@@ -133,7 +189,7 @@ it("locks group changes until completion and confirms sign out before calling it
 	await waitFor(() => expect(state.logout).toHaveBeenCalledOnce());
 });
 
-it("hands focus between the menu and settings, notifications, account and recharge, retaining guest access", async () => {
+it("hands focus between the menu and settings, account and recharge, retaining guest access", async () => {
 	const user = userEvent.setup();
 	const view = render(<SidebarAccountMenu />);
 	const trigger = screen.getByRole("button", { name: "打开 Nickname 的账号菜单" });
@@ -141,11 +197,6 @@ it("hands focus between the menu and settings, notifications, account and rechar
 	await user.click(await screen.findByRole("menuitem", { name: "设置" }));
 	await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: "/settings/$tab", params: { tab: "general" } }));
 	expect(screen.queryByRole("dialog", { name: "设置" })).toBeNull();
-	await waitFor(() => expect(document.activeElement).toBe(trigger));
-	await user.click(trigger);
-	await user.click(await screen.findByRole("menuitem", { name: "消息中心" }));
-	await screen.findByRole("dialog", { name: "消息中心" });
-	await user.keyboard("{Escape}");
 	await waitFor(() => expect(document.activeElement).toBe(trigger));
 	await openDetails(user);
 	await user.click(screen.getByRole("button", { name: "账户额度充值" }));
@@ -156,19 +207,15 @@ it("hands focus between the menu and settings, notifications, account and rechar
 	await user.click(screen.getByRole("button", { name: "打开 本机账户 的账号菜单" }));
 	expect(screen.queryByRole("menuitem", { name: "退出 567 登录" })).toBeNull();
 	expect(screen.getByRole("menuitem", { name: "设置" })).toBeTruthy();
-	expect(screen.getByRole("menuitem", { name: "消息中心" })).toBeTruthy();
 });
 
-it("supports keyboard access and unread notification context, routes Claw and exposes sign-in without removing local actions", async () => {
+it("supports keyboard access, routes Claw and exposes sign-in without removing local actions", async () => {
 	const user = userEvent.setup();
-	getDefaultStore().set(notificationUnreadAtom, 3);
 	const view = render(<SidebarAccountMenu />);
 	const trigger = screen.getByRole("button", { name: "打开 Nickname 的账号菜单" });
-	expect(trigger.getAttribute("aria-describedby")).toBeTruthy();
-	expect(screen.getByText("3 条未读通知")).toBeTruthy();
 	trigger.focus();
 	await user.keyboard("{Enter}");
-	await screen.findByRole("menuitem", { name: /消息中心/ });
+	await screen.findByRole("menuitem", { name: "设置" });
 	await user.keyboard("{Escape}");
 	await waitFor(() => expect(document.activeElement).toBe(trigger));
 	await user.click(trigger);
@@ -179,6 +226,19 @@ it("supports keyboard access and unread notification context, routes Claw and ex
 	await user.click(screen.getByRole("button", { name: "打开 本机账户 的账号菜单" }));
 	await user.click(screen.getByRole("menuitem", { name: "登录 567 API" }));
 	await waitFor(() => expect(state.setModalOpen).toHaveBeenCalledWith(true));
+});
+
+it("announces unread notifications on the header bell and restores its focus after closing", async () => {
+	const user = userEvent.setup();
+	getDefaultStore().set(notificationUnreadAtom, 3);
+	render(<MessageCenter />);
+	const trigger = screen.getByRole("button", { name: "消息中心" });
+	expect(document.getElementById(trigger.getAttribute("aria-describedby") ?? "")?.textContent).toBe("3 条未读通知");
+	trigger.focus();
+	await user.keyboard("{Enter}");
+	await screen.findByRole("dialog", { name: "消息中心" });
+	await user.keyboard("{Escape}");
+	await waitFor(() => expect(document.activeElement).toBe(trigger));
 });
 
 it("switches theme in place while keeping the account menu open", async () => {

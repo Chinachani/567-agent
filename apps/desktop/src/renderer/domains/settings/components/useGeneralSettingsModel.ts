@@ -43,6 +43,7 @@ interface GeneralSettingsLabels {
 	updateSourceDescription: string;
 	updateSourceOfficial: string;
 	updateSourceAccelerated: string;
+	updateSourceFixedProxy: string;
 	updateSourceCustom: string;
 	updateSourceCustomHint: string;
 	updateSourceCustomPlaceholder: string;
@@ -92,9 +93,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 	useEffect(() => {
 		void window.agent567.config.get().then((config) => {
 			setNotificationsEnabled(config.notificationsEnabled !== false);
-			const source =
-				config.updateSource === "gh-proxy" || config.updateSource === "custom" ? config.updateSource : "github";
-			setUpdateSourceState(source);
+			setUpdateSourceState(config.updateSource ?? "github");
 			setUpdateProxyUrlState(config.updateProxyUrl ?? "");
 			const mode = config.defaultExecutionMode ?? "full-access";
 			setExecutionMode(mode);
@@ -249,6 +248,7 @@ export function useGeneralSettingsModel(): GeneralSettingsModel {
 			updateSourceDescription: t("updateSource.description"),
 			updateSourceOfficial: t("updateSource.official"),
 			updateSourceAccelerated: t("updateSource.accelerated"),
+			updateSourceFixedProxy: t("updateSource.fixedProxy"),
 			updateSourceCustom: t("updateSource.custom"),
 			updateSourceCustomHint: t("updateSource.customHint"),
 			updateSourceCustomPlaceholder: t("updateSource.customPlaceholder"),

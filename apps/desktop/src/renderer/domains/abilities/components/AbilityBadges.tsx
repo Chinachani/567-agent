@@ -52,6 +52,11 @@ export function AbilityStatusBadges({ item }: { item: AbilityItem }): JSX.Elemen
 					{t("status.setupRequired")}
 				</span>
 			)}
+			{item.type === "plugin" && item.plugin?.permissionReviewRequired && item.permissions.length > 0 && (
+				<span className="inline-flex shrink-0 items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-foreground">
+					{t("permission.page.open")}
+				</span>
+			)}
 			{item.needsUpdate && (
 				<span className="inline-flex shrink-0 items-center rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-400">
 					{t("status.updateAvailable")}

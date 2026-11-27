@@ -72,11 +72,13 @@ describe("buildSessionEntries", () => {
 				...session().session,
 				access: { readHistory: false, resume: false, rename: false, delete: false },
 			},
+			match: { field: "assistantMessage", snippet: "Unreadable message text" },
 		});
 		const [entry] = buildSessionEntries([locked], labels);
 
 		expect(entry.disabled).toBe(true);
 		expect(entry.disabledReason).toBe("No access");
+		expect(entry.subtitle).toBe("Project A");
 	});
 
 	it("keeps a history-only session enabled so it can open in the viewer", () => {

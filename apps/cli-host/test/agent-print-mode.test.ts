@@ -238,6 +238,35 @@ describe("Agent non-RPC CLI compatibility", () => {
 		}
 	}, 60_000);
 
+	it("recovers an empty model stream during the normal tool loop without running the tool twice", async () => {
+		let fixture: AgentRpcFixture | undefined;
+		const server = await startOpenAiResponsesTestServer((_request, index) => {
+			if (index === 0) return { kind: "events", events: [] };
+			if (index === 1) {
+				return {
+					kind: "events",
+					events: toolCallResponseEvents("read", { path: join(fixture!.workspace, "recovery.txt") }),
+				};
+			}
+			return { kind: "events", events: textResponseEvents("empty stream recovered") };
+		});
+		fixture = await createAgentRpcFixture({ baseUrl: server.baseUrl });
+		try {
+			await writeFile(join(fixture.workspace, "recovery.txt"), "tool result after recovery", "utf8");
+			const result = await runAgentCli(fixture, ["--mode", "json", "read the recovery fixture"]);
+			const frames = readFrames(result.stdout);
+			expect(result.code).toBe(0);
+			expect(result.stdout).toContain("empty stream recovered");
+			expect(server.requests).toHaveLength(3);
+			expect(server.requests[2]?.rawBody).toContain("tool result after recovery");
+			expect(frames.filter((frame) => frame.type === "tool_execution_end")).toHaveLength(1);
+			expect(frames.some((frame) => frame.type === "auto_retry_start")).toBe(false);
+		} finally {
+			await fixture.dispose();
+			await server.dispose();
+		}
+	}, 60_000);
+
 	it("routes Provider HTTP failures through the Agent retry policy", async () => {
 		const observation = await runPrintContract(async () => {
 			const server = await startOpenAiResponsesTestServer((_request, index) =>
@@ -248,7 +277,7 @@ describe("Agent non-RPC CLI compatibility", () => {
 			const fixture = await createAgentRpcFixture({ baseUrl: server.baseUrl });
 			await writeFile(
 				join(fixture.agentDir, "settings.json"),
-				JSON.stringify({ retry: { enabled: true, maxRetries: 1, baseDelayMs: 0 } }),
+				JSON.stringify({ retry: { enabled: true, maxRetries: 1, baseDelayMs: 0, jitterMs: 0 } }),
 				"utf8",
 			);
 			try {
@@ -280,7 +309,7 @@ describe("Agent non-RPC CLI compatibility", () => {
 			const fixture = await createAgentRpcFixture({ baseUrl: server.baseUrl });
 			await writeFile(
 				join(fixture.agentDir, "settings.json"),
-				JSON.stringify({ retry: { enabled: true, maxRetries: 1, baseDelayMs: 0 } }),
+				JSON.stringify({ retry: { enabled: true, maxRetries: 1, baseDelayMs: 0, jitterMs: 0 } }),
 				"utf8",
 			);
 			try {

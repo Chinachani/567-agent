@@ -1,3 +1,5 @@
+import { isAbsolute } from "node:path";
+import { z } from "zod";
 import type {
 	CollaborationAccess,
 	CollaborationTaskStatus,
@@ -30,7 +32,7 @@ const STATUS_VALUES = new Set<CollaborationTaskStatus>([
 ]);
 const KIND_VALUES = new Set<ProjectCollaborationTask["kind"]>(["task", "question", "notice", "result"]);
 const PATCH_KEYS = new Set(["revision", "enabled", "paused", "coordinatorSessionId", "members"]);
-const DOCUMENT_KEYS = new Set(["schemaVersion", "config", "tasks"]);
+const DOCUMENT_KEYS = new Set(["schemaVersion", "config", "tasks", "worktrees"]);
 const CONFIG_KEYS = new Set(["schemaVersion", "revision", "enabled", "paused", "coordinatorSessionId", "members"]);
 const TASK_KEYS = new Set([
 	"id",
@@ -46,6 +48,7 @@ const TASK_KEYS = new Set([
 	"createdAt",
 	"startedAt",
 	"finishedAt",
+	"executionCwd",
 	"result",
 	"error",
 	"reviewRound",
@@ -54,6 +57,22 @@ const TASK_KEYS = new Set([
 	"deliveredToSource",
 	"resultVersion",
 ]);
+
+const fullPath = z
+	.string()
+	.max(4096)
+	.refine((value) => isAbsolute(value) && !value.includes("\0"));
+const worktreesSchema = z
+	.array(
+		z.strictObject({
+			path: fullPath,
+			cwd: fullPath,
+			sessionId: z.string().min(1).max(MAX_SESSION_ID_LENGTH),
+			sessionPath: fullPath,
+			baseCommit: z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/),
+		}),
+	)
+	.max(MAX_MEMBERS);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -156,6 +175,7 @@ function validateTask(value: unknown): ProjectCollaborationTask {
 	if (value.resume !== undefined) assertBoolean(value.resume, "task resume");
 	assertOptionalString(value, "result", MAX_RESULT_LENGTH);
 	assertOptionalString(value, "error", MAX_ERROR_LENGTH);
+	const executionCwd = value.executionCwd === undefined ? undefined : fullPath.parse(value.executionCwd);
 	return {
 		id: value.id,
 		rootId: value.rootId,
@@ -170,6 +190,7 @@ function validateTask(value: unknown): ProjectCollaborationTask {
 		createdAt: value.createdAt as number,
 		...(value.startedAt === undefined ? {} : { startedAt: value.startedAt as number }),
 		...(value.finishedAt === undefined ? {} : { finishedAt: value.finishedAt as number }),
+		...(executionCwd === undefined ? {} : { executionCwd }),
 		...(value.result === undefined ? {} : { result: value.result as string }),
 		...(value.error === undefined ? {} : { error: value.error as string }),
 		reviewRound: value.reviewRound as number,
@@ -255,5 +276,12 @@ export function validateDocument(value: unknown): ProjectCollaborationDocument {
 	if (value.schemaVersion !== 1) throw new Error("Unsupported project collaboration document schema");
 	const config = validateConfig(value.config);
 	const tasks = validateTasks(value.tasks);
-	return { schemaVersion: 1, config, tasks };
+	const worktrees = value.worktrees === undefined ? undefined : worktreesSchema.parse(value.worktrees);
+	if (
+		worktrees &&
+		(new Set(worktrees.map((item) => item.path)).size !== worktrees.length ||
+			new Set(worktrees.map((item) => item.sessionId)).size !== worktrees.length)
+	)
+		throw new Error("Duplicate managed worktree record");
+	return { schemaVersion: 1, config, tasks, ...(worktrees?.length ? { worktrees } : {}) };
 }

@@ -11,7 +11,7 @@ export interface WorkspacePageHeaderProps {
 /** A wrapping page heading; the host keeps ownership of actions and copy. */
 export function WorkspacePageHeader({ title, description, actions, className }: WorkspacePageHeaderProps): JSX.Element {
 	return (
-		<header className={cn("flex min-w-0 flex-wrap items-start justify-between gap-x-5 gap-y-3", className)}>
+		<header className={cn("flex min-w-0 w-full flex-wrap items-start justify-between gap-x-5 gap-y-3", className)}>
 			<div className="min-w-0 flex-1 basis-64">
 				<h1 className="break-words text-[22px] font-semibold leading-tight sm:text-[26px] tracking-tight text-foreground">
 					{title}

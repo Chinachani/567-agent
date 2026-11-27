@@ -1,8 +1,10 @@
+import type { ConversationDeliveryIndex } from "@shared/store/atoms";
 import type { ActivityWorkspace } from "@shared/workspace/activity-workspace";
 import { createContext, useContext } from "react";
 
 export interface ActivityPanelContextValue {
 	workspace: ActivityWorkspace;
+	deliveryIndex?: ConversationDeliveryIndex;
 	/** 知识库会话：面板仅展示 knowledge-history。 */
 	knowledgeHistory: boolean;
 }

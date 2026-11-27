@@ -1,4 +1,5 @@
-import { type ChildProcess, execFile } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
+import { type NodeProcessTreeTracker, trackNodeProcessTree } from "@567agent/runtime-node/host";
 import type { PluginCliProviderManifest, PluginCliProviderStatus } from "@vetta-org/plugin-sdk";
 import { webContents } from "electron";
 import type {
@@ -24,13 +25,12 @@ const providerLog = getAppLogger("plugin");
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_RUN_TIMEOUT_MS = 120_000;
 const MAX_RUN_TIMEOUT_MS = 30 * 60_000;
-const KILL_GRACE_MS = 3_000;
-
 interface ProviderSpawnRecord {
 	spawnId: string;
 	pluginId: string;
 	providerId: string;
 	child: ChildProcess;
+	tracker: NodeProcessTreeTracker;
 	output: string;
 	exit?: { exitCode: number | null; signal: string | null };
 }
@@ -51,6 +51,7 @@ export interface PluginCliProviderServiceDependencies {
 		options: { cwd?: string; env?: Record<string, string> },
 		callbacks: CliProviderProcessCallbacks,
 	) => Promise<PluginCommandRunResult>;
+	spawnProcessTree?: (child: ChildProcess) => NodeProcessTreeTracker;
 }
 
 function providerKey(pluginId: string, providerId: string): string {
@@ -93,17 +94,12 @@ function clampTimeout(value: number | undefined, fallback = DEFAULT_RUN_TIMEOUT_
 	return Math.min(Math.floor(value), MAX_RUN_TIMEOUT_MS);
 }
 
-function killTree(child: ChildProcess, signal: NodeJS.Signals = "SIGTERM"): void {
-	if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return;
-	if (process.platform === "win32") {
-		execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], () => undefined);
-		return;
-	}
-	try {
-		process.kill(-child.pid, signal);
-	} catch {
-		child.kill(signal);
-	}
+function trackProcessTree(child: ChildProcess): NodeProcessTreeTracker {
+	return trackNodeProcessTree(child, { detached: process.platform !== "win32" });
+}
+
+function terminateTree(tracker: NodeProcessTreeTracker, force: boolean): void {
+	void tracker.terminate({ force }).catch(() => undefined);
 }
 
 function broadcast(channel: string, payload: unknown): void {
@@ -120,7 +116,7 @@ function broadcast(channel: string, payload: unknown): void {
 export class PluginCliProviderService {
 	private readonly statuses = new Map<string, PluginCliProviderStatus>();
 	private readonly ensureOperations = new Map<string, Promise<void>>();
-	private readonly installProcesses = new Map<string, ChildProcess>();
+	private readonly installProcesses = new Map<string, NodeProcessTreeTracker>();
 	private readonly spawns = new Map<string, ProviderSpawnRecord>();
 	private readonly providerGenerations = new Map<string, number>();
 	private spawnCounter = 0;
@@ -224,11 +220,13 @@ export class PluginCliProviderService {
 			stdio: ["ignore", "pipe", "pipe"],
 		});
 		const spawnId = `cli-provider-${++this.spawnCounter}-${Date.now().toString(36)}`;
+		const tracker = (this.dependencies.spawnProcessTree ?? trackProcessTree)(child);
 		const record: ProviderSpawnRecord = {
 			spawnId,
 			pluginId,
 			providerId,
 			child,
+			tracker,
 			output: "",
 		};
 		this.spawns.set(spawnId, record);
@@ -270,20 +268,12 @@ export class PluginCliProviderService {
 	async stopSpawn(pluginId: string, spawnId: string): Promise<void> {
 		const record = this.spawns.get(spawnId);
 		if (!record || record.pluginId !== pluginId || record.exit !== undefined) return;
-		await new Promise<void>((resolve) => {
-			const timer = setTimeout(() => killTree(record.child, "SIGKILL"), KILL_GRACE_MS);
-			timer.unref();
-			record.child.once("exit", () => {
-				clearTimeout(timer);
-				resolve();
-			});
-			killTree(record.child);
-		});
+		await record.tracker.terminate().catch(() => undefined);
 	}
 
 	stopAll(): void {
 		for (const key of this.installProcesses.keys()) this.stopInstall(key);
-		for (const record of this.spawns.values()) killTree(record.child, "SIGKILL");
+		for (const record of this.spawns.values()) terminateTree(record.tracker, true);
 	}
 
 	private ensure(pluginId: string, providerId: string): Promise<void> {
@@ -351,7 +341,7 @@ export class PluginCliProviderService {
 				provider.install.args ?? [],
 				clampTimeout(provider.install.timeoutMs, 10 * 60_000),
 				undefined,
-				(child) => this.installProcesses.set(key, child),
+				(tracker) => this.installProcesses.set(key, tracker),
 				(chunk) => {
 					if (!this.isCurrentGeneration(key, generation)) return;
 					output = appendOutput(output, chunk);
@@ -385,11 +375,14 @@ export class PluginCliProviderService {
 		args: string[],
 		timeoutMs: number,
 		options: { cwd?: string; env?: Record<string, string> } = {},
-		onStart?: (child: ChildProcess) => void,
+		onStart?: (tracker: NodeProcessTreeTracker) => void,
 		onOutput?: (chunk: Buffer) => void,
 	): Promise<PluginCommandRunResult> {
 		if (this.dependencies.runProcess) {
-			return this.dependencies.runProcess(file, args, timeoutMs, options, { onStart, onOutput });
+			return this.dependencies.runProcess(file, args, timeoutMs, options, {
+				onStart: onStart && ((child) => onStart((this.dependencies.spawnProcessTree ?? trackProcessTree)(child))),
+				onOutput,
+			});
 		}
 		return this.runProcess(file, args, timeoutMs, options, onStart, onOutput);
 	}
@@ -399,7 +392,7 @@ export class PluginCliProviderService {
 		args: string[],
 		timeoutMs: number,
 		options: { cwd?: string; env?: Record<string, string> } = {},
-		onStart?: (child: ChildProcess) => void,
+		onStart?: (tracker: NodeProcessTreeTracker) => void,
 		onOutput?: (chunk: Buffer) => void,
 	): Promise<PluginCommandRunResult> {
 		return await new Promise<PluginCommandRunResult>((resolve, reject) => {
@@ -409,11 +402,26 @@ export class PluginCliProviderService {
 				windowsHide: true,
 				stdio: ["ignore", "pipe", "pipe"],
 			});
-			onStart?.(child);
+			const childTracker = (this.dependencies.spawnProcessTree ?? trackProcessTree)(child);
+			onStart?.(childTracker);
 			let stdout = "";
 			let stderr = "";
 			let settled = false;
-			const timer = setTimeout(() => killTree(child), timeoutMs);
+			let timedOut = false;
+			const finish = (exitCode: number | null) => {
+				if (settled) return;
+				settled = true;
+				clearTimeout(timer);
+				resolve({ stdout, stderr, exitCode });
+			};
+			const timer = setTimeout(() => {
+				timedOut = true;
+				void childTracker.terminate().finally(() => {
+					child.stdout?.destroy();
+					child.stderr?.destroy();
+					finish(null);
+				});
+			}, timeoutMs);
 			timer.unref();
 			child.stdout?.on("data", (chunk: Buffer) => {
 				stdout = appendOutput(stdout, chunk);
@@ -424,16 +432,13 @@ export class PluginCliProviderService {
 				onOutput?.(chunk);
 			});
 			child.once("error", (error: NodeJS.ErrnoException) => {
-				if (settled) return;
+				if (settled || timedOut) return;
 				settled = true;
 				clearTimeout(timer);
 				reject(new Error(`CLI command failed to start: ${file} (${error.code ?? error.message})`));
 			});
 			child.once("close", (exitCode) => {
-				if (settled) return;
-				settled = true;
-				clearTimeout(timer);
-				resolve({ stdout, stderr, exitCode });
+				if (!timedOut) finish(exitCode);
 			});
 		});
 	}
@@ -468,8 +473,8 @@ export class PluginCliProviderService {
 	}
 
 	private stopInstall(key: string): void {
-		const child = this.installProcesses.get(key);
-		if (child) killTree(child);
+		const tracker = this.installProcesses.get(key);
+		if (tracker) terminateTree(tracker, true);
 		this.installProcesses.delete(key);
 	}
 

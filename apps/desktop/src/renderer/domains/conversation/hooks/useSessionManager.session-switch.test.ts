@@ -490,12 +490,13 @@ it("已有会话先提交加载态，快速切换时只有最后一次打开可�
 	expect(mocks.perfSessionSwitchComplete).toHaveBeenCalledWith("completed", "open-second");
 });
 
-it("会话恢复期间立即接受发送并在订阅就绪后派发到目标 Runtime", { timeout: 10_000 }, async () => {
+it("独立工作区恢复时接受提前发送，并将会话列表更新归到原项目", { timeout: 10_000 }, async () => {
 	const { activeSessionAtom, chatMessagesAtom, inputValueAtom, pendingSessionOpenAtom } = await import(
 		"@shared/store/atoms"
 	);
 	const { useSessionManager } = await import("./useSessionManager");
 	const store = getDefaultStore();
+	const worktreeCwd = "C:\\agent-data\\worktrees\\0a22\\workspace-fixture";
 	const frames: FrameRequestCallback[] = [];
 	vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
 		frames.push(callback);
@@ -503,7 +504,12 @@ it("会话恢复期间立即接受发送并在订阅就绪后派发到目标 Run
 	});
 	const sessionApi = {
 		autoTitle: vi.fn(),
-		create: vi.fn(async () => ({ cwd, sessionId: "runtime-second", sessionPath: secondSessionPath })),
+		create: vi.fn(async () => ({
+			cwd: worktreeCwd,
+			listCwd: cwd,
+			sessionId: "runtime-second",
+			sessionPath: secondSessionPath,
+		})),
 		getFullHistory: vi.fn(async () => userHistory("history", "history-user")),
 		getQueueState: vi.fn(async () => ({ paused: false, entries: [] })),
 		getSessionPath: vi.fn(async () => secondSessionPath),
@@ -567,6 +573,8 @@ it("会话恢复期间立即接受发送并在订阅就绪后派发到目标 Run
 		await Promise.resolve();
 	});
 	expect(sessionApi.subscribe).toHaveBeenCalledWith("runtime-second", expect.any(Function));
+	expect(store.get(activeSessionAtom)).toMatchObject({ cwd: worktreeCwd, listCwd: cwd });
+	expect(mocks.ensureLocalSession).toHaveBeenCalledWith(cwd, expect.objectContaining({ cwd: worktreeCwd }));
 	expect(mocks.prompt).toHaveBeenCalledWith(
 		"runtime-second",
 		expect.objectContaining({ text: "send while restoring" }),
@@ -582,6 +590,8 @@ it("会话恢复期间立即接受发送并在订阅就绪后派发到目标 Run
 
 	pendingPrompt?.resolve(undefined);
 	await sending;
+	expect(mocks.loadSessions).toHaveBeenCalledWith(cwd);
+	expect(mocks.loadSessions).not.toHaveBeenCalledWith(worktreeCwd);
 });
 
 it("已有会话创建失败时保留可重试文件和诊断错误且不伪造消息", { timeout: 10_000 }, async () => {

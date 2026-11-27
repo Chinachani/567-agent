@@ -35,6 +35,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -81,6 +82,7 @@ fun MarkdownContent(
     modifier: Modifier = Modifier,
     onSurface: Boolean = false,
     streaming: Boolean = false,
+    compact: Boolean = false,
 ) {
     val textColor = if (onSurface) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
     val visibleSource = if (streaming) {
@@ -126,6 +128,8 @@ fun MarkdownContent(
             },
         )
     }
+    val bodyTypography = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge
+    val codeTypography = if (compact) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyMedium
     Markdown(
         markdownState = state,
         colors =
@@ -137,24 +141,30 @@ fun MarkdownContent(
             ),
         typography =
             markdownTypography(
-                h1 = MaterialTheme.typography.titleLarge,
-                h2 = MaterialTheme.typography.titleMedium,
-                h3 = MaterialTheme.typography.titleSmall,
-                h4 = MaterialTheme.typography.titleSmall,
-                h5 = MaterialTheme.typography.titleSmall,
-                h6 = MaterialTheme.typography.labelLarge,
-                text = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-                paragraph = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-                ordered = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-                bullet = MaterialTheme.typography.bodyLarge.copy(color = textColor),
-                list = MaterialTheme.typography.bodyLarge.copy(color = textColor),
+                h1 = (if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge)
+                    .copy(color = textColor, fontWeight = FontWeight.SemiBold),
+                h2 = (if (compact) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium)
+                    .copy(color = textColor, fontWeight = FontWeight.SemiBold),
+                h3 = (if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall)
+                    .copy(color = textColor, fontWeight = FontWeight.SemiBold),
+                h4 = (if (compact) MaterialTheme.typography.labelLarge else MaterialTheme.typography.titleSmall)
+                    .copy(color = textColor),
+                h5 = (if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.titleSmall)
+                    .copy(color = textColor),
+                h6 = (if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge)
+                    .copy(color = MaterialTheme.agent567Extra.secondaryText),
+                text = bodyTypography.copy(color = textColor),
+                paragraph = bodyTypography.copy(color = textColor),
+                ordered = bodyTypography.copy(color = textColor),
+                bullet = bodyTypography.copy(color = textColor),
+                list = bodyTypography.copy(color = textColor),
                 code =
-                    MaterialTheme.typography.bodyMedium.copy(
+                    codeTypography.copy(
                         color = MaterialTheme.colorScheme.onSurface,
                         fontFamily = FontFamily.Monospace,
                     ),
                 inlineCode =
-                    MaterialTheme.typography.bodyMedium.copy(
+                    codeTypography.copy(
                         color = textColor,
                         fontFamily = FontFamily.Monospace,
                     ),
@@ -162,7 +172,7 @@ fun MarkdownContent(
                     TextLinkStyles(
                         style = SpanStyle(color = MaterialTheme.agent567Extra.amberAccent, textDecoration = TextDecoration.Underline),
                     ),
-                table = MaterialTheme.typography.bodyMedium.copy(color = textColor),
+                table = codeTypography.copy(color = textColor),
             ),
         dimens = markdownDimens(tableCellWidth = 180.dp, tableCellPadding = 10.dp),
         components = components,

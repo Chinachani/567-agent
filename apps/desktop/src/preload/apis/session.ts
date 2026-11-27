@@ -184,6 +184,11 @@ export function createSessionApi(ipc: IpcRenderer): Pick<DesktopApi, "session"> 
 			getState: (sessionId) => ipc.invoke(CHANNELS.GET_STATE, sessionId),
 			getMessages: (sessionId) => ipc.invoke(CHANNELS.GET_MESSAGES, sessionId),
 			readWorkbench: (sessionId) => ipc.invoke(SESSION_WORKBENCH_CHANNELS.WORKBENCH, sessionId),
+			listTurnFiles: (sessionId) => ipc.invoke(SESSION_WORKBENCH_CHANNELS.TURN_FILES, sessionId),
+			previewTurnFiles: (sessionId, turnId) =>
+				ipc.invoke(SESSION_WORKBENCH_CHANNELS.TURN_FILES_PREVIEW, sessionId, turnId),
+			restoreTurnFiles: (sessionId, previewId) =>
+				ipc.invoke(SESSION_WORKBENCH_CHANNELS.TURN_FILES_RESTORE, sessionId, previewId),
 			readWorkbenchDetail: (sessionId, kind, id) =>
 				ipc.invoke(SESSION_WORKBENCH_CHANNELS.WORKBENCH_DETAIL, sessionId, kind, id),
 			readAttachmentChunk: (sessionId, id, offset, length) =>

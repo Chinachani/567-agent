@@ -137,12 +137,14 @@ export async function processResponsesStream<TApi extends Api>(
 			receivedTerminalEvent = true;
 		} else if (event.type === "error") {
 			throw Object.assign(new Error(event.message), {
+				phase: "stream",
 				...(event.code ? { code: event.code } : {}),
 				responseBody: { error: { code: event.code, message: event.message, param: event.param } },
 			});
 		} else if (event.type === "response.failed") {
 			const providerError = event.response.error;
 			throw Object.assign(new Error(providerError?.message || "OpenAI Responses request failed"), {
+				phase: "stream",
 				...(providerError?.code ? { code: providerError.code } : {}),
 				...(providerError ? { responseBody: { error: providerError } } : {}),
 			});

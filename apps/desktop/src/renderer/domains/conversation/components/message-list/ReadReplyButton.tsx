@@ -92,6 +92,12 @@ export function ReadReplyButton({ text }: { text: string }) {
 		start();
 	}
 	const label = t(playing ? "messageList.readReply.stop" : "messageList.readReply.play");
+	const platform = typeof navigator === "undefined" ? "linux" : navigator.platform.toUpperCase();
+	const voiceInstallHint = platform.includes("MAC")
+		? t("messageList.readReply.installHint.mac")
+		: platform.includes("WIN")
+			? t("messageList.readReply.installHint.windows")
+			: t("messageList.readReply.installHint.linux");
 	return (
 		<>
 			<button
@@ -108,8 +114,9 @@ export function ReadReplyButton({ text }: { text: string }) {
 				/>
 			</button>
 			{unavailable && (
-				<span role="status" className="text-xs text-muted-foreground">
-					{t("messageList.readReply.unavailable")}
+				<span role="status" className="flex max-w-[min(28rem,calc(100vw-2rem))] flex-col text-xs text-muted-foreground">
+					<span>{t("messageList.readReply.unavailable")}</span>
+					<span className="text-[11px] text-muted-foreground/80">{voiceInstallHint}</span>
 				</span>
 			)}
 		</>

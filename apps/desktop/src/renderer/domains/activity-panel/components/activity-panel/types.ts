@@ -1,6 +1,6 @@
 import type { TabBarDragEvent, TabBarItem } from "@shared/components/ui/tab-bar";
 import type { ActivityTabKey } from "@shared/lib/project-profile";
-import type { FloatingActivityTabPlacement } from "@shared/store/atoms";
+import type { ConversationDeliveryIndex, FloatingActivityTabPlacement } from "@shared/store/atoms";
 import type { ActivityWorkspace } from "@shared/workspace/activity-workspace";
 import type { ConversationScenario } from "@vetta-org/plugin-sdk";
 import type { RefObject } from "react";
@@ -10,6 +10,7 @@ import type { HiddenTabEntry } from "../PluginTabPicker";
 
 export interface ActivityPanelProps {
 	workspace: ActivityWorkspace;
+	deliveryIndex?: ConversationDeliveryIndex;
 	enablePluginTabs?: boolean;
 	knowledgeHistory?: boolean;
 	/** Host-selected static abilities. Omitted means every built-in contribution. */

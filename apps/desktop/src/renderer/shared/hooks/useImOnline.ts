@@ -1,19 +1,26 @@
+import type { ImBridgeStatus } from "@preload/api-types/im";
 import { useEffect, useState } from "react";
 
-/**
- * IM 传输是否在线（online / connecting 视为在线）。
- * 订阅主进程 im 状态，seed 一次初始值；断连返回 false。多处（侧边栏顶栏、底部 Claw 徽章）复用。
- */
+function hasOnlineChannel(status: ImBridgeStatus): boolean {
+	return status.channelStatuses
+		? Object.values(status.channelStatuses).includes("online")
+		: status.transport === "online" || status.transport === "connecting";
+}
+
 export function useImOnline(): boolean {
 	const [online, setOnline] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
+		let receivedStatus = false;
 		let unsub: (() => void) | null = null;
 		void (async () => {
 			try {
 				const unsubFn = await window.agent567.im.subscribeStatus(
-					(s) => setOnline(s.transport === "online" || s.transport === "connecting"),
+					(status) => {
+						receivedStatus = true;
+						if (!cancelled) setOnline(hasOnlineChannel(status));
+					},
 					() => {},
 				);
 				if (cancelled) {
@@ -23,7 +30,7 @@ export function useImOnline(): boolean {
 				unsub = unsubFn;
 				// subscribeStatus 的首帧与监听器挂载存在竞态，显式拉一次 seed 初始态。
 				const current = await window.agent567.im.getStatus();
-				if (!cancelled) setOnline(current.transport === "online" || current.transport === "connecting");
+				if (!cancelled && !receivedStatus) setOnline(hasOnlineChannel(current));
 			} catch {
 				// ignore; 徽章保持隐藏
 			}

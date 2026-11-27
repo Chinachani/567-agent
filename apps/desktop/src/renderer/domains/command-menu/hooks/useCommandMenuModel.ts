@@ -5,15 +5,17 @@ import { getEffectiveShortcut, loadShortcutBindings } from "@shared/lib/shortcut
 import { useShortcutScope } from "@shared/shortcuts";
 import {
 	commandMenuOpenAtom,
+	defaultImConversationCwdAtom,
 	isPersonalModeAtom,
 	pluginWorkspaceViewsAtom,
 	projectsAtom,
 	type SessionExecutionMode,
+	sessionsMapAtom,
 } from "@shared/store/atoms";
 import { authUserAtom } from "@shared/store/auth-atoms";
 import { useNavigate } from "@tanstack/react-router";
 import type { CommandMenuGroupView, CommandMenuViewLabels } from "@vetta-org/theme-ui/overlays";
-import { useAtom, useAtomValue } from "jotai";
+import { atom, useAtom, useAtomValue } from "jotai";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { resolveDesktopSessionOpenTarget } from "@/shared/session-access";
@@ -23,6 +25,7 @@ import { useSessionSearch } from "../../project/hooks/useSessionSearch";
 import { buildCommandMenuGroups, type CommandMenuGroupLabels } from "../lib/build-groups";
 import { pickLatestOpenableSession } from "../lib/latest-session";
 import { tokenizeCommandMenuQuery } from "../lib/match";
+import { listCachedRecentSessions } from "../lib/recent-sessions";
 import {
 	buildInstalledAbilityEntries,
 	buildMarketplaceEscapeEntry,
@@ -39,6 +42,7 @@ const SESSION_RESULT_LIMIT = 12;
 
 const OPEN_COMMAND_MENU_ACTION = "open-command-menu";
 const OPEN_COMMAND_MENU_DEFAULT_KEY = "mod+k";
+const cachedCommandMenuSessionsAtom = atom((get) => (get(commandMenuOpenAtom) ? get(sessionsMapAtom) : null));
 
 /**
  * 面板内用来「再按一次关闭」的组合键。必须读生效绑定而不是写死 mod+k：
@@ -132,6 +136,8 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 	const deferredQuery = useDeferredValue(query);
 
 	const projects = useAtomValue(projectsAtom);
+	const imCwd = useAtomValue(defaultImConversationCwdAtom);
+	const cachedSessions = useAtomValue(cachedCommandMenuSessionsAtom);
 	const workspaceViews = useAtomValue(pluginWorkspaceViewsAtom);
 	const isPersonal = useAtomValue(isPersonalModeAtom);
 	const authUser = useAtomValue(authUserAtom);
@@ -141,7 +147,7 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 	const hasQuery = Boolean(deferredQuery.trim());
 	const abilities = useInstalledAbilities(open && hasQuery);
 
-	// 会话是唯一的异步源：空查询时后端只回一份 sources 就 done，故不必发起。
+	// 空查询只用侧栏已加载的会话，无需扫描历史。
 	const sessionSearch = useSessionSearch(open && hasQuery, {
 		query: deferredQuery,
 		limit: SESSION_RESULT_LIMIT,
@@ -167,6 +173,7 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 	const groupLabels = useMemo<CommandMenuGroupLabels>(
 		() => ({
 			groups: {
+				recentSessions: t("commandMenu.groups.recentSessions"),
 				projects: t("commandMenu.groups.projects"),
 				sessions: t("commandMenu.groups.sessions"),
 				abilities: t("commandMenu.groups.abilities"),
@@ -198,10 +205,17 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 		[open, abilities.data, sourceLabels],
 	);
 
-	const sessionEntries = useMemo(
-		() => (open ? buildSessionEntries(sessionSearch.results.slice(0, SESSION_RESULT_LIMIT), sourceLabels) : []),
-		[open, sessionSearch.results, sourceLabels],
-	);
+	const sessionEntries = useMemo(() => {
+		if (!open) return [];
+		if (hasQuery) return buildSessionEntries(sessionSearch.results.slice(0, SESSION_RESULT_LIMIT), sourceLabels);
+		return cachedSessions
+			? buildSessionEntries(
+					listCachedRecentSessions(projects, imCwd, cachedSessions),
+					sourceLabels,
+					"recentSessions",
+				)
+			: [];
+	}, [open, hasQuery, sessionSearch.results, sourceLabels, cachedSessions, projects, imCwd]);
 
 	const entries = useMemo<CommandMenuEntry[]>(() => {
 		if (!open) return [];
@@ -218,9 +232,9 @@ export function useCommandMenuModel({ onOpenSession }: UseCommandMenuModelArgs):
 				entries,
 				tokens,
 				labels: groupLabels,
-				loadingGroups: sessionSearch.loading ? ["sessions"] : [],
+				loadingGroups: hasQuery && sessionSearch.loading ? ["sessions"] : [],
 			}),
-		[entries, tokens, groupLabels, sessionSearch.loading],
+		[entries, tokens, groupLabels, hasQuery, sessionSearch.loading],
 	);
 
 	const [selectedId, setSelectedId] = useState<string | null>(null);

@@ -444,7 +444,12 @@ export function registerFsIpc(owner: WebContents): () => void {
 				if (conflict) throw new Error(`Shortcut conflict: ${conflict.actionId} and ${conflict.conflict}`);
 			}
 			const updateSource = patch.updateSource ?? current.updateSource ?? "github";
-			if (updateSource !== "github" && updateSource !== "gh-proxy" && updateSource !== "custom") {
+			if (
+				updateSource !== "github" &&
+				updateSource !== "gh-proxy" &&
+				updateSource !== "auto" &&
+				updateSource !== "custom"
+			) {
 				throw new Error("Invalid update source");
 			}
 			const updateProxyUrl =

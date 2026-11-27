@@ -1,7 +1,7 @@
-import { type ChildProcess, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { lstat, mkdir, rm, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { killNodeProcessTree } from "@567agent/runtime-node/coding";
+import { trackNodeProcessTree } from "@567agent/runtime-node/host";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
 
@@ -64,7 +64,8 @@ export function deriveRepoDirName(url: string): string | null {
 }
 interface CloneTask {
 	cancelled: boolean;
-	child?: ChildProcess;
+	stop?: () => Promise<void>;
+	termination?: Promise<void>;
 }
 const running = new Map<string, CloneTask>();
 function fail(code: ProjectCloneErrorCode): ProjectCloneResult {
@@ -95,22 +96,26 @@ export async function cloneProject(input: ProjectCloneInput): Promise<ProjectClo
 		if (task.cancelled) return fail("cancelled");
 		const result = await new Promise<ProjectCloneResult>((resolve) => {
 			let spawnError: NodeJS.ErrnoException | undefined;
+			let child: ReturnType<typeof spawn>;
+			const detached = process.platform !== "win32";
 			try {
-				task.child = spawn("git", ["clone", "--progress", "--", url, target], {
+				child = spawn("git", ["clone", "--progress", "--", url, target], {
 					stdio: "ignore",
 					windowsHide: true,
-					detached: process.platform !== "win32",
+					detached,
 					env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
 				});
 			} catch {
 				resolve(fail("clone-failed"));
 				return;
 			}
+			const tree = trackNodeProcessTree(child, { detached });
+			task.stop = tree.terminate;
 			// Wait for close (including stdio) before cleanup, even when spawn emits error.
-			task.child.once("error", (error) => {
+			child.once("error", (error) => {
 				spawnError = error;
 			});
-			task.child.once("close", (code) => {
+			child.once("close", (code) => {
 				if (task.cancelled) resolve(fail("cancelled"));
 				else if (spawnError?.code === "ENOENT") resolve(fail("git-unavailable"));
 				else if (!spawnError && code === 0) resolve({ path: target, name });
@@ -120,6 +125,7 @@ export async function cloneProject(input: ProjectCloneInput): Promise<ProjectClo
 				}
 			});
 		});
+		await task.termination;
 		completed = !("error" in result);
 		return result;
 	} catch {
@@ -140,7 +146,7 @@ export function cancelClone(requestId: string): void {
 	const task = running.get(requestId);
 	if (!task) return;
 	task.cancelled = true;
-	if (task.child?.pid) killNodeProcessTree(task.child.pid);
+	task.termination ??= task.stop?.();
 }
 export function cancelAllClones(): void {
 	for (const requestId of running.keys()) cancelClone(requestId);

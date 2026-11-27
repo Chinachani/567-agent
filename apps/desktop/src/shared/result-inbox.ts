@@ -1,3 +1,5 @@
+import type { DesktopSessionOpenTarget } from "./session-access.js";
+
 export type TaskResultStatus = "completed" | "failed" | "cancelled" | "running" | "unknown";
 
 export interface TaskResult {
@@ -15,6 +17,7 @@ export interface DesktopTaskResult extends TaskResult {
 	readonly sessionPath: string;
 	readonly cwd: string;
 	readonly read: boolean;
+	readonly openTarget: Exclude<DesktopSessionOpenTarget, "unavailable">;
 }
 
 export interface ResultInboxSnapshot {

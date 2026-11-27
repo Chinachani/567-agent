@@ -6,6 +6,12 @@ import { defineCapabilityInputSchema, defineCapabilityOutputSchema } from "../sc
 export const IM_TRANSPORTS = {
 	FEISHU: "feishu",
 	WECHAT: "wechat",
+	TELEGRAM: "telegram",
+	SLACK: "slack",
+	DISCORD: "discord",
+	SIGNAL: "signal",
+	WHATSAPP: "whatsapp",
+	IMESSAGE: "imessage",
 } as const;
 
 export const IM_TRANSPORT_STATUSES = {
@@ -25,7 +31,7 @@ export const IM_LOG_LEVELS = {
 
 const imEmptyInputType = Type.Object({}, { additionalProperties: false });
 
-const imTransportType = Type.Union([Type.Literal(IM_TRANSPORTS.FEISHU), Type.Literal(IM_TRANSPORTS.WECHAT)]);
+const imTransportType = Type.Union(Object.values(IM_TRANSPORTS).map((transport) => Type.Literal(transport)));
 
 const imTransportStatusType = Type.Union([
 	Type.Literal(IM_TRANSPORT_STATUSES.OFFLINE),
@@ -63,6 +69,9 @@ const imAgentModelInputType = Type.Object(
 const imRuntimeStatusType = Type.Object(
 	{
 		transport: imTransportStatusType,
+		channelStatuses: Type.Optional(
+			Type.Partial(Type.Record(imTransportType, imTransportStatusType, { additionalProperties: false })),
+		),
 		lastError: Type.Optional(Type.String()),
 		lastErrorAt: Type.Optional(Type.String()),
 		activeSessions: Type.Number(),

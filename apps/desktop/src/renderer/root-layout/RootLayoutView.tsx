@@ -115,7 +115,7 @@ export function RootLayoutView({ model }: RootLayoutViewProps): JSX.Element {
 						</>
 					)}
 					{pageLayout === "app" ? (
-						<div className="app-main-frame relative flex min-h-0 min-w-[320px] flex-1 overflow-visible">
+						<div className="app-main-frame relative flex min-h-0 min-w-0 flex-1 overflow-visible">
 							<RouteContent routePending={routePending} />
 						</div>
 					) : (

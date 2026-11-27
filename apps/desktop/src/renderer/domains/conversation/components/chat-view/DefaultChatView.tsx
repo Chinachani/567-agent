@@ -2,7 +2,7 @@ import { ActivityPanel, CurrentScenarioActivityPanel } from "@domains/activity-p
 import { BottomPanelHost } from "@domains/bottom-panel/components/BottomPanelHost";
 import { cn } from "@shared/lib/utils";
 import { PerfSendProfiler } from "@shared/lib/perf-send";
-import type { ChatConversationItem } from "@shared/store/atoms";
+import { activeConversationDeliveryIndex, type ChatConversationItem } from "@shared/store/atoms";
 import type { ActivityWorkspace } from "@shared/workspace/activity-workspace";
 import type { WorkSurfaceScope } from "@shared/workspace/work-surface";
 import type { ConversationParticipantViewModel } from "@shared/conversation";
@@ -61,7 +61,7 @@ const ActivityColumn = memo(
 				pluginScenario={activity.pluginScenario}
 			/>
 		) : (
-			<CurrentScenarioActivityPanel workspace={workspace} />
+			<CurrentScenarioActivityPanel workspace={workspace} deliveryIndex={activeConversationDeliveryIndex} />
 		);
 	},
 	(previous, next) =>

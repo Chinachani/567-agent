@@ -12,10 +12,10 @@ import { AssistantMessageEventStream } from "../utils/event-stream.js";
 import {
 	type LanguageModelAdapter,
 	normalizeLanguageModelGenerateResponse,
-	normalizeLanguageModelResponse,
 	type RegisteredLanguageModelAdapter,
 } from "./language-model-adapter.js";
 import { type ModelMiddleware, withModelMiddleware } from "./model-middleware.js";
+import { openProtectedModelStream } from "./stream-resilience.js";
 
 export type ApiStreamFunction = (
 	model: Model<Api>,
@@ -208,12 +208,13 @@ function wrapAdapterStream<TApi extends Api, TOptions extends StreamOptions>(
 	return async (request) => {
 		try {
 			assertMatchingApi(api, request.model.api);
-			const response = await stream({
-				model: request.model as Model<TApi>,
-				context: request.context,
-				options: request.options as TOptions,
-			});
-			return normalizeLanguageModelResponse(response, request.model as Model<TApi>);
+			return openProtectedModelStream(request, (signal, context) =>
+				stream({
+					model: request.model as Model<TApi>,
+					context,
+					options: { ...request.options, signal } as TOptions,
+				}),
+			);
 		} catch (error) {
 			throw normalizeProviderError(error, request.model);
 		}
@@ -227,12 +228,13 @@ function wrapAdapterSimpleStream<TApi extends Api>(
 	return async (request) => {
 		try {
 			assertMatchingApi(api, request.model.api);
-			const response = await streamSimple({
-				model: request.model as Model<TApi>,
-				context: request.context,
-				options: request.options as SimpleStreamOptions,
-			});
-			return normalizeLanguageModelResponse(response, request.model as Model<TApi>);
+			return openProtectedModelStream(request, (signal, context) =>
+				streamSimple({
+					model: request.model as Model<TApi>,
+					context,
+					options: { ...request.options, signal },
+				}),
+			);
 		} catch (error) {
 			throw normalizeProviderError(error, request.model);
 		}

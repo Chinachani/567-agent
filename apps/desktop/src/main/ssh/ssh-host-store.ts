@@ -5,9 +5,13 @@ import { normalizeSshHostInput, type SshHost } from "@567agent/ssh-transport";
 import { atomicWriteJSON } from "@567agent/toolkit/atomic-write";
 import { createVersionedJsonConfigStore } from "@567agent/toolkit/config-store";
 
+export interface StoredSshHost extends SshHost {
+	readonly managedIdentityId?: string;
+}
+
 interface SshHostDocument {
 	readonly schemaVersion: 1;
-	readonly hosts: SshHost[];
+	readonly hosts: StoredSshHost[];
 }
 
 function normalizeHostDocument(value: unknown): SshHostDocument {
@@ -17,7 +21,7 @@ function normalizeHostDocument(value: unknown): SshHostDocument {
 	if (document.schemaVersion !== 1 || !Array.isArray(document.hosts))
 		throw new Error("Unsupported SSH host configuration");
 	const ids = new Set<string>();
-	const hosts = document.hosts.map((entry: unknown): SshHost => {
+	const hosts = document.hosts.map((entry: unknown): StoredSshHost => {
 		if (typeof entry !== "object" || entry === null) throw new Error("Invalid SSH host entry");
 		const raw = entry as Record<string, unknown>;
 		if (typeof raw.id !== "string" || !/^[A-Za-z0-9._-]+$/.test(raw.id) || ids.has(raw.id))
@@ -43,6 +47,7 @@ function normalizeHostDocument(value: unknown): SshHostDocument {
 				source: raw.source === "ssh-config" ? "ssh-config" : "manual",
 				credentialRef: typeof raw.credentialRef === "string" ? raw.credentialRef : undefined,
 			}),
+			...(typeof raw.managedIdentityId === "string" ? { managedIdentityId: raw.managedIdentityId } : {}),
 		};
 	});
 	return { schemaVersion: 1, hosts };
@@ -64,7 +69,7 @@ export function createSshHostStore(path = join(getAgent567HomePath(), "ssh-hosts
 			}
 			return store.readSync().hosts;
 		},
-		write: (hosts: readonly SshHost[]) => store.write({ schemaVersion: 1, hosts: [...hosts] }),
+		write: (hosts: readonly StoredSshHost[]) => store.write({ schemaVersion: 1, hosts: [...hosts] }),
 	};
 }
 

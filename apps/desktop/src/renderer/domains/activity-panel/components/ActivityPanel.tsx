@@ -1,4 +1,4 @@
-import { activeSessionAtom, currentScenarioAtom, mountedActivityWorkspacesAtom } from "@shared/store/atoms";
+import { activeConversationDeliveryIndex, activeSessionAtom, currentScenarioAtom, mountedActivityWorkspacesAtom } from "@shared/store/atoms";
 import { useActiveSessionRuntimeIds } from "@shared/workspace/active-session-runtime";
 import { createActivityWorkspace } from "@shared/workspace/activity-workspace";
 import { useThemeComponent } from "@vetta-org/theme-sdk";
@@ -42,7 +42,7 @@ function ActivityPanelWithMeta({
 
 export function ActivityPanel(props: ActivityPanelProps): JSX.Element {
 	const { enablePluginTabs = true, knowledgeHistory = false, enabledBuiltinTabs, pluginScenario } = props;
-	const { workspace } = props;
+	const { deliveryIndex, workspace } = props;
 	const cwd = workspace.cwd;
 
 	const definitions = useActivityTabDefinitions({
@@ -52,7 +52,7 @@ export function ActivityPanel(props: ActivityPanelProps): JSX.Element {
 		pluginScenario,
 	});
 
-	const contextValue = useMemo(() => ({ workspace, knowledgeHistory }), [workspace, knowledgeHistory]);
+	const contextValue = useMemo(() => ({ workspace, knowledgeHistory, deliveryIndex }), [workspace, knowledgeHistory, deliveryIndex]);
 	useMountedActivityWorkspace(workspace);
 
 	return (
@@ -101,7 +101,7 @@ export function ConversationActivityPanel(): JSX.Element {
 			),
 		[activeSession?.cwd, runtimeIds],
 	);
-	return <ActivityPanel workspace={workspace} pluginScenario={pluginScenario} />;
+	return <ActivityPanel workspace={workspace} pluginScenario={pluginScenario} deliveryIndex={activeConversationDeliveryIndex} />;
 }
 
 /** Adapter for non-conversation hosts that intentionally inherit the current plugin scenario. */

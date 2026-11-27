@@ -253,6 +253,8 @@ fun ChatScreen(
     imageSelectionRemoved: String? = null,
     onAcknowledgeCatalog: (Boolean) -> Unit = {},
     chatError: UiError?,
+    pendingRemoteTurn: Boolean = false,
+    onCancelPendingRemoteTurn: () -> Unit = {},
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
@@ -522,9 +524,12 @@ fun ChatScreen(
                         onDismiss = onDismissError,
                         onAction = onErrorAction,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        secondaryAction = if (surface == ChatSurface.Cloud && chatError.action != UiErrorAction.OpenContext)
-                            org.agent567.android.ui.components.ErrorBannerAction(Str.serviceRouteErrorAction, onOpenServiceRoute)
-                        else null,
+                        secondaryAction = when {
+                            pendingRemoteTurn -> org.agent567.android.ui.components.ErrorBannerAction(Str.remoteTurnCancel, onCancelPendingRemoteTurn)
+                            surface == ChatSurface.Cloud && chatError.action != UiErrorAction.OpenContext ->
+                                org.agent567.android.ui.components.ErrorBannerAction(Str.serviceRouteErrorAction, onOpenServiceRoute)
+                            else -> null
+                        },
                     )
                 }
                 if (pendingImages.isNotEmpty()) {

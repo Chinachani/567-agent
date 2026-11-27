@@ -1,10 +1,12 @@
 package org.agent567.android.ui.chat
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -13,9 +15,11 @@ import kotlinx.coroutines.CancellationException
 import org.agent567.android.domain.remote.connection.RemoteRequestException
 import org.agent567.android.domain.remote.protocol.RemoteErrorCode
 import org.agent567.android.domain.session.*
+import org.agent567.android.ui.components.Agent567Card
 import org.agent567.android.ui.components.ScrollableDetailDialog
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.media.*
+import org.agent567.android.ui.theme.agent567Extra
 
 private data class DirectoryRequest(val path: String = "", val offset: Int = 0)
 
@@ -46,11 +50,17 @@ internal fun SessionFilesPane(
     }
     RemoteFileUploadPanel(uploadFile, onUseFilePath, onUploaded = { retry++ })
     Text(Str.sessionFilesHint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        TextButton(onClick = { request = parents.last(); parents = parents.dropLast(1) }, enabled = parents.isNotEmpty() && !loading) { Text(Str.sessionFilesBack) }
-        TextButton(onClick = { retry++ }, enabled = !loading) { Text(Str.sessionFilesRefresh) }
+    Agent567Card(contentPadding = PaddingValues(12.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(page?.path?.ifEmpty { Str.sessionFilesRoot } ?: request.path.ifEmpty { Str.sessionFilesRoot }, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            WorkbenchStatusBadge(Str.workbenchReadOnly)
+        }
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(onClick = { request = parents.last(); parents = parents.dropLast(1) }, enabled = parents.isNotEmpty() && !loading) { Text(Str.sessionFilesBack) }
+            TextButton(onClick = { retry++ }, enabled = !loading) { Text(Str.sessionFilesRefresh) }
+        }
     }
-    Text(page?.path?.ifEmpty { Str.sessionFilesRoot } ?: request.path.ifEmpty { Str.sessionFilesRoot }, style = MaterialTheme.typography.titleSmall)
     if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
     error?.let {
         Text(it, color = MaterialTheme.colorScheme.error)
@@ -68,7 +78,8 @@ internal fun SessionFilesPane(
                         } else selected = entry
                     },
                     shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.agent567Extra.border),
                 ) {
                     Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(if (entry.isDirectory) "▸" else "·")

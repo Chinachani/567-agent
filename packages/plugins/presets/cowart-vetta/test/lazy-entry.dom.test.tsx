@@ -18,7 +18,11 @@ it("registers the sidebar before loading UI and loads only the surface the user 
 	const registerWorkspaceView = vi.fn((_view: { component: ComponentType }) => {});
 	const registerActivityTab = vi.fn((_tab: { component: ComponentType }) => {});
 	await Reflect.apply(plugin.activate!, undefined, [
-		{ ui: { registerWorkspaceView, registerActivityTab }, agent: { registerTool: vi.fn() } },
+		{
+			ui: { registerWorkspaceView, registerActivityTab },
+			agent: { registerTool: vi.fn() },
+			conversation: { on: vi.fn(() => ({ dispose: vi.fn() })) },
+		},
 	]);
 	expect(boundary.launcherLoaded).not.toHaveBeenCalled();
 	expect(boundary.panelLoaded).not.toHaveBeenCalled();

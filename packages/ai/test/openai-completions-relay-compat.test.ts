@@ -1,6 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { AI_ERROR_CODES } from "../src/protocol/index.js";
 import { streamModel } from "../src/runtime/stream-model.js";
-import { createProviderTestTransport, sseResponse } from "../src/testing/provider-test-transport.js";
+import { streamSimple } from "../src/stream.js";
+import {
+	createControlledSseResponse,
+	createProviderTestTransport,
+	emptySseResponse,
+	sseResponse,
+} from "../src/testing/provider-test-transport.js";
 import type { AssistantMessage, Context, Model, ProviderStreamOptions } from "../src/types.js";
 
 /**
@@ -13,7 +20,109 @@ const context: Context = {
 	messages: [{ role: "user", content: "hi", timestamp: 1 }],
 };
 
+afterEach(() => vi.useRealTimers());
+
 describe("openai-completions relay compatibility", () => {
+	it.each(["wire stream", "stop chunk"])("recovers an unmetered empty %s in the normal chat stream", async (mode) => {
+		const empty = mode === "wire stream" ? emptySseResponse() : relaySse([relayChunk({}, "stop")]);
+		const transport = createProviderTestTransport([empty, relaySse([relayChunk({ content: "recovered" }, "stop")])]);
+		const stream = streamSimple(relayModel(), context, relayOptions(transport.fetch));
+		const events: string[] = [];
+		for await (const event of stream) events.push(event.type);
+		expect(textOf(await stream.result())).toBe("recovered");
+		expect(events).toEqual(["start", "text_start", "text_delta", "text_end", "done"]);
+		expect(transport.requests).toHaveLength(2);
+	});
+
+	it("stops after the empty response budget and does not request another turn retry", async () => {
+		const transport = createProviderTestTransport([emptySseResponse(), emptySseResponse()]);
+		const stream = streamSimple(relayModel(), context, {
+			...relayOptions(transport.fetch),
+			emptyResponseBackoffMs: 0,
+		});
+		expect(await stream.result()).toMatchObject({
+			stopReason: "error",
+			failure: {
+				code: AI_ERROR_CODES.STREAM_PROTOCOL_FAILED,
+				providerCode: "empty_provider_stream",
+				retryable: false,
+			},
+		});
+		expect(transport.requests).toHaveLength(2);
+	});
+
+	it("times out after headers when no model output arrives and aborts the provider request", async () => {
+		vi.useFakeTimers();
+		const wire = createControlledSseResponse();
+		const transport = createProviderTestTransport([
+			({ signal }) => {
+				signal.addEventListener("abort", () => wire.fail(signal.reason), { once: true });
+				return wire.response;
+			},
+		]);
+		const stream = streamSimple(relayModel(), context, {
+			...relayOptions(transport.fetch),
+			firstEventTimeoutMs: 30,
+			idleEventTimeoutMs: 100,
+		});
+		await vi.advanceTimersByTimeAsync(30);
+		expect(await stream.result()).toMatchObject({
+			stopReason: "error",
+			failure: { code: AI_ERROR_CODES.TIMEOUT, retryable: true },
+		});
+		expect(transport.requests[0]?.signal.aborted).toBe(true);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
+	it("keeps metered reasoning on idle timeout and does not replay a partial tool call", async () => {
+		vi.useFakeTimers();
+		const wire = createControlledSseResponse();
+		const transport = createProviderTestTransport([
+			({ signal }) => {
+				signal.addEventListener("abort", () => wire.fail(signal.reason), { once: true });
+				return wire.response;
+			},
+		]);
+		const stream = streamSimple(relayModel(), context, {
+			...relayOptions(transport.fetch),
+			firstEventTimeoutMs: 100,
+			idleEventTimeoutMs: 30,
+		});
+		const events = stream[Symbol.asyncIterator]();
+		wire.emit({
+			data: {
+				...relayChunk({ reasoning_content: "keep" }, null),
+				usage: { prompt_tokens: 10, completion_tokens: 1, total_tokens: 11 },
+			},
+		});
+		expect((await events.next()).value?.type).toBe("start");
+		expect((await events.next()).value?.type).toBe("thinking_start");
+		expect((await events.next()).value?.type).toBe("thinking_delta");
+		await vi.advanceTimersByTimeAsync(20);
+		wire.emit({ data: relayChunk({ reasoning_content: " going" }, null) });
+		expect((await events.next()).value?.type).toBe("thinking_delta");
+		await vi.advanceTimersByTimeAsync(20);
+		wire.emit({
+			data: relayChunk(
+				{ tool_calls: [{ index: 0, id: "call", type: "function", function: { name: "read", arguments: "{" } }] },
+				null,
+			),
+		});
+		expect((await events.next()).value?.type).toBe("thinking_end");
+		expect((await events.next()).value?.type).toBe("toolcall_start");
+		await vi.advanceTimersByTimeAsync(30);
+		const result = await stream.result();
+		expect(result).toMatchObject({
+			stopReason: "error",
+			failure: { code: AI_ERROR_CODES.TIMEOUT, retryable: false },
+			usage: { input: 10, output: 1 },
+		});
+		expect(thinkingOf(result)).toBe("keep going");
+		expect(transport.requests).toHaveLength(1);
+		expect(transport.requests[0]?.signal.aborted).toBe(true);
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
 	it.each([undefined, "   \n"])(
 		"reports an empty successful completion (%j) instead of silently finishing",
 		async (content) => {

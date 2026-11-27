@@ -10,6 +10,7 @@ import {
 import { createModelCallMetadataFromMessage } from "../../runtime/model-call-result.js";
 import type { Model, StreamOptions } from "../../types.js";
 import { GeminiEventReducer } from "./events.js";
+import { throwGoogleProviderErrorEvent } from "./provider-error-event.js";
 import { geminiResponseChunkSchema } from "./response-schema.js";
 import { sendGoogleSdkRequestWithRetries } from "./retry.js";
 
@@ -62,6 +63,7 @@ async function produceGoogleSdkStream<TApi extends Api, TOptions extends StreamO
 		stream.push({ type: "start", partial: output });
 		for await (const rawChunk of source) {
 			receivedProviderEvent = true;
+			throwGoogleProviderErrorEvent(rawChunk);
 			const chunk = validateWirePayload(geminiResponseChunkSchema, rawChunk, {
 				provider: model.provider,
 				payloadType: "Gemini stream chunk",

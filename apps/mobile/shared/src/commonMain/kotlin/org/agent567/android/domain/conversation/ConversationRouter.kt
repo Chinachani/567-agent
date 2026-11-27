@@ -17,6 +17,7 @@ class ConversationRouter(
         groupName: String? = null,
         imageGenModel: String? = null,
         retryPreviousTurn: Boolean = false,
+        remoteTurnId: String? = null,
         desktopPromptText: String? = null,
         desktopFiles: List<RemotePromptFileAttachment> = emptyList(),
     ): Flow<ChatStreamEvent> =
@@ -37,6 +38,7 @@ class ConversationRouter(
                     retryPreviousTurn,
                     desktopPromptText ?: messages.lastOrNull()?.textContent.orEmpty(),
                     desktopFiles,
+                    remoteTurnId,
                 )
             }
         }

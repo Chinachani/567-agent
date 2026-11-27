@@ -1,5 +1,6 @@
 export { type DiscoveryFilterField, DiscoveryFiltersView } from "./DiscoveryFiltersView";
 export { DiscoverySearchStatusView, type DiscoverySearchStatusViewProps } from "./DiscoverySearchStatusView";
+export { FilterSelectField, type FilterSelectFieldProps, type FilterSelectOption } from "./FilterSelectField";
 export type { PluginCardViewModel, PluginCardViewProps } from "./PluginCardView";
 export { PluginCardView } from "./PluginCardView";
 export type { SkillTypeIconProps } from "./skill-icon";

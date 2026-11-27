@@ -1,13 +1,17 @@
 import {
 	activityPanelOpenAtom,
 	type ChatConversationItem,
+	type ConversationDeliveryIndex,
+	type ConversationFeedIdentity,
 	closeInlineFilePreviewAtom,
+	createConversationDeliveryIndex,
 	defaultImConversationCwdAtom,
 	inlineFilePreviewContextReadonlyAtom,
 	knowledgeProcessingCwdAtom,
+	pendingScrollToEntryAtom,
 } from "@shared/store/atoms";
 import { useParams } from "@tanstack/react-router";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { fullHistoryToChat } from "../services/chat-service";
@@ -26,12 +30,14 @@ export interface SessionViewerPageModel {
 	path: string;
 	error: string | null;
 	messages: ChatConversationItem[];
+	deliveryIndex: ConversationDeliveryIndex;
+	initialTargetKey?: string;
+	onInitialTargetHandled: () => void;
 	exporting: boolean;
 	exportTitle: string;
 	isKnowledge: boolean;
 	isIm: boolean;
-	imCwd: string;
-	kbCwd: string;
+	cwd: string | null;
 	panelOpen: boolean;
 	emptyPathLabel: string;
 	errorPrefix: string;
@@ -40,14 +46,36 @@ export interface SessionViewerPageModel {
 	onExportFinished: () => void;
 }
 
+interface ViewerSnapshot {
+	scope: ConversationFeedIdentity;
+	messages: ChatConversationItem[];
+	error: string | null;
+}
+
+const EMPTY_MESSAGES: ChatConversationItem[] = [];
+
 export function useSessionViewerPageModel(): SessionViewerPageModel {
 	const { t } = useTranslation("chat");
 	const params = useParams({ strict: false }) as { path?: string };
 	const encodedPath = params.path as string | undefined;
 	const path = encodedPath ? decodeURIComponent(encodedPath) : "";
 
-	const [messages, setMessages] = useState<ChatConversationItem[]>([]);
-	const [error, setError] = useState<string | null>(null);
+	const { initialSnapshot, snapshotAtom } = useMemo(() => {
+		const initialSnapshot: ViewerSnapshot = {
+			scope: { runtimeId: null, sessionPath: path },
+			messages: EMPTY_MESSAGES,
+			error: null,
+		};
+		return { initialSnapshot, snapshotAtom: atom(initialSnapshot) };
+	}, [path]);
+	const [snapshot, setSnapshot] = useAtom(snapshotAtom);
+	const [pendingTarget, setPendingTarget] = useAtom(pendingScrollToEntryAtom);
+	const viewerTarget =
+		pendingTarget?.scope?.runtimeId === null && pendingTarget.scope.sessionPath === path ? pendingTarget : null;
+	const handleTarget = useCallback(
+		() => setPendingTarget((current) => (current === viewerTarget ? null : current)),
+		[setPendingTarget, viewerTarget],
+	);
 	const [exporting, setExporting] = useState(false);
 	const imCwd = useAtomValue(defaultImConversationCwdAtom);
 	const kbCwd = useAtomValue(knowledgeProcessingCwdAtom);
@@ -63,6 +91,17 @@ export function useSessionViewerPageModel(): SessionViewerPageModel {
 	const handleStartExport = useCallback(() => setExporting(true), []);
 	const handleExportFinished = useCallback(() => setExporting(false), []);
 	const isKnowledge = useMemo(() => isPathUnderDir(path, kbCwd), [path, kbCwd]);
+	const cwd = isKnowledge ? kbCwd : isIm ? imCwd : null;
+	const deliveryIndex = useMemo(
+		() =>
+			createConversationDeliveryIndex(
+				atom((get) => {
+					const { scope, messages } = get(snapshotAtom);
+					return { scope, cwd, messages };
+				}),
+			),
+		[cwd, snapshotAtom],
+	);
 
 	const handleTogglePanel = useCallback(() => {
 		if (inlinePreviewActive) {
@@ -82,33 +121,40 @@ export function useSessionViewerPageModel(): SessionViewerPageModel {
 			try {
 				const initial = await window.agent567.session.openViewer(path);
 				if (cancelled) return;
-				setMessages(fullHistoryToChat(initial.history));
+				setSnapshot({ ...initialSnapshot, messages: fullHistoryToChat(initial.history) });
 
 				unsubscribe = await window.agent567.session.subscribeViewer(path, (snapshot) => {
-					setMessages(fullHistoryToChat(snapshot.history));
+					if (!cancelled) setSnapshot({ ...initialSnapshot, messages: fullHistoryToChat(snapshot.history) });
 				});
 				if (cancelled) unsubscribe?.();
 			} catch (err) {
-				if (!cancelled) setError((err as Error).message);
+				if (!cancelled)
+					setSnapshot((current) => ({
+						...current,
+						error: (err as Error).message,
+					}));
 			}
 		})();
 
 		return () => {
 			cancelled = true;
+			setSnapshot(initialSnapshot);
 			unsubscribe?.();
 		};
-	}, [path]);
+	}, [initialSnapshot, path, setSnapshot]);
 
 	return {
 		path,
-		error,
-		messages,
+		error: snapshot.error,
+		messages: snapshot.messages,
+		deliveryIndex,
+		initialTargetKey: viewerTarget?.entryId,
+		onInitialTargetHandled: handleTarget,
 		exporting,
 		exportTitle,
 		isKnowledge,
 		isIm,
-		imCwd: imCwd || "",
-		kbCwd: kbCwd || "",
+		cwd,
 		panelOpen,
 		emptyPathLabel: t("sessionViewer.emptyState.noPath"),
 		errorPrefix: t("sessionViewer.error.loadPrefix"),

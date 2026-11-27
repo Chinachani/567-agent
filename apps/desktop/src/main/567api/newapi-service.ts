@@ -2,6 +2,7 @@ import { getProviderIconForGroup } from "../../shared/api567/group-display.js";
 import { isPaymentUnavailable } from "../../shared/api567/payment-failure.js";
 import type { Api567BilledSnapshot } from "../../shared/local-usage-log.js";
 import { DEFAULT_CHAT_INFERENCE_API } from "../../shared/model-inference-api.js";
+import { modelOutputKind } from "../../shared/model-output-kind.js";
 import { isAccountResponseRejected } from "./access-token-refresh.js";
 import { BilledUsageReader, retryAfter } from "./billed-usage.js";
 
@@ -22,7 +23,9 @@ function getModelScore(id: string): number {
 
 function pickBestModel(models: ModelDefinition[]): ModelDefinition | undefined {
 	if (!models || models.length === 0) return undefined;
-	const sorted = [...models].sort((a, b) => getModelScore(b.id) - getModelScore(a.id));
+	const sorted = models
+		.filter((model) => modelOutputKind(model.id, model) !== "image-only")
+		.sort((a, b) => getModelScore(b.id) - getModelScore(a.id));
 	return sorted[0];
 }
 
@@ -277,7 +280,7 @@ function extractTokens(data: unknown): RawNewApiToken[] {
 export { getProviderIconForGroup, getProviderIdForGroup };
 
 const NON_CHAT =
-	/embedding|embed|whisper|tts|audio|realtime|-live-|moderation|dall-e|image|transcribe|rerank|vision-ocr|veo-|lyria|imagen|deep-research|computer-use|-character|livetranslate/i;
+	/embedding|embed|whisper|tts|audio|realtime|-live-|moderation|transcribe|rerank|vision-ocr|veo-|lyria|deep-research|computer-use|-character|livetranslate/i;
 
 function fetchPageHtml(urlStr: string, redirectCount = 0): Promise<{ html: string; url: string; status: number }> {
 	return new Promise((resolve, reject) => {
@@ -2176,7 +2179,9 @@ export class NewApiService {
 				const latestProvider = config.providers[providerId];
 				if (!latestProvider || latestProvider.disabled) return null;
 				const selected = modelName
-					? latestProvider?.models?.find((model) => model.id === modelName)
+					? latestProvider.models?.find(
+							(model) => model.id === modelName && modelOutputKind(model.id, model) !== "image-only",
+						)
 					: pickBestModel(latestProvider?.models ?? []);
 				if (!selected) return null;
 				selectedFound = true;
@@ -2251,9 +2256,11 @@ export class NewApiService {
 					if (models.length === 0) models = listed;
 					else {
 						const metadata = new Map(listed.map((model) => [model.id, model]));
-						models = models.map((model) =>
-							model.contextWindow !== undefined ? model : (metadata.get(model.id) ?? model),
-						);
+						models = models.map((model) => ({
+							...model,
+							...(model.contextWindow === undefined ? metadata.get(model.id) : undefined),
+							output: model.output ?? metadata.get(model.id)?.output,
+						}));
 					}
 				} else {
 					lastError = `Models endpoint returned HTTP ${res.status}`;
@@ -2268,14 +2275,13 @@ export class NewApiService {
 		}
 		const desc = this.currentSession.availableGroups?.[groupName]?.desc || "";
 		const isDrawingGroup = isImageOnlyGroup(groupName, desc);
-		const imageModelIds = models
-			.filter(
-				(model) =>
-					/dall-e|image|imagen|flux|midjourney|draw|paint|diffusion|agnes/i.test(model.id) || isDrawingGroup,
-			)
-			.map((model) => model.id);
-		const filtered = isDrawingGroup ? models : models.filter((model) => !NON_CHAT.test(model.id));
-		const chatModels = filtered.length > 0 ? filtered : models;
+		const imageModelIds: string[] = [];
+		const chatModels = models.filter((model) => {
+			const kind = modelOutputKind(model.id, model);
+			const drawingOnly = kind === "image-only" || (isDrawingGroup && kind === "unknown");
+			if (drawingOnly || kind === "text-and-image") imageModelIds.push(model.id);
+			return !drawingOnly && (kind === "text-and-image" || !NON_CHAT.test(model.id));
+		});
 		const catalog = await listPresetProviders();
 		return {
 			ok: true,

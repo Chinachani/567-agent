@@ -14,9 +14,8 @@ const CurrentVersion = 2
 // that pair.
 //
 // All sessions live in desktop-app's default "对话" cwd; the gateway no
-// longer routes per project. ChatID is the platform-native conversation id
-// (feishu open_chat_id, wechat chat id, ...). Same user in private chat vs
-// a group gets two independent sessions.
+// longer routes per project. ChatID is an opaque conversation id supplied by
+// the transport. A private chat and a group get two independent sessions.
 //
 // Note: this state intentionally does NOT contain any conversation content.
 // The agent's session manager owns the .jsonl files; the gateway only

@@ -9,6 +9,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.agent567.android.core.model.ChatContentPart
 import org.agent567.android.core.model.ChatMessage
+import org.agent567.android.core.model.ChatRole
 
 /**
  * 将领域 [ChatMessage] 编码为 OpenAI Chat Completions 兼容的 messages 数组元素。
@@ -21,6 +22,34 @@ object ChatRequestEncoder {
     fun encodeMessage(message: ChatMessage): JsonObject =
         buildJsonObject {
             put("role", message.role.toApiValue())
+            if (message.role == ChatRole.Tool && !message.toolCallId.isNullOrBlank()) {
+                put("tool_call_id", message.toolCallId.substringBefore('|'))
+            }
+            if (message.role == ChatRole.Assistant) {
+                val toolCalls = message.replayState?.toolCalls.orEmpty()
+                if (toolCalls.isNotEmpty()) {
+                    put(
+                        "tool_calls",
+                        buildJsonArray {
+                            toolCalls.forEach { toolCall ->
+                                add(
+                                    buildJsonObject {
+                                        put("id", toolCall.id.substringBefore('|'))
+                                        put("type", "function")
+                                        put(
+                                            "function",
+                                            buildJsonObject {
+                                                put("name", toolCall.name)
+                                                put("arguments", toolCall.arguments)
+                                            },
+                                        )
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }
+            }
             put("content", encodeContent(message.parts))
         }
 

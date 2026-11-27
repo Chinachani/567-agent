@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAssistantMessage } from "../src/protocol/message-factory.js";
 import { azureOpenAIResponsesAdapter, streamAzureOpenAIResponses } from "../src/providers/azure-openai-responses.js";
 import { openAICodexResponsesAdapter, streamOpenAICodexResponses } from "../src/providers/openai-codex-responses.js";
 import { openAIResponsesAdapter, streamOpenAIResponses } from "../src/providers/openai-responses.js";
@@ -40,6 +41,118 @@ const openAIModel = createModel("openai-responses", "openai", "https://provider.
 const ollamaModel = createModel("openai-responses", "ollama", "https://ollama.test/v1");
 const azureModel = createModel("azure-openai-responses", "azure-openai-responses", "https://azure.test/openai/v1");
 const codexModel = createModel("openai-codex-responses", "openai-codex", "https://chatgpt.test/backend-api");
+
+const encryptedRejection = {
+	code: "invalid_encrypted_content",
+	message: "The encrypted content for item rs_old could not be verified.",
+	param: null,
+};
+const priorResponse: AssistantMessage = {
+	...createAssistantMessage(
+		{ api: openAIModel.api, provider: openAIModel.provider, model: openAIModel.id },
+		{ stopReason: "toolUse" },
+	),
+	content: [
+		{
+			type: "thinking",
+			thinking: "",
+			thinkingSignature: JSON.stringify({
+				type: "reasoning",
+				id: "rs_old",
+				encrypted_content: "stale",
+				summary: [],
+			}),
+		},
+		{ type: "text", text: "previous answer" },
+		{ type: "toolCall", id: "call_old|fc_old", name: "lookup", arguments: { query: "test" } },
+	],
+};
+const encryptedHistory: Context = {
+	...context,
+	messages: [
+		...context.messages,
+		priorResponse,
+		{
+			role: "toolResult",
+			toolCallId: "call_old|fc_old",
+			toolName: "lookup",
+			content: [{ type: "text", text: "tool answer" }],
+			isError: false,
+			timestamp: 3,
+		},
+	],
+};
+
+describe("Responses encrypted reasoning through the registered stream", () => {
+	it.each([
+		{ model: openAIModel, channel: "HTTP 400", apiKey: "test" },
+		{ model: openAIModel, channel: "SSE error", apiKey: "test" },
+		{ model: azureModel, channel: "HTTP 400", apiKey: "test" },
+		{ model: codexModel, channel: "SSE error", apiKey: codexToken },
+	])("repairs one explicit $channel for $model.api before output", async ({ model, apiKey, channel }) => {
+		const transport = createProviderTestTransport([
+			channel === "HTTP 400"
+				? errorResponse(400, { error: encryptedRejection })
+				: responsesSse([{ type: "error", ...encryptedRejection }]),
+			responsesSse(textEvents()),
+		]);
+		const options = { apiKey, fetch: transport.fetch, maxRetries: 0, azureBaseUrl: model.baseUrl };
+		const response = await streamModel({
+			model,
+			context: {
+				...encryptedHistory,
+				messages: encryptedHistory.messages.map((message) =>
+					message.role === "assistant"
+						? { ...message, api: model.api, provider: model.provider, model: model.id }
+						: message,
+				),
+			},
+			options,
+		});
+		const events = await collectEvents(response.events);
+		expect(
+			events.filter((event) => ["start", "done", "error"].includes(event.type)).map((event) => event.type),
+		).toEqual(["start", "done"]);
+		expect(await response.result).toMatchObject({ stopReason: "stop", signedReasoningReset: true });
+		const [initial, repaired] = transport.requests.map((request) => JSON.parse(request.body ?? "{}").input);
+		expect(initial).toContainEqual(expect.objectContaining({ id: "rs_old", encrypted_content: "stale" }));
+		expect(repaired).toEqual(initial.filter((item: { type?: string }) => item.type !== "reasoning"));
+		expect(repaired).toContainEqual(expect.objectContaining({ type: "function_call", call_id: "call_old" }));
+		expect(repaired).toContainEqual({ type: "function_call_output", call_id: "call_old", output: "tool answer" });
+	});
+
+	it("keeps compatibility errors unrelated to verification on the original failure path", async () => {
+		const message = "Encrypted content is not supported with this model.";
+		const transport = createProviderTestTransport([errorResponse(400, { error: { message } })]);
+		const response = await streamModel({
+			model: openAIModel,
+			context: encryptedHistory,
+			options: { apiKey: "test", fetch: transport.fetch, maxRetries: 0 },
+		});
+		await expect(response.result).rejects.toMatchObject({ statusCode: 400, message });
+		expect(transport.requests).toHaveLength(1);
+	});
+
+	it("does not replay an explicit error after text is delivered", async () => {
+		const transport = createProviderTestTransport([
+			responsesSse([...textEvents().slice(0, 3), { type: "error", ...encryptedRejection }]),
+		]);
+		const response = await streamModel({
+			model: openAIModel,
+			context: encryptedHistory,
+			options: { apiKey: "test", fetch: transport.fetch, maxRetries: 0 },
+		});
+		const events: AssistantMessageEvent[] = [];
+		await expect(
+			(async () => {
+				for await (const event of response.events) events.push(event);
+			})(),
+		).rejects.toMatchObject({ providerCode: encryptedRejection.code });
+		expect(events).toContainEqual(expect.objectContaining({ type: "text_delta", delta: "hello" }));
+		expect(events.at(-1)).toMatchObject({ type: "error", error: { content: [{ type: "text", text: "hello" }] } });
+		expect(transport.requests).toHaveLength(1);
+	});
+});
 
 const fixtures: readonly ResponsesFamilyFixture[] = [
 	{

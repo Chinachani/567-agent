@@ -135,6 +135,7 @@ export interface ImSetConfigResult {
 
 export interface ImBridgeStatus {
 	transport: ImTransportStatus;
+	channelStatuses?: Partial<Record<ImTransportSelector, ImTransportStatus>>;
 	lastError?: string;
 	lastErrorAt?: string;
 	activeSessions: number;

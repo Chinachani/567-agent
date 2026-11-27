@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { isAbsolute, resolve } from "node:path";
 import type { CodingAgentPinnedModelContext } from "@567agent/coding-agent/runtime";
+import {
+	CODING_AGENT_BACKGROUND_TASKS_READ,
+	CODING_AGENT_SUBAGENTS_READ,
+} from "@567agent/coding-agent/session-extensions";
+import { isSshProjectUri } from "@567agent/ssh-transport";
 import type {
+	ManagedWorktreeRecord,
 	ProjectCollaborationCandidate,
 	ProjectCollaborationControl,
 	ProjectCollaborationDocument,
@@ -10,10 +16,12 @@ import type {
 } from "../../shared/project-collaboration.js";
 import { stopSessionBackgroundWork } from "../agent-runtime/stop-session-work.js";
 import { readDesktopConfig } from "../config/desktop-config-store.js";
+import { emitConversationListChanged } from "../conversations/conversation-list-events.js";
 import {
 	type DesktopConversationSession,
 	getDesktopConversationService,
 } from "../conversations/desktop-conversation-service.js";
+import { runManagedWorktreeOperation } from "../conversations/managed-worktree-placement.js";
 import { samePath } from "../conversations/session-paths.js";
 import { mainT } from "../i18n/index.js";
 import { getAppLogger } from "../logger.js";
@@ -28,6 +36,7 @@ import {
 	setCollaborationReadOnly,
 	unregisterCollaborationSession,
 } from "./execution-guard.js";
+import { MAX_COLLABORATION_MEMBERS } from "./limits.js";
 import { CollaborationScheduler } from "./scheduler.js";
 import { createCollaborationStore, type ProjectCollaborationStore } from "./store.js";
 import {
@@ -40,6 +49,8 @@ import {
 	isPendingCollaborationTask,
 } from "./task-state.js";
 import { validatePatch } from "./validation.js";
+import { isPathInsideWorktree } from "./worktree-layout.js";
+import { ManagedWorktreeService } from "./worktree-service.js";
 
 const log = getAppLogger("project-collaboration");
 interface ProjectState {
@@ -56,6 +67,8 @@ export class ProjectCollaborationService {
 		read: (cwd) => this.document(cwd),
 		settled: (cwd) => this.changed(cwd),
 		mutate: (cwd, edit) => this.mutate(cwd, edit),
+		executionCwd: (cwd, document, task) =>
+			document.worktrees?.find((record) => record.sessionId === task.targetSessionId)?.cwd ?? cwd,
 		isBusy: (id) => {
 			try {
 				const runtime = getSharedRuntime();
@@ -67,6 +80,93 @@ export class ProjectCollaborationService {
 		execute: (cwd, task, signal) => this.execute(cwd, task, signal),
 		complete: (cwd, task, status, result) => this.complete(cwd, task, status, result),
 	});
+	private readonly worktrees = new ManagedWorktreeService({
+		read: async (cwd) => (await this.document(cwd)).worktrees ?? [],
+		createSession: (cwd, project) => getDesktopConversationService().createManagedWorktreeSession(cwd, project),
+		add: async (cwd, record) => {
+			await this.mutate(cwd, (document) => {
+				if (document.config.members.length >= MAX_COLLABORATION_MEMBERS)
+					throw new Error("Too many collaboration members");
+				return {
+					...document,
+					worktrees: [...(document.worktrees ?? []), record],
+					config: {
+						...document.config,
+						members: [
+							...document.config.members,
+							{ sessionId: record.sessionId, responsibility: "", access: "write" },
+						],
+					},
+				};
+			});
+			emitConversationListChanged({ cwd, sessionPath: record.sessionPath });
+		},
+		forget: async (cwd, record) => {
+			await this.mutate(cwd, (document) => ({
+				...document,
+				worktrees: document.worktrees?.filter((item) => item.path !== record.path),
+				config: {
+					...document.config,
+					coordinatorSessionId:
+						document.config.coordinatorSessionId === record.sessionId
+							? null
+							: document.config.coordinatorSessionId,
+					members: document.config.members.filter((member) => member.sessionId !== record.sessionId),
+				},
+			}));
+			emitConversationListChanged({ cwd, sessionPath: record.sessionPath });
+		},
+		isBusy: (cwd, record) => this.isWorktreeBusy(cwd, record),
+	});
+	async listWorktrees(directory: string) {
+		return this.worktrees.list(isSshProjectUri(directory) ? directory : await this.project(directory));
+	}
+	async createWorktree(directory: string, startRef?: string) {
+		return this.worktrees.create(isSshProjectUri(directory) ? directory : await this.project(directory), startRef);
+	}
+	async removeWorktree(directory: string, path: string) {
+		return this.worktrees.remove(await this.project(directory), path);
+	}
+	private async isWorktreeBusy(cwd: string, record: ManagedWorktreeRecord): Promise<boolean> {
+		if (
+			(await this.document(cwd)).tasks.some(
+				(task) =>
+					isPendingCollaborationTask(task) &&
+					(task.targetSessionId === record.sessionId || task.sourceSessionId === record.sessionId),
+			)
+		)
+			return true;
+		for (const session of this.sessions.values()) {
+			if (!isPathInsideWorktree(record.path, session.cwd)) continue;
+			if (this.scheduler.isEngaged(session.sessionId)) return true;
+			const runtime = getSharedRuntime();
+			if (!runtime.getSessionPath(session.sessionId)) continue;
+			if (
+				runtime.getState(session.sessionId).isStreaming ||
+				runtime.getQueueState(session.sessionId).entries.length > 0 ||
+				runtime.readSessionContextCompactionState(session.sessionId).isCompacting
+			)
+				return true;
+			if (runtime.hasSessionExtension(session.sessionId, CODING_AGENT_BACKGROUND_TASKS_READ)) {
+				const tasks = await runtime.invokeSessionExtension(
+					session.sessionId,
+					CODING_AGENT_BACKGROUND_TASKS_READ,
+					undefined,
+				);
+				if (tasks.some((task) => task.status === "running")) return true;
+			}
+			if (runtime.hasSessionExtension(session.sessionId, CODING_AGENT_SUBAGENTS_READ)) {
+				const subagents = await runtime.invokeSessionExtension(
+					session.sessionId,
+					CODING_AGENT_SUBAGENTS_READ,
+					undefined,
+				);
+				if (subagents.some(({ status }) => status === "queued" || status === "pending" || status === "running"))
+					return true;
+			}
+		}
+		return false;
+	}
 	onChanged(listener: (event: { cwd: string }) => void): () => void {
 		this.listeners.add(listener);
 		return () => this.listeners.delete(listener);
@@ -138,7 +238,10 @@ export class ProjectCollaborationService {
 		this.scheduler.wake(cwd);
 	}
 	private catalog(): ProjectCollaborationCatalog {
-		return new ProjectCollaborationCatalog(getSharedRuntime());
+		return new ProjectCollaborationCatalog(
+			getSharedRuntime(),
+			async (cwd) => (await this.document(cwd)).worktrees ?? [],
+		);
 	}
 	async read(directory: string): Promise<ProjectCollaborationSnapshot> {
 		const cwd = await this.project(directory);
@@ -213,49 +316,66 @@ export class ProjectCollaborationService {
 		const document = await this.document(cwd);
 		const stoppedIds = control.taskId ? collaborationTaskBranchIds(document, control.taskId) : undefined;
 		const stopping = control.action === "stop" ? this.scheduler.stop(cwd, stoppedIds) : undefined;
-		await this.mutate(cwd, (current) => {
-			if (control.action === "stop" && stoppedIds && control.taskId)
-				for (const id of collaborationTaskBranchIds(current, control.taskId)) stoppedIds.add(id);
-			if (control.action === "continue") {
-				const task = current.tasks.find((item) => item.id === control.taskId);
-				if (!task || !["failed", "interrupted", "attention", "cancelled"].includes(task.status))
-					throw new Error("Task cannot be continued");
-				if (!current.config.members.some((member) => member.sessionId === task.targetSessionId))
-					throw new Error("Re-add the target conversation before continuing this task");
+		const resumedTask = control.action === "continue" && document.tasks.find(({ id }) => id === control.taskId);
+		const resumedWorktrees = resumedTask
+			? (document.worktrees ?? []).filter(
+					({ sessionId }) =>
+						sessionId === resumedTask.targetSessionId || sessionId === resumedTask.sourceSessionId,
+				)
+			: [];
+		const apply = () =>
+			this.mutate(cwd, (current) => {
+				if (control.action === "stop" && stoppedIds && control.taskId)
+					for (const id of collaborationTaskBranchIds(current, control.taskId)) stoppedIds.add(id);
+				if (control.action === "continue") {
+					const task = current.tasks.find((item) => item.id === control.taskId);
+					if (!task || !["failed", "interrupted", "attention", "cancelled"].includes(task.status))
+						throw new Error("Task cannot be continued");
+					if (!current.config.members.some((member) => member.sessionId === task.targetSessionId))
+						throw new Error("Re-add the target conversation before continuing this task");
+					if (resumedWorktrees.some(({ path }) => !current.worktrees?.some((record) => record.path === path)))
+						throw new Error("The task's isolated workspace has been removed");
+					return {
+						...current,
+						config: { ...current.config, enabled: true, paused: false },
+						tasks: current.tasks.map((item) => {
+							if (item.id !== task.id) return item;
+							const { error: _error, result: _result, finishedAt: _finished, ...rest } = item;
+							return {
+								...rest,
+								status: "queued",
+								resume: !!item.startedAt,
+								deliveredToSource: false,
+								...(item.status === "attention" ? { rootId: randomUUID(), reviewRound: 0 } : {}),
+							};
+						}),
+					};
+				}
 				return {
 					...current,
-					config: { ...current.config, enabled: true, paused: false },
-					tasks: current.tasks.map((item) => {
-						if (item.id !== task.id) return item;
-						const { error: _error, result: _result, finishedAt: _finished, ...rest } = item;
-						return {
-							...rest,
-							status: "queued",
-							resume: !!item.startedAt,
-							deliveredToSource: false,
-							...(item.status === "attention" ? { rootId: randomUUID(), reviewRound: 0 } : {}),
-						};
-					}),
+					config: {
+						...current.config,
+						paused:
+							control.action === "stop" && control.taskId ? current.config.paused : control.action !== "resume",
+					},
+					tasks:
+						control.action === "stop"
+							? current.tasks.map((task) =>
+									(task.status === "queued" || task.status === "waiting") &&
+									(!stoppedIds || stoppedIds.has(task.id))
+										? { ...task, status: "cancelled", finishedAt: Date.now() }
+										: task,
+								)
+							: current.tasks,
 				};
-			}
-			return {
-				...current,
-				config: {
-					...current.config,
-					paused:
-						control.action === "stop" && control.taskId ? current.config.paused : control.action !== "resume",
-				},
-				tasks:
-					control.action === "stop"
-						? current.tasks.map((task) =>
-								(task.status === "queued" || task.status === "waiting") &&
-								(!stoppedIds || stoppedIds.has(task.id))
-									? { ...task, status: "cancelled", finishedAt: Date.now() }
-									: task,
-							)
-						: current.tasks,
-			};
-		});
+			});
+		const applyWithWorktrees = resumedWorktrees.reduceRight(
+			(next, { path }) =>
+				() =>
+					runManagedWorktreeOperation(path, next),
+			apply,
+		);
+		await applyWithWorktrees();
 		await stopping;
 		if (control.action === "stop") await this.scheduler.stop(cwd, stoppedIds);
 		this.scheduler.wake(cwd);
@@ -267,14 +387,14 @@ export class ProjectCollaborationService {
 	async registerSession(session: DesktopConversationSession): Promise<void> {
 		let cwd: string;
 		try {
-			cwd = await this.project(session.cwd);
+			cwd = await this.project(session.listCwd);
 		} catch {
 			return;
 		}
 		const state = await this.state(cwd);
 		if (this.sessions.has(session.sessionId)) return;
-		this.sessions.set(session.sessionId, { ...session, cwd });
-		registerCollaborationSession(session.sessionId, cwd, () => state.document.config.enabled);
+		this.sessions.set(session.sessionId, { ...session, listCwd: cwd });
+		registerCollaborationSession(session.sessionId, session.cwd, () => state.document.config.enabled);
 		this.subscriptions.set(
 			session.sessionId,
 			getSharedRuntime().subscribe(session.sessionId, (event) => {
@@ -291,7 +411,7 @@ export class ProjectCollaborationService {
 	async unregisterSession(sessionId: string): Promise<void> {
 		const active = this.scheduler.active(sessionId);
 		const session = this.sessions.get(sessionId);
-		if (active && session) await this.scheduler.stop(resolve(session.cwd), new Set([active.id]));
+		if (active && session) await this.scheduler.stop(resolve(session.listCwd), new Set([active.id]));
 		this.subscriptions.get(sessionId)?.();
 		this.subscriptions.delete(sessionId);
 		this.sessions.delete(sessionId);
@@ -334,14 +454,14 @@ export class ProjectCollaborationService {
 			} catch {
 				finishCollaborationTurn(sessionId);
 			}
-			this.scheduler.wake(resolve(session.cwd));
-			this.changed(resolve(session.cwd));
+			this.scheduler.wake(resolve(session.listCwd));
+			this.changed(resolve(session.listCwd));
 		}
 	}
 	async stopSession(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
-		const cwd = await this.project(session.cwd);
+		const cwd = await this.project(session.listCwd);
 		const active = this.scheduler.active(sessionId);
 		if (active) {
 			await this.control(cwd, { action: "stop", taskId: active.id });
@@ -366,18 +486,18 @@ export class ProjectCollaborationService {
 			throw new Error(
 				"Peer tasks cannot change project configuration; ask the user in the coordinator conversation",
 			);
-		return this.update(this.source(sourceId).cwd, value);
+		return this.update(this.source(sourceId).listCwd, value);
 	}
 	async controlFromChat(sourceId: string, value: unknown): Promise<ProjectCollaborationSnapshot> {
 		if (this.scheduler.active(sourceId))
 			throw new Error("Peer tasks cannot control the project; return the request to the human");
-		return this.control(this.source(sourceId).cwd, value);
+		return this.control(this.source(sourceId).listCwd, value);
 	}
 	async inspect(sourceId: string): Promise<ProjectCollaborationSnapshot> {
-		return this.read(this.source(sourceId).cwd);
+		return this.read(this.source(sourceId).listCwd);
 	}
 	async target(sourceId: string, target: string): Promise<ProjectCollaborationCandidate> {
-		const cwd = this.source(sourceId).cwd;
+		const cwd = this.source(sourceId).listCwd;
 		const all = await this.catalog().list(cwd);
 		const candidates =
 			target === "self"
@@ -404,7 +524,7 @@ export class ProjectCollaborationService {
 		const source = this.source(sourceId);
 		const target = await this.target(sourceId, input.target);
 		if (target.sessionId === sourceId) throw new Error("Dispatch must target another conversation");
-		const cwd = await this.project(source.cwd);
+		const cwd = await this.project(source.listCwd);
 		const active = this.scheduler.active(sourceId);
 		if (this.scheduler.isStopping(sourceId))
 			throw new Error("This collaboration request is stopping; no further work can be dispatched");
@@ -412,22 +532,28 @@ export class ProjectCollaborationService {
 			throw new Error("A read-only task cannot delegate write work; return findings to the coordinator");
 		const id = randomUUID();
 		let admitted: ProjectCollaborationTask | undefined;
-		await this.mutate(cwd, (current) => {
-			const parent = active ? collaborationScopeTask(current, active) : undefined;
-			if (parent && !isPendingCollaborationTask(parent))
-				throw new Error("The parent collaboration task has stopped; no further work can be dispatched");
-			const next = admitCollaborationTask(current, {
-				id,
-				sourceId,
-				targetId: target.sessionId,
-				turnId,
-				parent,
-				input,
-				now: Date.now(),
+		const targetWorktree = (await this.document(cwd)).worktrees?.find(
+			(record) => record.sessionId === target.sessionId,
+		);
+		const admit = () =>
+			this.mutate(cwd, (current) => {
+				const parent = active ? collaborationScopeTask(current, active) : undefined;
+				if (parent && !isPendingCollaborationTask(parent))
+					throw new Error("The parent collaboration task has stopped; no further work can be dispatched");
+				const next = admitCollaborationTask(current, {
+					id,
+					sourceId,
+					targetId: target.sessionId,
+					turnId,
+					parent,
+					input,
+					now: Date.now(),
+				});
+				admitted = next.task;
+				return next.document;
 			});
-			admitted = next.task;
-			return next.document;
-		});
+		if (targetWorktree) await runManagedWorktreeOperation(targetWorktree.cwd, admit);
+		else await admit();
 		releaseCollaborationWriter(sourceId);
 		log.info("collaboration request stored", {
 			taskId: admitted?.id,
@@ -439,7 +565,7 @@ export class ProjectCollaborationService {
 		return admitted!;
 	}
 	async readTask(sourceId: string, taskId: string): Promise<ProjectCollaborationTask> {
-		const cwd = await this.project(this.source(sourceId).cwd);
+		const cwd = await this.project(this.source(sourceId).listCwd);
 		const snapshot = await this.document(cwd);
 		if (!snapshot.config.members.some((member) => member.sessionId === sourceId))
 			throw new Error("This conversation is not a collaboration member");
@@ -459,7 +585,7 @@ export class ProjectCollaborationService {
 		signal: AbortSignal,
 	): Promise<readonly ProjectCollaborationTask[]> {
 		const source = this.source(sourceId);
-		const cwd = await this.project(source.cwd);
+		const cwd = await this.project(source.listCwd);
 		const read = async () => {
 			const tasks = await Promise.all(taskIds.map((id) => this.readTask(sourceId, id)));
 			const current = this.scheduler.active(sourceId);
@@ -529,6 +655,8 @@ export class ProjectCollaborationService {
 			);
 		if (session.sessionId !== task.targetSessionId)
 			throw new Error("Restored conversation identity does not match the collaboration target");
+		if (!samePath(session.cwd, task.executionCwd ?? cwd))
+			throw new Error("Restored conversation workspace does not match the admitted collaboration task");
 		setCollaborationReadOnly(session.sessionId, task.access === "read");
 		try {
 			const result = await getDesktopConversationService().runTurn({

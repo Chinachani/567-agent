@@ -34,7 +34,9 @@ export function SessionMessageList(props: MessageListProps & { onSend?: (overrid
 	const session = useAtomValue(activeSessionAtom);
 	const isCompacting = useAtomValue(isCompactingAtom);
 	const [pendingTarget, setPendingTarget] = useAtom(pendingScrollToEntryAtom);
-	const clearPendingTarget = useCallback(() => setPendingTarget(null), [setPendingTarget]);
+	const targetScope = pendingTarget?.scope;
+	const target = !targetScope || (session?.runtimeId === targetScope.runtimeId && props.sessionId === targetScope.sessionPath) ? pendingTarget : null;
+	const clearPendingTarget = useCallback(() => setPendingTarget((current) => current === target ? null : current), [setPendingTarget, target]);
 	const fork = useMemo(() => {
 		const placement = resolveForkOriginPlacement(
 			props.messages,
@@ -54,7 +56,7 @@ export function SessionMessageList(props: MessageListProps & { onSend?: (overrid
 					<SessionSelection>
 						<MessageList
 							{...props}
-							initialTargetKey={pendingTarget?.entryId}
+							initialTargetKey={target?.entryId}
 							onInitialTargetHandled={clearPendingTarget}
 						>
 							<MessageListFooter

@@ -11,7 +11,6 @@ import type {
 } from "../shared/background-command-host.js";
 import type { ForegroundCommandExecutorOptions } from "../shared/foreground-command-executor.js";
 import { spawnGuardedCommand } from "./guarded-command-process.js";
-import { killNodeProcessTree } from "./process-tree.js";
 
 export interface NodeShellCommand {
 	readonly executable: string;
@@ -67,7 +66,7 @@ function createForegroundOperations(
 					stdio: ["ignore", "pipe", "pipe"],
 					windowsHide: true,
 				});
-				let timedOut = false;
+				let stopping = false;
 				let settled = false;
 				let timeoutHandle: NodeJS.Timeout | undefined;
 				const cleanup = () => {
@@ -88,39 +87,34 @@ function createForegroundOperations(
 					cleanup();
 					rejectExecution(error);
 				};
-				const stop = () => {
-					if (child.pid) killNodeProcessTree(child.pid);
-					else child.kill();
+				const stop = (error: Error) => {
+					if (settled || stopping) return;
+					stopping = true;
+					void child.stopTree().finally(() => rejectOnce(error));
 				};
-				const onAbort = () => {
-					stop();
-					rejectOnce(new Error("aborted"));
-				};
+				const onAbort = () => stop(new Error("aborted"));
 
 				if (timeout !== undefined && timeout > 0) {
-					timeoutHandle = setTimeout(() => {
-						timedOut = true;
-						stop();
-						rejectOnce(new Error(`timeout:${timeout}`));
-					}, timeout * 1_000);
+					timeoutHandle = setTimeout(() => stop(new Error(`timeout:${timeout}`)), timeout * 1_000);
 				}
 				child.stdout?.on("data", onData);
 				child.stderr?.on("data", onData);
-				child.once("error", rejectOnce);
+				child.once("error", (error) => {
+					if (!stopping) rejectOnce(error);
+				});
 				if (signal?.aborted) onAbort();
 				else signal?.addEventListener("abort", onAbort, { once: true });
 				child.once("exit", (exitCode) => {
-					if (signal?.aborted || timedOut) return;
 					// Daemonizing commands can leave descendants holding the inherited
 					// output pipes after the command shell itself exits. Flush queued data
 					// for one turn, then settle from `exit` instead of waiting forever for
 					// `close`; `close` remains the fast path for ordinary commands.
-					setImmediate(() => resolveOnce(exitCode));
+					setImmediate(() => {
+						if (!stopping) resolveOnce(exitCode);
+					});
 				});
 				child.once("close", (exitCode) => {
-					if (signal?.aborted) rejectOnce(new Error("aborted"));
-					else if (timedOut) rejectOnce(new Error(`timeout:${timeout}`));
-					else resolveOnce(exitCode);
+					if (!stopping) resolveOnce(exitCode);
 				});
 			});
 		},
@@ -147,6 +141,7 @@ function createBackgroundProcessOperations(
 				if (text) request.onOutput(text);
 			};
 			let settled = false;
+			let stopping = false;
 			const cleanup = (): void => {
 				child.stdout?.destroy();
 				child.stderr?.destroy();
@@ -165,13 +160,19 @@ function createBackgroundProcessOperations(
 			};
 			child.stdout?.on("data", onData);
 			child.stderr?.on("data", onData);
-			child.once("exit", (exitCode) => setImmediate(() => settleExit(exitCode)));
-			child.once("close", settleExit);
-			child.once("error", settleError);
+			const onExit = (exitCode: number | null) => {
+				if (!stopping) settleExit(exitCode);
+			};
+			child.once("exit", (exitCode) => setImmediate(() => onExit(exitCode)));
+			child.once("close", onExit);
+			child.once("error", (error) => {
+				if (!stopping) settleError(error);
+			});
 			return {
 				stop() {
-					if (child.pid) killNodeProcessTree(child.pid);
-					else child.kill();
+					if (settled || stopping) return;
+					stopping = true;
+					void child.stopTree().finally(() => settleExit(null));
 				},
 			};
 		},

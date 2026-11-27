@@ -7,6 +7,7 @@ import { resolveEffectiveModelCapabilities } from "../src/runtime/model-capabili
 import { resolveModel } from "../src/runtime/model-identity.js";
 import { type ModelMiddleware, withModelMiddleware } from "../src/runtime/model-middleware.js";
 import { ModelRouter } from "../src/runtime/model-router.js";
+import { createRegistrySimpleStream } from "../src/runtime/registry-simple-stream.js";
 import type { Model } from "../src/types.js";
 
 function model(api = "test-api", id = "test-model"): Model<typeof api> {
@@ -41,6 +42,21 @@ function message(currentModel: Model<string>, text = "ok"): AssistantMessage {
 		},
 		stopReason: "stop",
 		timestamp: 1,
+	};
+}
+
+function emptyMessage(currentModel: Model<string>): AssistantMessage {
+	return {
+		...message(currentModel, ""),
+		content: [],
+		usage: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+			totalTokens: 0,
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+		},
 	};
 }
 
@@ -209,11 +225,11 @@ describe("model runtime architecture", () => {
 			api: first.api,
 			async stream() {
 				const stream = new LanguageModelStream();
-				stream.push({ type: "start", partial: message(first, "") });
+				stream.push({ type: "start", partial: emptyMessage(first) });
 				stream.push({
 					type: "error",
 					reason: "error",
-					error: { ...message(first, "limited"), stopReason: "error", errorMessage: "limited" },
+					error: { ...emptyMessage(first), stopReason: "error", errorMessage: "limited" },
 					failure: getAIErrorDetails(failure),
 				});
 				stream.fail(failure);
@@ -284,6 +300,135 @@ describe("model runtime architecture", () => {
 		expect(routed.model.id).toBe("first");
 		expect(secondCalls).toBe(0);
 		expect(eventTypes).toEqual(["start", "text_start", "error"]);
+	});
+
+	it("retries a terminal empty response when no usage or output was received", async () => {
+		const currentModel = model();
+		let calls = 0;
+		const registry = new AdapterRegistry();
+		registry.register({
+			api: currentModel.api,
+			async stream() {
+				calls += 1;
+				const stream = new LanguageModelStream();
+				stream.push({
+					type: "done",
+					reason: "stop",
+					message: calls === 1 ? emptyMessage(currentModel) : message(currentModel),
+				});
+				return { events: stream, result: stream.result() };
+			},
+		});
+
+		const routed = await new ModelRouter(registry).stream({ model: currentModel, context: { messages: [] } }, [], {
+			emptyResponseRetries: 1,
+			emptyResponseBackoffMs: 0,
+		});
+		expect(calls).toBe(2);
+		expect(await routed.response.result).toMatchObject({ content: [{ type: "text", text: "ok" }] });
+	});
+
+	it("fails a route when the first model event exceeds the configured watchdog", async () => {
+		const currentModel = model();
+		const registry = new AdapterRegistry();
+		let providerSignal: AbortSignal | undefined;
+		registry.register({
+			api: currentModel.api,
+			async stream({ options }) {
+				providerSignal = options?.signal;
+				return {
+					events: {
+						[Symbol.asyncIterator]() {
+							return {
+								next: () => new Promise<IteratorResult<never>>(() => undefined),
+								return: () => new Promise<IteratorResult<never>>(() => undefined),
+							};
+						},
+					},
+					result: new Promise(() => undefined),
+				};
+			},
+		});
+
+		await expect(
+			new ModelRouter(registry).stream({ model: currentModel, context: { messages: [] } }, [], {
+				firstEventTimeoutMs: 5,
+			}),
+		).rejects.toMatchObject({ code: AI_ERROR_CODES.TIMEOUT, retryable: true });
+		expect(providerSignal?.aborted).toBe(true);
+	});
+
+	it("aborts adapter setup even when it never returns a stream", async () => {
+		const currentModel = model();
+		const registry = new AdapterRegistry();
+		let providerSignal: AbortSignal | undefined;
+		registry.register({
+			api: currentModel.api,
+			async stream({ options }) {
+				providerSignal = options?.signal;
+				return new Promise(() => undefined);
+			},
+		});
+		await expect(
+			new ModelRouter(registry).stream({ model: currentModel, context: { messages: [] } }, [], {
+				firstEventTimeoutMs: 10,
+			}),
+		).rejects.toMatchObject({ code: AI_ERROR_CODES.TIMEOUT });
+		expect(providerSignal?.aborted).toBe(true);
+	});
+
+	it("cancels the empty-response retry wait before opening another chat request", async () => {
+		const currentModel = model();
+		const registry = new AdapterRegistry();
+		const caller = new AbortController();
+		let calls = 0;
+		registry.register({
+			...adapterFor(currentModel),
+			async streamSimple({ options }) {
+				calls += 1;
+				options?.signal?.addEventListener("abort", () => queueMicrotask(() => caller.abort()), { once: true });
+				const source = new LanguageModelStream();
+				source.push({ type: "done", reason: "stop", message: emptyMessage(currentModel) });
+				return { events: source, result: source.result() };
+			},
+		});
+		const response = createRegistrySimpleStream(registry)(currentModel, { messages: [] }, { signal: caller.signal });
+		expect(await response.result()).toMatchObject({
+			stopReason: "aborted",
+			failure: { code: AI_ERROR_CODES.ABORTED },
+		});
+		expect(calls).toBe(1);
+	});
+
+	it("fails a committed route when the next event exceeds the idle watchdog", async () => {
+		const currentModel = model();
+		const registry = new AdapterRegistry();
+		registry.register({
+			api: currentModel.api,
+			async stream() {
+				return {
+					events: {
+						async *[Symbol.asyncIterator]() {
+							yield { type: "start", partial: message(currentModel, "") };
+							yield { type: "text_start", contentIndex: 0, partial: message(currentModel, "") };
+							await new Promise(() => undefined);
+						},
+					},
+					result: new Promise(() => undefined),
+				};
+			},
+		});
+
+		const routed = await new ModelRouter(registry).stream({ model: currentModel, context: { messages: [] } }, [], {
+			idleEventTimeoutMs: 5,
+		});
+		await expect(
+			(async () => {
+				for await (const _event of routed.response.events) {
+					// Consume until the watchdog reports the stalled stream.
+				}
+			})(),
+		).rejects.toMatchObject({ code: AI_ERROR_CODES.TIMEOUT, retryable: false });
 	});
 
 	it("fails a terminal-less route without waiting for the provider result promise", async () => {

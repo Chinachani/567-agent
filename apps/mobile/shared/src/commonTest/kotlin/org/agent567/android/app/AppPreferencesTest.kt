@@ -21,6 +21,15 @@ class AppPreferencesTest {
     }
 
     @Test
+    fun explicitDirectDownloadSourceSurvivesReopeningPreferences() {
+        val storage = MapSettings()
+        val preferences = AppPreferences(storage)
+        assertEquals(AppPreferences.DOWNLOAD_SOURCE_AUTO, preferences.downloadSource)
+        preferences.downloadSource = AppPreferences.DOWNLOAD_SOURCE_GITHUB
+        assertEquals(AppPreferences.DOWNLOAD_SOURCE_GITHUB, AppPreferences(storage).downloadSource)
+    }
+
+    @Test
     fun productPreferencesPersistBehaviorChoices() {
         val preferences = AppPreferences(MapSettings())
 

@@ -279,9 +279,11 @@ function parseDesktopConfig(parsed: Record<string, unknown>): DesktopConfig {
 		updateSource:
 			parsed.updateSource === "gh-proxy"
 				? "gh-proxy"
-				: parsed.updateSource === "custom" && normalizeGitHubUpdateProxyUrl(parsed.updateProxyUrl)
-					? "custom"
-					: "github",
+				: parsed.updateSource === "auto"
+					? "auto"
+					: parsed.updateSource === "custom" && normalizeGitHubUpdateProxyUrl(parsed.updateProxyUrl)
+						? "custom"
+						: "github",
 		updateProxyUrl: normalizeGitHubUpdateProxyUrl(parsed.updateProxyUrl) ?? undefined,
 		updatePreferences: normalizeUpdaterPreferences(parsed.updatePreferences),
 		lastRunVersion: typeof parsed.lastRunVersion === "string" ? parsed.lastRunVersion : undefined,

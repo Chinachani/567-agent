@@ -1,7 +1,9 @@
 import { PluginWorkspaceViewSurface } from "@domains/plugins/components/PluginWorkspaceViewRoute";
 import { useThemeSurface } from "@vetta-org/theme-sdk/appearance";
+import { WorkspacePageHeader } from "@vetta-org/theme-ui/shared";
 import type { SettingsTab } from "@shared/store/atoms";
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
+import { useTranslation } from "react-i18next";
 import { BrowserConnectionSettings } from "./BrowserConnectionSettings";
 import { SettingsPageView } from "./SettingsPageView";
 import { SETTINGS_TAB_LOADERS } from "./settings-tab-loaders";
@@ -31,6 +33,7 @@ const SETTINGS_CONTENT: Record<Exclude<SettingsTab, "mcp">, LazyExoticComponent<
 
 export function SettingsPage(): JSX.Element {
 	const model = useSettingsPageModel();
+	const { t } = useTranslation("settings");
 	const contentSurface = useThemeSurface("settings.pageContent");
 	const Content = model.activeTab === "mcp" ? SETTINGS_CONTENT.general : SETTINGS_CONTENT[model.activeTab];
 
@@ -43,8 +46,16 @@ export function SettingsPage(): JSX.Element {
 	const content = embedded ? (
 		isBrowserConsole ? (
 			<div className="mx-auto w-full min-w-0 max-w-[800px] px-5 pt-6 pb-8 sm:px-8">
+				<WorkspacePageHeader
+					title={t("browserPage.title")}
+					description={t("browserPage.description")}
+					className="mb-6"
+				/>
 				<BrowserConnectionSettings />
-					<div className="[&_.browser-page]:h-auto [&_.browser-page]:overflow-visible [&_.browser-page-inner]:max-w-none [&_.browser-page-inner]:gap-5 [&_.browser-page-inner]:px-0 [&_.browser-page-inner]:pt-4 [&_.browser-page-inner]:pb-0 [&_[data-browser-extension]]:hidden [&_[data-browser-hero]]:hidden">
+				<div
+					data-browser-settings-embedded=""
+					className="[&_.browser-page]:h-auto [&_.browser-page]:overflow-visible [&_.browser-page]:bg-transparent [&_.browser-page-inner]:max-w-none [&_.browser-page-inner]:gap-6 [&_.browser-page-inner]:p-0 [&_[data-browser-extension]]:hidden [&_[data-browser-hero]]:hidden"
+				>
 					<PluginWorkspaceViewSurface
 						key={`${embedded.pluginId}:${embedded.viewId}`}
 						pluginId={embedded.pluginId}

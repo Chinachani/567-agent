@@ -80,6 +80,7 @@ describe("current browser extension setup", () => {
 			expect(screen.getByRole("button", { name: "打开安装页并启用连接" }).hasAttribute("disabled")).toBe(false),
 		);
 		const guideButton = screen.getByRole("button", { name: "安装与连接指南" });
+		expect(screen.getByText("未配置")).toBeTruthy();
 		await user.click(guideButton);
 		const guide = screen.getByRole("dialog", { name: "安装与连接指南" });
 		expect(within(guide).getAllByRole("listitem")).toHaveLength(3);
@@ -89,12 +90,13 @@ describe("current browser extension setup", () => {
 		expect(document.activeElement).toBe(guideButton);
 		expect(prepareBrowser).toHaveBeenCalledWith("chrome", "store");
 		await user.click(screen.getByText("可选：免重复授权与多浏览器配置"));
-		await user.type(screen.getByLabelText("免重复授权令牌（可选）"), "test-pairing-token");
+		await user.type(screen.getByLabelText("免重复授权Token（可选）"), "test-pairing-token");
 		await user.type(screen.getByLabelText("浏览器用户配置目录名（可选）"), "Profile 2");
 		// A different settings surface changed another connection since the initial read.
 		config.mcpServers.later = { command: "later-connector" };
 		await user.click(screen.getByRole("button", { name: "打开安装页并启用连接" }));
 		await screen.findByRole("status");
+		expect(screen.getByText("本机已配置 · 尚未连接")).toBeTruthy();
 		expect(config.mcpServers.personal).toEqual({ command: "custom-connector", env: { USER_CONFIG: "keep" } });
 		expect(config.mcpServers.later).toEqual({ command: "later-connector" });
 		expect(config.mcpServers[CURRENT_BROWSER_SERVER_NAME]).toMatchObject({
@@ -110,7 +112,8 @@ describe("current browser extension setup", () => {
 		expect(screen.getByRole("status").textContent).toContain("请在浏览器中完成添加扩展");
 		page.unmount();
 		await openSettingsForExisting();
-		expect((screen.getByLabelText("免重复授权令牌（可选）") as HTMLInputElement).value).toBe("test-pairing-token");
+		expect(screen.getByText("本机已配置 · 尚未连接")).toBeTruthy();
+		expect((screen.getByLabelText("免重复授权Token（可选）") as HTMLInputElement).value).toBe("test-pairing-token");
 		await user.click(screen.getByRole("button", { name: "停用连接" }));
 		await waitFor(() => expect(config.mcpServers[CURRENT_BROWSER_SERVER_NAME].disabled).toBe(true));
 		expect(config.mcpServers[CURRENT_BROWSER_SERVER_NAME]).toMatchObject({
@@ -132,12 +135,12 @@ describe("current browser extension setup", () => {
 	it("keeps entered pairing values after a failed save and permits retry without duplicate writes", async () => {
 		const user = await openSettings();
 		await user.click(screen.getByText("可选：免重复授权与多浏览器配置"));
-		await user.type(screen.getByLabelText("免重复授权令牌（可选）"), "test-secret");
+		await user.type(screen.getByLabelText("免重复授权Token（可选）"), "test-secret");
 		set.mockRejectedValueOnce(new Error("external error containing test-secret"));
 		await user.click(screen.getByRole("button", { name: "打开安装页并启用连接" }));
 		expect((await screen.findByRole("alert")).textContent).toBe("未能保存连接设置，你填写的内容已保留。");
 		expect(screen.getByRole("alert").textContent).not.toContain("test-secret");
-		expect((screen.getByLabelText("免重复授权令牌（可选）") as HTMLInputElement).value).toBe("test-secret");
+		expect((screen.getByLabelText("免重复授权Token（可选）") as HTMLInputElement).value).toBe("test-secret");
 		let finishSave!: () => void;
 		set.mockImplementationOnce(async (next: McpConfigData) => {
 			await new Promise<void>((resolve) => {
@@ -276,7 +279,7 @@ it("keeps custom destinations intact while saving pairing settings", async () =>
 	await openSettingsForExisting();
 	expect(screen.getByRole("button", { name: "目标浏览器" }).textContent).toContain("保留自定义目标");
 	await user.click(screen.getByText("可选：免重复授权与多浏览器配置"));
-	await user.type(screen.getByLabelText("免重复授权令牌（可选）"), "pair-token");
+	await user.type(screen.getByLabelText("免重复授权Token（可选）"), "pair-token");
 	await user.click(screen.getByRole("button", { name: "保存高级设置" }));
 	await screen.findByRole("status");
 	expect(config.mcpServers[CURRENT_BROWSER_SERVER_NAME]).toMatchObject({ args });

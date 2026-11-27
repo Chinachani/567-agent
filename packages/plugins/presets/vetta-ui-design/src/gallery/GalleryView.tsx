@@ -1,5 +1,5 @@
 import { useTranslation } from "@vetta-org/plugin-sdk";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "../canvas/ConfirmDialog";
 import { SHARE_EXTENSION, SHARE_PREVIEW_EXTENSIONS } from "../export/share-format";
 import { refreshDesignCatalog, useCatalogState } from "../design-systems/index";
@@ -15,7 +15,6 @@ import { GalleryCard } from "./GalleryCard";
 import { GalleryHero } from "./GalleryHero";
 import { GalleryToolbarLeft, GalleryToolbarRight } from "./GalleryToolbar";
 import { GalleryCardSkeleton } from "./GalleryCardSkeleton";
-import { GalleryScrollProgress } from "./GalleryScrollProgress";
 import { SectionHeader } from "./SectionHeader";
 import { hasMoreProjects, homeVisibleCount, PROJECT_GRID_CLASS } from "./gallery-layout";
 import { useGalleryColumns } from "./use-gallery-columns";
@@ -63,13 +62,18 @@ export function GalleryView() {
 	const [dragging, setDragging] = useState(false);
 	const [archiveTarget, setArchiveTarget] = useState<GalleryCardData | null>(null);
 	const galleryScrollRef = useRef<HTMLDivElement | null>(null);
-	const galleryContentRef = useRef<HTMLDivElement | null>(null);
+	const galleryToolbarRef = useRef<HTMLDivElement | null>(null);
+	const homeScrollTop = useRef(0);
 	const { systems } = useCatalogState();
 	/** 右键菜单的定位基准：菜单是这个容器的 absolute 子节点。 */
 	const rootRef = useRef<HTMLDivElement | null>(null);
 	/** Hero 的「逛逛风格库」滚动目标。 */
 	const stylesRef = useRef<HTMLDivElement | null>(null);
 	const loadAbortRef = useRef<AbortController | null>(null);
+	useLayoutEffect(() => {
+		const scroll = galleryScrollRef.current;
+		if (scroll) scroll.scrollTop = view === "home" ? homeScrollTop.current : 0;
+	}, [view]);
 
 	const refresh = useCallback(
 		async (options?: { forceCatalog?: boolean }) => {
@@ -246,6 +250,10 @@ export function GalleryView() {
 		() => [...new Set(systems.map((system) => system.category))].sort((a, b) => a.localeCompare(b)),
 		[systems],
 	);
+	const matchingStyleCount = useMemo(
+		() => filterDesignSystems(systems, keyword, styleCategory).length,
+		[systems, keyword, styleCategory],
+	);
 	const designCount = useMemo(() => cards.reduce((total, card) => total + card.designs.length, 0), [cards]);
 	const initialLoading = loading && snapshot === null;
 	const empty = !loading && (snapshot?.cards.length ?? 0) === 0;
@@ -273,9 +281,7 @@ export function GalleryView() {
 	 * 页头接管。两种页面状态都保留宿主正常占位，防止滚动内容被账户区和窗口控件盖住；
 	 * 「全部设计」列表页在页头只放返回和计数，搜索/筛选固定在滚动内容顶部。
 	 *
-	 * 刻意不写依赖数组——节点闭包着 keyword / loading / busy 等每次渲染都可能变的
-	 * 状态，漏一个依赖就会让页头里的搜索框停在旧值上。写入是幂等的 store.set，
-	 * 且页头不会反过来触发本组件重渲染，不存在循环。
+	 * 列表的计数和按钮状态随搜索、加载和导入变化。
 	 */
 	useEffect(() => {
 		if (view !== "projects") {
@@ -296,7 +302,7 @@ export function GalleryView() {
 				/>
 			),
 		});
-	});
+	}, [busy, cards.length, loading, onPickImport, refresh, view]);
 
 	// 离开画廊就把页头还给宿主（否则切到别的页面还挂着已卸载组件的节点）。
 	useEffect(() => () => getPluginCtx().ui.setWorkspaceViewHeader(GALLERY_VIEW_ID, null), []);
@@ -312,7 +318,17 @@ export function GalleryView() {
 			onRefresh={() => void refresh({ forceCatalog: true })}
 			onImport={() => void onPickImport()}
 			onCreate={() => setCreating(true)}
-			onBrowseStyles={() => stylesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+			onBrowseStyles={() => {
+				const scroll = galleryScrollRef.current;
+				const styles = stylesRef.current;
+				if (!scroll || !styles) return;
+				const toolbarHeight = galleryToolbarRef.current?.offsetHeight ?? 0;
+				const top = styles.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop;
+				scroll.scrollTo({
+					top: top - toolbarHeight - 12,
+					behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+				});
+			}}
 		/>
 	);
 
@@ -333,54 +349,56 @@ export function GalleryView() {
 			onDrop={onDrop}
 		>
 			<div
-				id="design-gallery-scroll"
 				ref={galleryScrollRef}
-				className="vetd-gallery-scroll flex-1 overflow-y-auto overflow-x-hidden px-5 pb-8"
+				className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-background px-5 pb-8"
 			>
-				<div ref={galleryContentRef}>
-					<div className="sticky top-0 z-30 -mx-5 mb-5 flex flex-wrap items-center gap-2 border-b border-border/70 bg-background/90 px-5 py-3 pr-7 shadow-sm backdrop-blur-md">
-						<div className="relative min-w-[180px] flex-1 sm:max-w-sm sm:flex-none">
-							<svg
-								viewBox="0 0 24 24"
-								className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-								fill="none"
-								stroke="currentColor"
-								strokeWidth="2"
-								aria-hidden
-							>
-								<circle cx="11" cy="11" r="7" />
-								<path d="M20 20l-3.5-3.5" strokeLinecap="round" />
-							</svg>
-							<input
-								value={keyword}
-								onChange={(event) => setKeyword(event.target.value)}
-								placeholder={t("gallery.search")}
-								aria-label={t("gallery.search")}
-								className="h-9 w-full rounded-xl border border-border/70 bg-card/80 pl-9 pr-3 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
-							/>
-						</div>
-						{view === "home" ? (
-							<select
-								value={styleCategory}
-								onChange={(event) => setStyleCategory(event.target.value)}
-								aria-label={t("gallery.filter.category")}
-								className="h-9 min-w-32 rounded-xl border border-border/70 bg-card/80 px-3 text-xs text-foreground outline-none focus:border-primary"
-							>
-								<option value="all">{t("gallery.filter.allCategories")}</option>
-								{styleCategories.map((category) => (
-									<option key={category} value={category}>
-										{designSystemCategoryLabel({ category }, t)}
-									</option>
-								))}
-							</select>
-						) : null}
-						<div className="flex-1" />
-						<span className="text-[11px] tabular-nums text-muted-foreground">
-							{view === "home"
-								? t("gallery.styles.count", { count: filterDesignSystems(systems, keyword, styleCategory).length })
-								: t("gallery.count", { count: cards.length })}
-						</span>
+				{view === "home" ? hero : null}
+				<div
+					ref={galleryToolbarRef}
+					className="sticky top-0 z-30 -mx-5 flex flex-wrap items-center gap-2 bg-background px-5 py-2.5 after:pointer-events-none after:absolute after:inset-x-0 after:top-full after:h-3 after:bg-gradient-to-b after:from-background after:to-transparent"
+				>
+					<div className="relative min-w-[180px] flex-1 sm:max-w-sm sm:flex-none">
+						<svg
+							viewBox="0 0 24 24"
+							className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2"
+							aria-hidden
+						>
+							<circle cx="11" cy="11" r="7" />
+							<path d="M20 20l-3.5-3.5" strokeLinecap="round" />
+						</svg>
+						<input
+							value={keyword}
+							onChange={(event) => setKeyword(event.target.value)}
+							placeholder={t("gallery.search")}
+							aria-label={t("gallery.search")}
+							className="h-9 w-full rounded-xl border border-border/70 bg-card/80 pl-9 pr-3 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+						/>
 					</div>
+					{view === "home" ? (
+						<select
+							value={styleCategory}
+							onChange={(event) => setStyleCategory(event.target.value)}
+							aria-label={t("gallery.filter.category")}
+							className="h-9 min-w-32 rounded-xl border border-border/70 bg-card/80 px-3 text-xs text-foreground outline-none focus:border-primary"
+						>
+							<option value="all">{t("gallery.filter.allCategories")}</option>
+							{styleCategories.map((category) => (
+								<option key={category} value={category}>
+									{designSystemCategoryLabel({ category }, t)}
+								</option>
+							))}
+						</select>
+					) : null}
+					<span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
+						{view === "home"
+							? t("gallery.styles.count", { count: matchingStyleCount })
+							: t("gallery.count", { count: cards.length })}
+					</span>
+				</div>
+				<div key={view} className="vetd-gallery-view-enter pt-3">
 					{view === "projects" ? (
 						// 全部设计：整页宫格，滚动到底部自动翻页。
 						<>
@@ -392,20 +410,11 @@ export function GalleryView() {
 					) : empty ? (
 						// 空态：Hero 换一句更具引导性的副标题，风格库紧随其后当首屏主角——
 						// 点一套风格就能开工，比对着空白画布想第一句话快。
-						<>
-							{hero}
-							<div ref={stylesRef} className="scroll-mt-16">
-								<DesignSystemGrid
-									busy={busy}
-									keyword={keyword}
-									category={styleCategory}
-									onPick={setDetailSystem}
-								/>
-							</div>
-						</>
+						<div ref={stylesRef}>
+							<DesignSystemGrid busy={busy} keyword={keyword} category={styleCategory} onPick={setDetailSystem} />
+						</div>
 					) : (
 						<>
-							{hero}
 							<section>
 								<SectionHeader
 									title={t("gallery.section.mine")}
@@ -414,7 +423,10 @@ export function GalleryView() {
 										overflowing ? (
 											<button
 												type="button"
-												onClick={() => setView("projects")}
+												onClick={() => {
+													homeScrollTop.current = galleryScrollRef.current?.scrollTop ?? 0;
+													setView("projects");
+												}}
 												className="group flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
 											>
 												{t("gallery.section.more")}
@@ -448,7 +460,7 @@ export function GalleryView() {
 							) : null}
 
 							{/* 风格库排在用户自己的作品之后，同一套宫格、跟着一起滚。 */}
-							<div ref={stylesRef} className="scroll-mt-16">
+							<div ref={stylesRef}>
 								<DesignSystemGrid
 									divided
 									busy={busy}
@@ -461,12 +473,6 @@ export function GalleryView() {
 					)}
 				</div>
 			</div>
-			<GalleryScrollProgress
-				scrollRef={galleryScrollRef}
-				contentRef={galleryContentRef}
-				label={t("gallery.scroll.progress")}
-				controlsId="design-gallery-scroll"
-			/>
 
 			{menu ? (
 				<CardContextMenu

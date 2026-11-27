@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * 页头接管契约。首页的工具栏长在 Hero 里，页头只收掉宿主标题（留作窗口拖拽区）；
- * 「全部设计」列表页没有 Hero，工具栏才回到页头。两种状态都不该出现「应用名 +
- * 插件顶栏」两条叠加的栏。
+ * 两个视图都在内容区提供搜索。宿主页头在「全部设计」视图提供返回和设计操作。
  */
 
 vi.mock("@vetta-org/plugin-sdk", () => {
@@ -124,12 +122,13 @@ describe("画廊与宿主页头", () => {
 		act(() => root.unmount());
 	});
 
-	it("首页的搜索框长在 Hero 里，并驱动画廊过滤", async () => {
+	it("首页先展示标题，再展示能过滤设计的搜索栏", async () => {
 		await mountGallery();
 		expect(host.querySelectorAll("[data-card]")).toHaveLength(3);
 
 		const input = host.querySelector<HTMLInputElement>('input[aria-label="gallery.search"]');
 		expect(input).not.toBeNull();
+		expect(Boolean(host.querySelector("h1")?.compareDocumentPosition(input!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
 		await act(async () => {
 			const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
 			setter?.call(input, "alpha");
@@ -141,8 +140,10 @@ describe("画廊与宿主页头", () => {
 		act(() => root.unmount());
 	});
 
-	it("进「全部设计」后工具栏回到页头", async () => {
+	it("切换到全部设计时归位，返回首页时恢复滚动位置", async () => {
 		await mountGallery();
+		const scroll = host.querySelector<HTMLDivElement>(".overflow-y-auto")!;
+		scroll.scrollTop = 120;
 
 		const more = [...host.querySelectorAll("button")].find((button) =>
 			button.textContent?.includes("gallery.section.more"),
@@ -152,6 +153,7 @@ describe("画廊与宿主页头", () => {
 			more?.click();
 		});
 		await renderHostHeader();
+		expect(scroll.scrollTop).toBe(0);
 
 		const header = lastHeader();
 		expect(header?.hideTitle).toBe(true);
@@ -161,6 +163,9 @@ describe("画廊与宿主页头", () => {
 		expect(header?.right).toBeTruthy();
 		expect(headerHost.querySelector('input[aria-label="gallery.search"]')).toBeNull();
 		expect(host.querySelector('input[aria-label="gallery.search"]')).not.toBeNull();
+		scroll.scrollTop = 60;
+		await act(async () => headerHost.querySelector("button")?.click());
+		expect(scroll.scrollTop).toBe(120);
 		act(() => root.unmount());
 	});
 

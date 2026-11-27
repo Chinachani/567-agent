@@ -78,9 +78,8 @@ export function CommandPanelView({
 						// bottom 压过 100% 那 1px：底下正对着卡片的上描边（展开态置成透明，见
 						// InputBarView），那 1px 不被盖住时会在接缝上留一条贯穿全宽的细线，
 						// 两块面看着是被切开的。命令区自己的底边无描边，压下去正好补平。
-						// 不写描边色：缺省吃 base 层的 `* { border-border }`，聚焦态由 className
-						// 传 `border-primary/20` 覆盖，和输入卡片一起亮，否则接缝上下两截颜色不一样。
-						"absolute -inset-x-[var(--hairline,1px)] bottom-[calc(100%-var(--hairline,1px))] z-10 overflow-hidden rounded-t-[20px] border border-b-0 bg-input-bar-bg transition-[border-color] duration-200",
+						// 输入卡片传入与自身一致的描边色，让展开区与编辑区共用一圈焦点描边。
+						"absolute -inset-x-[var(--hairline,1px)] bottom-[calc(100%-var(--hairline,1px))] z-10 overflow-hidden rounded-t-2xl border border-b-0 bg-input-bar-bg transition-[border-color] duration-200",
 						className,
 					]
 						.filter(Boolean)

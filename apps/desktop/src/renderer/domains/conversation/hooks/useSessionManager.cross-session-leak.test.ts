@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import type { HistoryEntry } from "@567agent/runtime-core";
 import { getDefaultStore } from "jotai";
 import { act, createElement, Fragment } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -106,7 +107,7 @@ function toolPhases(messages: readonly ChatConversationItem[]): string[] {
 	return phases;
 }
 
-it("会话 A 仍在流式输出时新建会话 B，A 的事件不得写进 B 的消息流", { timeout: 30_000 }, async () => {
+it("从会话 A 新建会话 B 时，丢弃 A 的迟到流式事件和历史刷新", { timeout: 30_000 }, async () => {
 	const { activeSessionAtom, chatMessagesAtom, inputValueAtom } = await import("../../../shared/store/chat-atoms");
 	const { useSessionManager } = await import("./useSessionManager");
 	const store = getDefaultStore();
@@ -131,7 +132,7 @@ it("会话 A 仍在流式输出时新建会话 B，A 的事件不得写进 B 的
 			sessionId: config.sessionPath === sessionAPath ? "runtime-a" : "runtime-b",
 			sessionPath: config.sessionPath === sessionAPath ? sessionAPath : "C:\\sessions\\b.jsonl",
 		})),
-		getFullHistory: vi.fn(async () => []),
+		getFullHistory: vi.fn(async (): Promise<HistoryEntry[]> => []),
 		openViewer: vi.fn(async () => ({ history: [] })),
 		getQueueState: vi.fn(async () => ({ paused: false, entries: [] })),
 		getSessionPath: vi.fn(async (sessionId: string) =>
@@ -186,6 +187,15 @@ it("会话 A 仍在流式输出时新建会话 B，A 的事件不得写进 B 的
 		await rootLayoutManager?.openSession(cwd, sessionAPath);
 	});
 	expect(handlers.has("runtime-a")).toBe(true);
+	let finishOldHistory!: (history: HistoryEntry[]) => void;
+	sessionApi.getFullHistory.mockImplementationOnce(
+		() =>
+			new Promise((resolve) => {
+				finishOldHistory = resolve;
+			}),
+	);
+	const oldHandler = handlers.get("runtime-a");
+	act(() => oldHandler?.({ type: "session.lifecycle", phase: "aborted", timestamp: 3 }));
 
 	// 新会话页发起会话 B：create 暂不 resolve，停在「预处理等待」窗口内。
 	let resolveCreate: (() => void) | undefined;
@@ -245,4 +255,12 @@ it("会话 A 仍在流式输出时新建会话 B，A 的事件不得写进 B 的
 		pumpFrames();
 		await opening;
 	});
+	expect(store.get(activeSessionAtom)?.runtimeId).toBe("runtime-b");
+	const secondMessages = store.get(chatMessagesAtom);
+	await act(async () => {
+		finishOldHistory([
+			{ type: "message", entryId: "late-history", message: { role: "user", content: "A 的历史", timestamp: 3 } },
+		]);
+	});
+	expect(store.get(chatMessagesAtom)).toBe(secondMessages);
 });

@@ -1,13 +1,29 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import type { AgentProfile, AgentTeamDocument } from "@567agent/agent-team";
+import { codingAgentSessionShardPath } from "@567agent/coding-agent/bootstrap";
 import { type RuntimeHost, runtimeError } from "@567agent/runtime-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ManagedWorktreeRecord } from "../../shared/project-collaboration.js";
+import { resolveDesktopSessionOpenTarget } from "../../shared/session-access.js";
+import { ManagedWorktreeService } from "../project-collaboration/worktree-service.js";
 import { onConversationListChanged } from "./conversation-list-events.js";
 import type { ConversationOwnershipCatalogPort } from "./conversation-ownership-catalog.js";
 import { type DesktopConversationError, DesktopConversationService } from "./desktop-conversation-service.js";
 import { readSessionAgentBinding, recordSessionAgentBinding } from "./session-agent-binding-store.js";
+
+const managedProject = vi.hoisted(() => ({ path: "" }));
+
+vi.mock("../config/desktop-config-store.js", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../config/desktop-config-store.js")>()),
+	readDesktopConfig: async () => ({
+		projects: managedProject.path ? [{ path: managedProject.path }] : [],
+		archivedProjects: [],
+	}),
+}));
 
 vi.mock("../logger.js", () => ({
 	getAppLogger: () => ({
@@ -71,10 +87,124 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 afterEach(async () => {
+	managedProject.path = "";
+	vi.unstubAllEnvs();
 	await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
 describe("DesktopConversationService session access", () => {
+	it("places managed sessions in the parent history and preserves read-only access after a safe removal", async () => {
+		const root = await realpath(await createTemporaryRoot());
+		vi.stubEnv("AGENT567_HOME", root);
+		vi.stubEnv("AGENT567_CODING_AGENT_DIR", join(root, "agent"));
+		const project = join(root, "project");
+		managedProject.path = project;
+		await mkdir(project);
+		const git = async (cwd: string, ...args: string[]) =>
+			(await promisify(execFile)("git", args, { cwd })).stdout.trim();
+		await git(project, "init", "--quiet");
+		await writeFile(join(project, "notes.txt"), "committed\n");
+		await git(project, "add", "notes.txt");
+		const tree = await git(project, "write-tree");
+		const head = await git(
+			project,
+			"-c",
+			"user.name=Fixture",
+			"-c",
+			"user.email=fixture@example.com",
+			"commit-tree",
+			tree,
+			"-m",
+			"Fixture",
+		);
+		await git(project, "update-ref", "HEAD", head);
+		await writeFile(join(project, "notes.txt"), "source edits\n");
+
+		const turn = deferred<{ status: "completed" }>();
+		const sessions: { id: string; path: string; cwd: string }[] = [];
+		const runtime = {
+			createSession: vi.fn(
+				async ({ cwd, sessionDir, sessionPath }: { cwd: string; sessionDir: string; sessionPath?: string }) => {
+					const existing = sessions.find(({ path }) => path === sessionPath);
+					if (existing) return { sessionId: existing.id };
+					const id = `isolated-${sessions.length + 1}`;
+					const path = join(sessionDir, `${id}.conversation.jsonl`);
+					await mkdir(sessionDir, { recursive: true });
+					await writeFile(path, `${JSON.stringify({ type: "session", cwd })}\n`);
+					sessions.push({ id, path, cwd });
+					return { sessionId: id };
+				},
+			),
+			getSessionPath: vi.fn((id: string) => sessions.find((session) => session.id === id)?.path),
+			getMessages: vi.fn(() => [{ role: "user" }]),
+			prompt: vi.fn(() => turn.promise),
+			listSessions: vi.fn(async () => sessions),
+			resolveSessionAccess: vi.fn(async () => ({ readHistory: true, resume: true, rename: true, delete: true })),
+		};
+		const service = new DesktopConversationService(runtime as unknown as RuntimeHost);
+		let records: ManagedWorktreeRecord[] = [];
+		let queued = false;
+		const worktrees = new ManagedWorktreeService({
+			read: async () => records,
+			createSession: (cwd, parent) => service.createManagedWorktreeSession(cwd, parent),
+			add: async (_project, record) => {
+				records = [...records, record];
+			},
+			forget: async (_project, record) => {
+				records = records.filter(({ path }) => path !== record.path);
+			},
+			isBusy: async () => queued,
+		});
+		expect(await worktrees.create(project)).toMatchObject({ ok: true });
+		expect(await worktrees.create(project, head)).toMatchObject({ ok: true });
+		const [first, second] = records;
+		expect(first.cwd).not.toBe(second.cwd);
+		expect(dirname(first.sessionPath)).toBe(codingAgentSessionShardPath(project));
+		await writeFile(join(second.cwd, "notes.txt"), "second worktree only\n");
+		expect(await readFile(join(first.cwd, "notes.txt"), "utf8")).toBe("committed\n");
+		expect(await readFile(join(project, "notes.txt"), "utf8")).toBe("source edits\n");
+		expect(await worktrees.remove(project, second.path)).toEqual({
+			ok: false,
+			error: { code: "worktree-dirty", changedPreview: ["notes.txt"] },
+		});
+		expect(await service.openSession(first.sessionPath, "full-access", "interactive")).toMatchObject({
+			sessionId: first.sessionId,
+			cwd: first.cwd,
+			listCwd: project,
+		});
+		const prompt = service.promptInteractiveSession(first.sessionId, { text: "Use isolated workspace" });
+		try {
+			await vi.waitFor(() => expect(runtime.prompt).toHaveBeenCalledTimes(1));
+			expect(await worktrees.remove(project, first.path)).toMatchObject({
+				ok: false,
+				error: { code: "worktree-in-use" },
+			});
+		} finally {
+			turn.resolve({ status: "completed" });
+			await prompt;
+		}
+		queued = true;
+		expect(await worktrees.remove(project, first.path)).toMatchObject({
+			ok: false,
+			error: { code: "worktree-in-use" },
+		});
+		queued = false;
+		expect(await worktrees.remove(project, first.path)).toMatchObject({ ok: true });
+		const list = await service.listSessions(project);
+		expect(resolveDesktopSessionOpenTarget(list.find(({ id }) => id === first.sessionId)!.access)).toBe("viewer");
+		expect(resolveDesktopSessionOpenTarget(list.find(({ id }) => id === second.sessionId)!.access)).toBe(
+			"interactive",
+		);
+		await expect(service.openSession(first.sessionPath, "full-access", "interactive")).rejects.toMatchObject({
+			code: "SESSION_READ_ONLY",
+		});
+		await expect(service.promptInteractiveSession(first.sessionId, { text: "Stale tab" })).rejects.toThrow(
+			/no longer available/,
+		);
+		await expect(realpath(first.cwd)).rejects.toMatchObject({ code: "ENOENT" });
+		expect(await readFile(first.sessionPath, "utf8")).toContain(first.cwd.replaceAll("\\", "\\\\"));
+	}, 15_000);
+
 	it("creates a session and sends the first message with Windows sandbox fallback", async () => {
 		const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
 		const cwd = await createTemporaryRoot();

@@ -577,7 +577,13 @@ Every `AssistantMessage` includes a `stopReason` field that indicates how the ge
 
 ## Error Handling
 
-Provider transports make one request by default and surface the first failure to the caller. Applications that own retry UI, error classification, backoff, and cancellation can therefore keep a single retry policy. A caller that intentionally wants transport-local retries can opt in with `maxRetries`:
+The registered streaming entry points default to 120 seconds to reach model output or a terminal event, including connection setup, and 90 seconds between events once output starts. A timeout aborts the current request. The error event retains available partial output and usage. Set `firstEventTimeoutMs` or `idleEventTimeoutMs` to `0` to disable the corresponding deadline.
+
+The stream can repeat a recognized empty response once, after a 250 ms wait, when the provider reported no output, tool events or usage. `emptyResponseRetries` and `emptyResponseBackoffMs` control this behavior. A metered response, a token-limit stop, or a tool call remains with the original attempt. Request-level failures before output continue through the application's retry policy.
+
+When Anthropic Messages, Claude on Bedrock Converse, Gemini (Developer API, Vertex AI, and Cloud Code Assist), or OpenAI, Azure, or Codex Responses explicitly rejects replayed signatures before any output or usage, the registered stream can submit one repaired request. It omits the older signatures for that model and keeps the conversation text and tool history. Gemini 3's first unsigned function call in a parallel group uses Google's documented replay sentinel. The successful reply carries `signedReasoningReset` so later calls with that message in history keep the repaired prefix and include any new reasoning signatures.
+
+Provider SDK retries default to zero. A caller can opt in separately with `maxRetries`:
 
 ```typescript
 const response = await complete(model, context, { maxRetries: 2 });

@@ -20,4 +20,9 @@ class MarkdownSourceTest {
         val source = "<br> <span>text</span> <tool>value</tool> <content>ignored</content>"
         assertEquals(source, escapeConversationTags(source))
     }
+
+    @Test fun releaseNotesNormalizeCrLfAndTrimSurroundingWhitespace() {
+        val raw = "\r\n## What's Changed\r\n- Fix dark icon\r- Render release notes\r\n\r\n"
+        assertEquals("## What's Changed\n- Fix dark icon\n- Render release notes", normalizeReleaseNotesMarkdown(raw))
+    }
 }

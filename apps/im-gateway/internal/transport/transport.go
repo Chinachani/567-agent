@@ -82,6 +82,40 @@ type Transport interface {
 	SendAttachment(ctx context.Context, chatID string, att OutboundAttachment) (messageID string, err error)
 }
 
+// ConnectionState reports whether a transport has established its receiving
+// connection or is retrying. The host owns initial and terminal states.
+type ConnectionState string
+
+const (
+	ConnectionOnline     ConnectionState = "online"
+	ConnectionConnecting ConnectionState = "connecting"
+)
+
+type connectionObserverKey struct{}
+
+// ObserveConnection attaches an observer to one transport run.
+func ObserveConnection(ctx context.Context, report func(ConnectionState)) context.Context {
+	return context.WithValue(ctx, connectionObserverKey{}, report)
+}
+
+// ReportConnection is a no-op outside the managed host runtime.
+func ReportConnection(ctx context.Context, state ConnectionState) {
+	if report, ok := ctx.Value(connectionObserverKey{}).(func(ConnectionState)); ok && ctx.Err() == nil {
+		report(state)
+	}
+}
+
+// ObservesConnection lets SDK adapters install lifecycle observers only in host mode.
+func ObservesConnection(ctx context.Context) bool {
+	return ctx.Value(connectionObserverKey{}) != nil
+}
+
+// ChatResolver lets an aggregate bind a turn to the channel that owns its
+// scoped chat ID, so the bridge uses that channel's native ID and capabilities.
+type ChatResolver interface {
+	ResolveChat(chatID string) (Transport, string, error)
+}
+
 // Reactor is the optional emoji-reaction extension of Transport. It is a
 // separate interface (asserted via type switch, never added to Transport
 // itself) so that adding reaction support does not break every existing

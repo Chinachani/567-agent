@@ -28,10 +28,13 @@ vi.mock("@shared/components/ModelSelect/useModelOptions", () => {
 		option("cli-proxy-api.responses", "gpt-5.5"),
 		option("cli-proxy-api.google", "gemini-3.1-flash-image"),
 		option("openai", "gpt-image-2"),
+		option("567api_image", "nano-banana-2.1"),
+		option("567api_image", "seedream-v5.5"),
 	];
 	return {
 		useModelOptions: () => ({
 			options,
+			imageOnlyKeys: new Set(["567api_image/nano-banana-2.1", "567api_image/seedream-v5.5"]),
 			grouped: new Map([["cli-proxy-api.google", options]]),
 			defaultKey: undefined,
 			iconFor: () => undefined,
@@ -72,4 +75,13 @@ it("hides pure image generation models from the conversation picker", () => {
 		"gpt-5.5",
 	]);
 	expect(isImageGenerationModel({ provider: "openai", modelId: "gpt-image-2", displayName: "GPT Image 2", key: "openai/gpt-image-2" })).toBe(true);
+});
+
+
+it("replaces a saved drawing model with a conversational default", () => {
+	const store = createStore();
+	store.set(selectedModelAtom, "567api_image/seedream-v5.5");
+	const wrapper = ({ children }: { children: ReactNode }) => <Provider store={store}>{children}</Provider>;
+	renderHook(() => useModelSelectorModel({ updateActiveSession: false }), { wrapper });
+	expect(store.get(selectedModelAtom)).toBe("cli-proxy-api.google/gemini-3.8-flash-high");
 });

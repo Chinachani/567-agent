@@ -1,6 +1,5 @@
 import { readCommandResourcePolicy } from "../coding/host/command-resource-policy.js";
 import { spawnGuardedCommand } from "../coding/host/guarded-command-process.js";
-import { killNodeProcessTree } from "../coding/host/process-tree.js";
 
 export interface NodeCommandExecutionOptions {
 	readonly signal?: AbortSignal;
@@ -46,33 +45,35 @@ export function createNodeCommandExecutor(): NodeCommandExecutor {
 					if (settled) return;
 					settled = true;
 					if (timeoutHandle) clearTimeout(timeoutHandle);
-					options?.signal?.removeEventListener("abort", stop);
+					options?.signal?.removeEventListener("abort", onAbort);
 					resolve({ stdout, stderr, code, killed });
 				};
 
-				const stop = (): void => {
-					if (settled) return;
+				const stop = (force = false): void => {
+					if (settled || killed) return;
 					killed = true;
-					if (child.pid) killNodeProcessTree(child.pid);
-					else child.kill("SIGKILL");
-					child.stdout?.destroy();
-					child.stderr?.destroy();
-					finish(143);
+					void child.stopTree({ force }).finally(() => {
+						child.stdout?.destroy();
+						child.stderr?.destroy();
+						finish(143);
+					});
 				};
+				const onAbort = (): void => stop();
 				const append = (data: Buffer, stream: "stdout" | "stderr"): void => {
-					if (settled) return;
+					if (settled || killed) return;
 					outputBytes += data.byteLength;
 					if (outputBytes > outputLimit) {
 						stderr += "\nCommand output limit exceeded\n";
-						stop();
+						stop(true);
 						return;
 					}
 					if (stream === "stdout") stdout += data.toString();
 					else stderr += data.toString();
 				};
 				if (options?.signal?.aborted) stop();
-				else options?.signal?.addEventListener("abort", stop, { once: true });
-				if (!settled && options?.timeout && options.timeout > 0) timeoutHandle = setTimeout(stop, options.timeout);
+				else options?.signal?.addEventListener("abort", onAbort, { once: true });
+				if (!killed && options?.timeout && options.timeout > 0)
+					timeoutHandle = setTimeout(onAbort, options.timeout);
 				child.stdout?.on("data", (data: Buffer) => {
 					append(data, "stdout");
 				});
@@ -80,13 +81,13 @@ export function createNodeCommandExecutor(): NodeCommandExecutor {
 					append(data, "stderr");
 				});
 				child.once("close", (code, signal) => {
+					if (killed) return;
 					killed ||= signal !== null;
 					finish(code ?? 1);
 				});
 				child.once("error", (error) => {
-					if (settled) return;
+					if (settled || killed) return;
 					stderr += `\n${error.message}\n`;
-					if (child.pid) killNodeProcessTree(child.pid);
 					child.stdout?.destroy();
 					child.stderr?.destroy();
 					finish(1);

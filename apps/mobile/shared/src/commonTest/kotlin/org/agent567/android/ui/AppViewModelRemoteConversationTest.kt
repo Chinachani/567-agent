@@ -39,6 +39,7 @@ import org.agent567.android.domain.session.ConversationOrigin
 import org.agent567.android.domain.session.LocalMessage
 import org.agent567.android.domain.session.MessageStatus
 import org.agent567.android.domain.session.PendingQuestion
+import org.agent567.android.domain.session.PendingRemoteTurn
 import org.agent567.android.ui.i18n.Str
 import org.agent567.android.ui.navigation.AppRoute
 import org.agent567.android.ui.navigation.ChatSurface
@@ -393,6 +394,85 @@ class AppViewModelRemoteConversationTest {
         }
 
     @Test
+    fun pendingRemoteTurnIsRecoveredAfterViewModelRecreationWithoutResendingPrompt() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway().apply {
+                recoveryEvents = listOf(
+                    ChatStreamEvent.Snapshot("已收到，正在继续", emptyList(), null, "running", null),
+                    ChatStreamEvent.State("completed"),
+                    ChatStreamEvent.Done,
+                )
+            }
+            val settings = MapSettings()
+            val store = SettingsSessionStore(settings, dispatcher)
+            val session = store.createSession(
+                title = "待恢复",
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = "desktop-1",
+                remoteSessionId = "remote-session",
+            )
+            val pending = PendingRemoteTurn("turn-1", "desktop-1", "remote-session", "assistant-1", 2)
+            store.updateSession(session.copy(pendingRemoteTurn = pending))
+            store.upsertMessage(LocalMessage("user-1", session.id, ChatRole.User, "执行任务", MessageStatus.Complete, 1))
+            store.upsertMessage(LocalMessage("assistant-1", session.id, ChatRole.Assistant, "", MessageStatus.Aborted, 2))
+            val appContainer = AppContainer(
+                preferences = AppPreferences(settings),
+                tokenStore = InMemoryTokenStore(),
+                sessionStore = store,
+                remoteConversationGateway = gateway,
+            )
+            val viewModel = AppViewModel(appContainer)
+            advanceUntilIdle()
+
+            viewModel.openChat(session.id, ChatSurface.Desktop, session.title, "desktop-1")
+            advanceUntilIdle()
+
+            assertEquals(1, gateway.recoverCalls.size)
+            assertTrue(gateway.streamCalls.isEmpty())
+            assertEquals("turn-1", gateway.recoverCalls.single().turnId)
+            assertEquals("已收到，正在继续", store.getMessages(session.id).last().content)
+            assertEquals(MessageStatus.Complete, store.getMessages(session.id).last().status)
+            assertEquals(null, store.getSession(session.id)?.pendingRemoteTurn)
+        }
+
+    @Test
+    fun unconfirmedRemoteTurnStaysPendingUntilUserCancels() =
+        runTest(dispatcher) {
+            val gateway = FakeRemoteConversationGateway().apply {
+                recoveryError = RemoteConversationException("电脑未找到本次任务的恢复记录，请先查看电脑会话结果再决定是否重试")
+            }
+            val settings = MapSettings()
+            val store = SettingsSessionStore(settings, dispatcher)
+            val session = store.createSession(
+                title = "待确认",
+                origin = ConversationOrigin.Desktop,
+                remoteDeviceId = "desktop-1",
+                remoteSessionId = "remote-session",
+            )
+            val pending = PendingRemoteTurn("turn-2", "desktop-1", "remote-session", "assistant-2", 2)
+            store.updateSession(session.copy(pendingRemoteTurn = pending))
+            store.upsertMessage(LocalMessage("assistant-2", session.id, ChatRole.Assistant, "", MessageStatus.Aborted, 2))
+            val viewModel = AppViewModel(
+                AppContainer(
+                    preferences = AppPreferences(settings),
+                    tokenStore = InMemoryTokenStore(),
+                    sessionStore = store,
+                    remoteConversationGateway = gateway,
+                ),
+            )
+            advanceUntilIdle()
+            viewModel.openChat(session.id, ChatSurface.Desktop, session.title, "desktop-1")
+            advanceUntilIdle()
+
+            assertEquals(Str.remoteTurnUnconfirmedTitle, viewModel.state.value.chatError?.title)
+            assertEquals(pending, store.getSession(session.id)?.pendingRemoteTurn)
+            viewModel.cancelPendingRemoteTurn()
+            advanceUntilIdle()
+            assertEquals(null, store.getSession(session.id)?.pendingRemoteTurn)
+            assertEquals(listOf("desktop-1"), gateway.aborted)
+        }
+
+    @Test
     fun unavailableDeviceDoesNotCreateMisleadingSession() =
         runTest(dispatcher) {
             val gateway = FakeRemoteConversationGateway()
@@ -715,6 +795,7 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
             ),
         )
     val streamCalls = mutableListOf<StreamCall>()
+    val recoverCalls = mutableListOf<RecoverCall>()
     val respondCalls = mutableListOf<RespondCall>()
     val aborted = mutableListOf<String>()
     var streamEvents: List<ChatStreamEvent> =
@@ -732,6 +813,8 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
     var pendingDesktopHistory: CompletableDeferred<List<RemoteDesktopHistoryMessage>>? = null
     var desktopSessions: List<RemoteDesktopSessionSummary> = emptyList()
     var deletionFails = false
+    var recoveryEvents: List<ChatStreamEvent> = emptyList()
+    var recoveryError: Throwable? = null
 
     override suspend fun deleteDesktopSession(deviceId: String, remoteSessionId: String): Boolean {
         if (deletionFails) throw RemoteConversationException("Computer is offline")
@@ -794,6 +877,17 @@ private class FakeRemoteConversationGateway : RemoteConversationGateway {
 
     override fun resolvedRemoteSessionId(localSessionId: String): String? = "remote-$localSessionId"
 
+    override fun recoverRemoteTurn(
+        localSessionId: String,
+        deviceId: String,
+        remoteSessionId: String,
+        turnId: String,
+    ): Flow<ChatStreamEvent> = flow {
+        recoverCalls += RecoverCall(deviceId, remoteSessionId, turnId)
+        recoveryError?.let { throw it }
+        recoveryEvents.forEach { emit(it) }
+    }
+
     override suspend fun abort(localSessionId: String, deviceId: String, remoteSessionId: String?) {
         aborted += deviceId
     }
@@ -815,4 +909,10 @@ private data class RespondCall(
     val requestId: String,
     val remoteSessionId: String?,
     val answers: List<Pair<String, List<String>>>,
+)
+
+private data class RecoverCall(
+    val deviceId: String,
+    val remoteSessionId: String,
+    val turnId: String,
 )

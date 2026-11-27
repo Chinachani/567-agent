@@ -38,7 +38,7 @@ function GroupForm({ api, onBusy, onNext }: Props & { api: ReturnType<typeof use
 			if (saving.current) onBusy(false);
 		};
 	}, [onBusy]);
-	const entries = groupEntriesForSelection(availableGroups);
+	const entries = groupEntriesForSelection(availableGroups, status.activeGroup);
 	const choose = (type: "chat" | "image", current: string | undefined) => {
 		const value = draft[type] !== undefined ? (draft[type] ?? "") : (current ?? "");
 		return (

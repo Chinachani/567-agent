@@ -88,7 +88,7 @@ describe("NewSessionAgentSelector", () => {
 
 		const selectedTrigger = screen.getByRole("button", { name: "newSession.agentSelector.switchTitle" });
 		expect(within(selectedTrigger).getByText(agent.name)).toBeDefined();
-		expect(selectedTrigger.querySelectorAll("img")).toHaveLength(1);
+		expect(selectedTrigger.querySelectorAll('[data-agent-avatar="true"]')).toHaveLength(1);
 	});
 
 	it("labels the expert group without a team group", async () => {

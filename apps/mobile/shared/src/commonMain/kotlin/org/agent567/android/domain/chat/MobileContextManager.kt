@@ -52,7 +52,7 @@ class MobileContextManager(
             if (message.role == ChatRole.User) turnId = message.id
             turnId !in excluded
         }
-            .filter { it.status != MessageStatus.Error && it.status != MessageStatus.Streaming && it.hasVisualContent }
+            .filter { it.status != MessageStatus.Error && it.status != MessageStatus.Streaming && it.hasReplayableContextContent }
     }
 
     fun selectForPrompt(messages: List<LocalMessage>, context: MobileSessionContext, prompt: LocalMessage): List<LocalMessage> {

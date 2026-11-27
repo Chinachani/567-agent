@@ -104,7 +104,7 @@ export function Api567GroupsSection({ config }: { config: ModelsConfigData }): J
 		});
 	}
 
-	const availableEntries = groupEntriesForSelection(availableGroups);
+	const availableEntries = groupEntriesForSelection(availableGroups, status.activeGroup);
 	const visibleEntries = availableEntries.filter(([name, info]) =>
 		matchesSettingsSearch(query, [name, info.desc ?? "", ...(syncedGroupMap.get(name)?.models ?? [])]),
 	);

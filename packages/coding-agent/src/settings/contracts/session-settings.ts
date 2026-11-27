@@ -10,6 +10,7 @@ export interface ResolvedRetrySettings {
 	readonly maxRetries: number;
 	readonly baseDelayMs: number;
 	readonly maxDelayMs: number;
+	readonly jitterMs?: number;
 }
 
 export interface SessionSettingsPort {

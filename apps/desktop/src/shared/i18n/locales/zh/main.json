@@ -1,4 +1,14 @@
 {
+	"ssh": {
+		"pickPrivateKey": "选择 SSH 私钥",
+		"privateKeyErrors": {
+			"unreadable": "无法读取私钥，请选择可读取的文件。",
+			"tooLarge": "私钥文件超过 64 KiB，请选择较小的密钥文件。",
+			"invalid": "请选择有效的 OpenSSH 或 PEM 私钥文件。",
+			"unavailable": "这次选择的私钥已不可用，请重新选择文件。",
+			"storeFailed": "无法以私有权限保存私钥。请检查应用数据目录的访问权限后重试。"
+		}
+	},
 	"tray": {
 		"showWindow": "显示窗口",
 		"hideWindow": "隐藏窗口",
@@ -164,9 +174,9 @@
 	},
 	"api567Credentials": {
 		"destinationChanged": "推理请求的服务地址发生变化，已停止发送。请重新选择模型后重试。",
-		"listFailed": "无法读取账号令牌列表，请稍后重试。",
-		"unmaskFailed": "无法读取现有分组密钥，请重试；不会重复创建令牌。",
-		"limitReached": "账号令牌已达上限，请在账号管理中清理不再使用的令牌后重试。",
+		"listFailed": "无法读取账号Token列表，请稍后重试。",
+		"unmaskFailed": "无法读取现有分组密钥，请重试；不会重复创建Token。",
+		"limitReached": "账号Token已达上限，请在账号管理中清理不再使用的Token后重试。",
 		"createFailed": "未能获取该分组的专属密钥，请稍后重试。"
 	},
 	"providerModels": {

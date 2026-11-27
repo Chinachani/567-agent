@@ -394,16 +394,7 @@ export const MarkdownContent = memo(function MarkdownContent({
 					if (!member) return <>{`@${handle}`}</>;
 					return (
 						<InlineTokenChip
-							iconNode={
-								member.avatar ? (
-									<img
-										src={member.avatar}
-										alt=""
-										draggable={false}
-										className="h-3 w-3 rounded-full object-cover"
-									/>
-								) : undefined
-							}
+							iconNode={<span aria-hidden="true" className="icon-[solar--user-rounded-linear] h-3 w-3 rounded-full bg-muted text-foreground" />}
 							label={`@${member.label || handle}`}
 							title={member.meta ? `${member.label || handle} · ${member.meta}` : handle}
 							tone="member"
