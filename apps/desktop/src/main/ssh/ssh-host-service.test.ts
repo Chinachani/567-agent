@@ -152,11 +152,12 @@ describe("managed SSH private keys", () => {
 			const script = `
 $ErrorActionPreference = 'Stop'
 $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
-$directory = Get-Acl -LiteralPath ([System.IO.Path]::GetDirectoryName($env:AGENT567_TEST_SSH_KEY_FILE))
+$key = $env:AGENT567_TEST_SSH_KEY_FILE
+$directory = [System.IO.Directory]::GetAccessControl([System.IO.Path]::GetDirectoryName($key))
 if (!$directory.AreAccessRulesProtected -or $directory.GetOwner($sid.GetType()).Value -ne $sid.Value) {
     throw 'The managed directory must block inherited permissions and be owned by the current user.'
 }
-foreach ($acl in @($directory, (Get-Acl -LiteralPath $env:AGENT567_TEST_SSH_KEY_FILE))) {
+foreach ($acl in @($directory, [System.IO.File]::GetAccessControl($key))) {
     $rules = @($acl.GetAccessRules($true, $true, $sid.GetType()))
     if ($rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid.Value -or $rules[0].AccessControlType -ne 'Allow') {
         throw 'The managed key and its directory must grant access only to the current user.'
