@@ -48,7 +48,7 @@ func (m *multiTransport) ResolveChat(chatID string) (transport.Transport, string
 	if current := m.byName[channel]; scoped && valid && current != nil && nativeID != "" {
 		return current, nativeID, nil
 	}
-	return nil, "", errors.New("Claw chat channel is unavailable")
+	return nil, "", errors.New("requested Claw chat channel is unavailable")
 }
 
 func (m *multiTransport) Start(ctx context.Context, handler transport.MessageHandler) error {
