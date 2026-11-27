@@ -132,7 +132,7 @@ createRoot(document.getElementById("providers")!).render(<ProvidersFixture/>);
     const themes=[...document.querySelectorAll('[role="menuitemradio"]')];
     if(themes.length!==3||themes.some(item=>{const icon=item.querySelector('[aria-hidden]'),r=item.getBoundingClientRect();return !icon||getComputedStyle(icon).maskImage==="none"||r.width<20||r.height<20}))throw Error("Theme controls or icons are not visible");
     const items=[...document.querySelectorAll('[role="menuitem"]')];
-    for(const label of ["账号与模型分组","账户额度充值","消息中心","设置","Claw","退出 567 登录"]) if(!items.some(item=>item.textContent.includes(label))) throw Error("Missing menu entry: "+label);
+    for(const label of ["账号与模型分组","账户额度充值","使用日志与统计","设置","Claw","退出 567 登录"]) if(!items.some(item=>item.textContent.includes(label))) throw Error("Missing menu entry: "+label);
     items.find(item=>item.textContent.includes("账号与模型分组")).click();await paint();
     if(!document.querySelector('[role="dialog"]')) await new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{observer.disconnect();reject(Error("Account details did not open"))},2500);
@@ -178,6 +178,11 @@ createRoot(document.getElementById("providers")!).render(<ProvidersFixture/>);
     for(const mode of ["dark","light"]) for(const width of [260,380,640,1024]) {
       window.applyLayoutTheme(mode); host.style.width=width+"px"; await paint();
       if(host.textContent.includes("$21.41")) throw Error("Duplicate account in title bar");
+      const messageCenter=host.querySelector('button[aria-label="消息中心"]');
+      if(!messageCenter) throw Error("Missing message center in title bar");
+      const bell=messageCenter.getBoundingClientRect();
+      const bellHit=document.elementFromPoint(bell.x+bell.width/2,bell.y+bell.height/2);
+      if(!messageCenter.contains(bellHit)) throw Error("Message center is obscured at width "+width);
       const controls=["最小化","最大化","关闭"].map(label=>{
         const button=host.querySelector('button[aria-label="'+label+'"]');
         if(!button) throw Error("Missing window control: "+label);

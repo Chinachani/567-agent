@@ -21,6 +21,7 @@ describe("Coding Agent session initialization profile", () => {
 		const streamFn = (() => {
 			throw new Error("not called by profile projection");
 		}) as NonNullable<CodingAgentRuntimeCompositionOptions["streamFn"]>;
+		const turnObservers = [{ id: "profile-test", observe: async () => {} }];
 		const options = {
 			...createBaseOptions(),
 			promptResourceSource,
@@ -30,6 +31,7 @@ describe("Coding Agent session initialization profile", () => {
 			createSessionHookAdapterFactories,
 			createContextRuntime,
 			streamFn,
+			turnObservers,
 			enableSubagents: false,
 			subagentMaxConcurrent: 4,
 			systemPromptAdvertisedToolNames: ["read", "write"],
@@ -77,6 +79,7 @@ describe("Coding Agent session initialization profile", () => {
 			"subagentTypeRegistry",
 			"subagentWorkspacePort",
 			"systemPromptAdvertisedToolNames",
+			"turnObservers",
 			"workspaceFacts",
 		]);
 		expect(profile.createSessionHookAdapterFactories).toBe(createSessionHookAdapterFactories);
@@ -86,6 +89,7 @@ describe("Coding Agent session initialization profile", () => {
 		expect(profile.createPluginRuntime).toBe(createPluginRuntime);
 		expect(profile.createContextRuntime).toBe(createContextRuntime);
 		expect(profile.streamFn).toBe(streamFn);
+		expect(profile.turnObservers).toBe(turnObservers);
 		expect(profile.initialModel).toBe(MODEL);
 		expect("conversationDir" in profile).toBe(false);
 		expect("mcpSource" in profile).toBe(false);
