@@ -52,11 +52,21 @@ export function createNodeCommandExecutor(): NodeCommandExecutor {
 				const stop = (force = false): void => {
 					if (settled || killed) return;
 					killed = true;
-					void child.stopTree({ force }).finally(() => {
+					const cleanupPromise = child.stopTree({ force });
+					if (process.platform === "win32") {
 						child.stdout?.destroy();
 						child.stderr?.destroy();
 						finish(143);
-					});
+						void cleanupPromise.catch(() => undefined);
+						return;
+					}
+					void cleanupPromise
+						.catch(() => undefined)
+						.finally(() => {
+							child.stdout?.destroy();
+							child.stderr?.destroy();
+							finish(143);
+						});
 				};
 				const onAbort = (): void => stop();
 				const append = (data: Buffer, stream: "stdout" | "stderr"): void => {

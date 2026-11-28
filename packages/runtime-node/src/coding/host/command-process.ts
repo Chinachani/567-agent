@@ -45,11 +45,21 @@ function runCommandProcess(
 			if (stopping) return;
 			stopping = true;
 			cleanup();
-			void child.stopTree({ force }).finally(() => {
+			const cleanupPromise = child.stopTree({ force });
+			if (process.platform === "win32") {
 				child.stdout?.destroy();
 				child.stderr?.destroy();
 				reject(error);
-			});
+				void cleanupPromise.catch(() => undefined);
+				return;
+			}
+			void cleanupPromise
+				.catch(() => undefined)
+				.finally(() => {
+					child.stdout?.destroy();
+					child.stderr?.destroy();
+					reject(error);
+				});
 		};
 		const onAbort = (): void => stop(new NodeCommandProcessAbortedError());
 		const append = (data: Buffer, target: "stdout" | "stderr"): void => {
