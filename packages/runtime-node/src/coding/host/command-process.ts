@@ -45,10 +45,11 @@ function runCommandProcess(
 			if (stopping) return;
 			stopping = true;
 			cleanup();
-			void child.stopTree({ force });
-			child.stdout?.destroy();
-			child.stderr?.destroy();
-			reject(error);
+			void child.stopTree({ force }).finally(() => {
+				child.stdout?.destroy();
+				child.stderr?.destroy();
+				reject(error);
+			});
 		};
 		const onAbort = (): void => stop(new NodeCommandProcessAbortedError());
 		const append = (data: Buffer, target: "stdout" | "stderr"): void => {
